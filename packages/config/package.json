@@ -1,0 +1,9 @@
+{
+  "name": "@crush/config",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    "./eslint": "./eslint/index.js",
+    "./prettier": "./prettier/index.js"
+  }
+}
