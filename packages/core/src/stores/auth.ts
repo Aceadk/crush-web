@@ -5,6 +5,26 @@ import { authService } from '../services/auth';
 import { userService } from '../services/user';
 import { UserProfile } from '../types/user';
 
+// Helper to set auth cookie for middleware
+const setAuthCookie = async (user: User | null) => {
+  if (typeof document === 'undefined') return;
+
+  if (user) {
+    try {
+      const token = await user.getIdToken();
+      // Set cookie with 7 day expiry, secure in production
+      const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString();
+      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `auth-token=${token}; path=/; expires=${expires}; SameSite=Lax${secure}`;
+    } catch (error) {
+      console.error('Failed to set auth cookie:', error);
+    }
+  } else {
+    // Remove cookie
+    document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  }
+};
+
 interface AuthState {
   // State
   user: User | null;
@@ -42,6 +62,9 @@ export const useAuthStore = create<AuthState>()(
 
         authService.onAuthStateChange(async (user) => {
           set({ user, loading: true });
+
+          // Set or remove auth cookie for middleware
+          await setAuthCookie(user);
 
           if (user) {
             try {
@@ -163,6 +186,8 @@ export const useAuthStore = create<AuthState>()(
             await userService.setUserOffline(user.uid);
           }
           await authService.signOut();
+          // Ensure cookie is removed
+          await setAuthCookie(null);
           set({ user: null, profile: null, loading: false });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Sign out failed';
