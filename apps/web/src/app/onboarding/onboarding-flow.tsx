@@ -293,7 +293,7 @@ export default function OnboardingFlow() {
                 <Heart className="w-12 h-12 text-white" />
               </div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                Welcome to CRUSH
+                Welcome to Crush
               </h1>
               <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">
                 Let's set up your profile to help you find meaningful connections.
@@ -370,7 +370,7 @@ export default function OnboardingFlow() {
                     max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
                     className="text-lg"
                   />
-                  <p className="text-xs text-gray-500 mt-1">You must be 18+ to use CRUSH</p>
+                  <p className="text-xs text-gray-500 mt-1">You must be 18+ to use Crush</p>
                 </div>
 
                 <div>

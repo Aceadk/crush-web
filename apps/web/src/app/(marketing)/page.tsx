@@ -13,7 +13,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between h-14">
             <Link href="/" className="flex items-center gap-2">
               <Heart className="w-6 h-6 text-primary fill-primary" />
-              <span className="text-lg font-semibold text-gradient">CRUSH</span>
+              <span className="text-lg font-semibold text-gradient">Crush</span>
             </Link>
 
             <div className="hidden md:flex items-center gap-6">
@@ -59,7 +59,7 @@ export default function HomePage() {
             </h1>
 
             <p className="text-base sm:text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              CRUSH is the dating app that focuses on meaningful connections.
+              Crush is the dating app that focuses on meaningful connections.
               Swipe, match, and chat with people who share your interests and values.
             </p>
 
@@ -104,7 +104,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3">
-              Why Choose <span className="text-gradient">CRUSH</span>?
+              Why Choose <span className="text-gradient">Crush</span>?
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
               We've designed every feature to help you find meaningful connections
@@ -158,7 +158,7 @@ export default function HomePage() {
               ctaHref="/auth/signup"
             />
             <PricingCard
-              name="CRUSH+"
+              name="Crush+"
               price="$9.99"
               period="/month"
               description="Unlock premium features"
@@ -170,7 +170,7 @@ export default function HomePage() {
                 'Advanced filters',
                 'Read receipts',
               ]}
-              ctaText="Try CRUSH+"
+              ctaText="Try Crush+"
               ctaHref="/auth/signup?plan=plus"
               highlighted
             />
@@ -183,10 +183,10 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto text-center">
           <div className="rounded-2xl border border-border bg-card p-8 sm:p-12">
             <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3">
-              Ready to Find Your <span className="text-gradient">CRUSH</span>?
+              Ready to Find Your <span className="text-gradient">Crush</span>?
             </h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-              Join millions of singles who have found love on CRUSH. Your perfect match is waiting.
+              Join millions of singles who have found love on Crush. Your perfect match is waiting.
             </p>
             <Link href="/auth/signup" className="btn-primary px-6 py-2.5">
               Create Free Account
@@ -203,7 +203,7 @@ export default function HomePage() {
             <div>
               <Link href="/" className="flex items-center gap-2 mb-4">
                 <Heart className="w-5 h-5 text-primary fill-primary" />
-                <span className="font-semibold text-gradient">CRUSH</span>
+                <span className="font-semibold text-gradient">Crush</span>
               </Link>
               <p className="text-xs text-muted-foreground">
                 Find meaningful connections with people who share your interests.
@@ -241,7 +241,7 @@ export default function HomePage() {
 
           <div className="border-t border-border pt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-xs text-muted-foreground">
-              &copy; {new Date().getFullYear()} CRUSH. All rights reserved.
+              &copy; {new Date().getFullYear()} Crush. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

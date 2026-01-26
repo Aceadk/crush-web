@@ -18,11 +18,11 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'CRUSH - Find Your Match',
-    template: '%s | CRUSH',
+    default: 'Crush - Find Your Match',
+    template: '%s | Crush',
   },
   description:
-    'CRUSH is a modern dating app designed to help you find meaningful connections. Swipe, match, and chat with people who share your interests.',
+    'Crush is a modern dating app designed to help you find meaningful connections. Swipe, match, and chat with people who share your interests.',
   keywords: [
     'dating app',
     'dating',
@@ -32,32 +32,32 @@ export const metadata: Metadata = {
     'singles',
     'meet people',
   ],
-  authors: [{ name: 'CRUSH Team' }],
-  creator: 'CRUSH',
-  publisher: 'CRUSH',
+  authors: [{ name: 'Crush Team' }],
+  creator: 'Crush',
+  publisher: 'Crush',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app'),
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: '/',
-    siteName: 'CRUSH',
-    title: 'CRUSH - Find Your Match',
+    siteName: 'Crush',
+    title: 'Crush - Find Your Match',
     description:
-      'CRUSH is a modern dating app designed to help you find meaningful connections.',
+      'Crush is a modern dating app designed to help you find meaningful connections.',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'CRUSH Dating App',
+        alt: 'Crush Dating App',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'CRUSH - Find Your Match',
+    title: 'Crush - Find Your Match',
     description:
-      'CRUSH is a modern dating app designed to help you find meaningful connections.',
+      'Crush is a modern dating app designed to help you find meaningful connections.',
     images: ['/og-image.png'],
     creator: '@crushapp',
   },

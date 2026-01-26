@@ -62,7 +62,7 @@ export function Sidebar() {
           <div className="flex items-center justify-between px-4 h-14 border-b border-sidebar-border">
             <Link href="/discover" className="flex items-center gap-2">
               <Heart className="w-6 h-6 text-primary fill-primary" />
-              <span className="text-lg font-semibold tracking-tight">CRUSH</span>
+              <span className="text-lg font-semibold tracking-tight">Crush</span>
             </Link>
 
             {isMobile && (

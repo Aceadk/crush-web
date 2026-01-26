@@ -658,7 +658,7 @@ export default function SettingsView() {
 
         {/* App version */}
         <div className="text-center text-sm text-gray-400">
-          CRUSH v1.0.0
+          Crush v1.0.0
         </div>
       </div>
 

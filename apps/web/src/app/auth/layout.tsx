@@ -20,7 +20,7 @@ export default function AuthLayout({
         <div className="relative z-10 flex flex-col justify-center px-12 text-white">
           <Link href="/" className="flex items-center gap-3 mb-8">
             <Heart className="w-12 h-12 fill-white" />
-            <span className="text-4xl font-bold tracking-tight">CRUSH</span>
+            <span className="text-4xl font-bold tracking-tight">Crush</span>
           </Link>
 
           <h1 className="text-5xl font-bold leading-tight mb-6">
@@ -58,7 +58,7 @@ export default function AuthLayout({
         <div className="lg:hidden p-6 flex justify-center">
           <Link href="/" className="flex items-center gap-2 text-primary">
             <Heart className="w-8 h-8 fill-primary" />
-            <span className="text-2xl font-bold">CRUSH</span>
+            <span className="text-2xl font-bold">Crush</span>
           </Link>
         </div>
 

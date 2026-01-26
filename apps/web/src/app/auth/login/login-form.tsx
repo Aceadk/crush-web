@@ -51,7 +51,7 @@ export default function LoginForm() {
     <Card className="border-0 shadow-lg">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to continue to CRUSH</CardDescription>
+        <CardDescription>Sign in to continue to Crush</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-6">

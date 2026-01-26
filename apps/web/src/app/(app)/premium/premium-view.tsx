@@ -146,7 +146,7 @@ export default function PremiumView() {
             You're a Premium Member!
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-8">
-            Enjoy all the benefits of CRUSH Premium
+            Enjoy all the benefits of Crush Premium
           </p>
 
           <Card className="p-6 text-left">
@@ -198,7 +198,7 @@ export default function PremiumView() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            CRUSH Premium
+            Crush Premium
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300">
             Unlock the full potential of your dating life
