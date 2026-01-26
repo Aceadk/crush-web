@@ -76,6 +76,9 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true, error: null });
         try {
           await authService.signInWithEmail(email, password);
+          // Note: onAuthStateChange will set the user and profile
+          // We set loading: false here to ensure UI doesn't hang
+          set({ loading: false });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Sign in failed';
           set({ error: message, loading: false });
@@ -95,7 +98,7 @@ export const useAuthStore = create<AuthState>()(
             displayName: displayName || '',
           });
 
-          set({ profile });
+          set({ profile, loading: false });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Sign up failed';
           set({ error: message, loading: false });
@@ -108,6 +111,7 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true, error: null });
         try {
           await authService.signInWithGoogle();
+          set({ loading: false });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Google sign in failed';
           set({ error: message, loading: false });
@@ -142,7 +146,7 @@ export const useAuthStore = create<AuthState>()(
             });
           }
 
-          set({ profile });
+          set({ profile, loading: false });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Code verification failed';
           set({ error: message, loading: false });

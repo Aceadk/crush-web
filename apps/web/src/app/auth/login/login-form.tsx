@@ -81,7 +81,7 @@ export default function LoginForm() {
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white dark:bg-gray-900 px-2 text-gray-500">
+            <span className="bg-card px-2 text-muted-foreground">
               Or continue with email
             </span>
           </div>
@@ -90,7 +90,7 @@ export default function LoginForm() {
         {/* Email form */}
         <form onSubmit={handleEmailLogin} className="space-y-4">
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type="email"
               placeholder="Email address"
@@ -102,7 +102,7 @@ export default function LoginForm() {
           </div>
 
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type={showPassword ? 'text' : 'password'}
               placeholder="Password"
@@ -114,14 +114,14 @@ export default function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
 
           {(error || validationError) && (
-            <p className="text-sm text-red-500 text-center">
+            <p className="text-sm text-destructive text-center">
               {error || validationError}
             </p>
           )}
@@ -141,7 +141,7 @@ export default function LoginForm() {
         </form>
 
         {/* Sign up link */}
-        <p className="text-center text-sm text-gray-500">
+        <p className="text-center text-sm text-muted-foreground">
           Don't have an account?{' '}
           <Link href="/auth/signup" className="text-primary hover:underline font-medium">
             Sign up
