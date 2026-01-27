@@ -4,7 +4,19 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore, useMessageStore, useMatchStore, Message } from '@crush/core';
-import { Avatar, AvatarImage, AvatarFallback, Button, Badge } from '@crush/ui';
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  Button,
+  Badge,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@crush/ui';
 import { cn } from '@crush/ui';
 import {
   ArrowLeft,
@@ -19,7 +31,7 @@ import {
   UserX,
   Trash2,
 } from 'lucide-react';
-import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 
 interface ChatRoomProps {
   matchId: string;
@@ -28,7 +40,7 @@ interface ChatRoomProps {
 export default function ChatRoom({ matchId }: ChatRoomProps) {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { matches } = useMatchStore();
+  const { matches, unmatch } = useMatchStore();
   const {
     currentConversation,
     messages,
@@ -42,16 +54,69 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
     setTyping,
     loadMoreMessages,
     closeConversation,
+    blockConversation,
   } = useMessageStore();
 
   const [inputValue, setInputValue] = useState('');
   const [showMenu, setShowMenu] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showUnmatchDialog, setShowUnmatchDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [reportReason, setReportReason] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Get match info
   const match = matches.find((m) => m.id === matchId);
+
+  // Handle report
+  const handleReport = async () => {
+    if (!user || !reportReason) return;
+    setActionLoading(true);
+    try {
+      // For now, just log the report - in production, send to backend
+      console.log('Report submitted:', { matchId, reason: reportReason, reportedBy: user.uid });
+      setShowReportDialog(false);
+      setReportReason('');
+      alert('Report submitted. Our team will review it.');
+    } catch (error) {
+      console.error('Failed to submit report:', error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle unmatch
+  const handleUnmatch = async () => {
+    if (!user) return;
+    setActionLoading(true);
+    try {
+      await unmatch(user.uid, matchId);
+      setShowUnmatchDialog(false);
+      router.push('/messages');
+    } catch (error) {
+      console.error('Failed to unmatch:', error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle delete chat (block conversation)
+  const handleDeleteChat = async () => {
+    if (!user) return;
+    setActionLoading(true);
+    try {
+      await blockConversation(user.uid);
+      setShowDeleteDialog(false);
+      router.push('/messages');
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Initialize conversation
   useEffect(() => {
@@ -214,20 +279,44 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
-                  <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      window.open('/help#safety', '_blank');
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3"
+                  >
                     <Shield className="w-4 h-4" />
                     Safety tips
                   </button>
-                  <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-amber-600">
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      setShowReportDialog(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-amber-600"
+                  >
                     <Flag className="w-4 h-4" />
                     Report
                   </button>
-                  <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-red-600">
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      setShowUnmatchDialog(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-red-600"
+                  >
                     <UserX className="w-4 h-4" />
                     Unmatch
                   </button>
                   <hr className="my-1 border-gray-200 dark:border-gray-700" />
-                  <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-red-600">
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      setShowDeleteDialog(true);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-red-600"
+                  >
                     <Trash2 className="w-4 h-4" />
                     Delete chat
                   </button>
@@ -369,6 +458,105 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
           </button>
         </div>
       </div>
+
+      {/* Report Dialog */}
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Report {match.otherUserName}</DialogTitle>
+            <DialogDescription>
+              Help us understand what happened. Your report will be reviewed by our team.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              {['Inappropriate messages', 'Fake profile', 'Spam or scam', 'Harassment', 'Other'].map((reason) => (
+                <label
+                  key={reason}
+                  className={cn(
+                    'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+                    reportReason === reason
+                      ? 'border-primary bg-primary/5'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="reportReason"
+                    value={reason}
+                    checked={reportReason === reason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="text-primary"
+                  />
+                  <span className="text-sm">{reason}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReportDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReport}
+              disabled={!reportReason || actionLoading}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {actionLoading ? 'Submitting...' : 'Submit Report'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unmatch Dialog */}
+      <Dialog open={showUnmatchDialog} onOpenChange={setShowUnmatchDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unmatch {match.otherUserName}?</DialogTitle>
+            <DialogDescription>
+              This will remove {match.otherUserName} from your matches and delete your conversation.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUnmatchDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleUnmatch}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Unmatching...' : 'Unmatch'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Chat Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this conversation?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete all messages in this conversation.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteChat}
+              disabled={actionLoading}
+            >
+              {actionLoading ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

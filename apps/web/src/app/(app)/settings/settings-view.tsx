@@ -3,8 +3,18 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuthStore, userService } from '@crush/core';
-import { Button, Card, Input } from '@crush/ui';
+import { useAuthStore, userService, authService } from '@crush/core';
+import {
+  Button,
+  Card,
+  Input,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@crush/ui';
 import { cn } from '@crush/ui';
 import {
   ArrowLeft,
@@ -124,13 +134,12 @@ function Toggle({ enabled, onChange, loading, disabled }: ToggleProps) {
 
 export default function SettingsView() {
   const router = useRouter();
-  const { user, profile, signOut, refreshProfile } = useAuthStore();
+  const { user, profile, signOut } = useAuthStore();
   const { theme, setTheme } = useTheme();
 
   // Location hook
   const {
     locationName,
-    permissionStatus,
     isPermissionDenied,
     isLoading: locationLoading,
     error: locationError,
@@ -141,7 +150,10 @@ export default function SettingsView() {
   } = useLocation({ updateProfile: true });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const [preferences, setPreferences] = useState({
     notifications: {
@@ -205,6 +217,20 @@ export default function SettingsView() {
     }
   }, [enableLocation, disableLocation]);
 
+  const handleSendPasswordReset = useCallback(async () => {
+    if (!user?.email) return;
+
+    setSendingReset(true);
+    try {
+      await authService.sendPasswordReset(user.email);
+      setResetSent(true);
+    } catch (error) {
+      console.error('Failed to send password reset:', error);
+    } finally {
+      setSendingReset(false);
+    }
+  }, [user?.email]);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
       {/* Header */}
@@ -250,7 +276,9 @@ export default function SettingsView() {
             <SettingItem
               icon={<Lock className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
               title="Change Password"
-              onClick={() => {}}
+              description={user?.email ? 'Send password reset email' : 'No email linked'}
+              onClick={() => user?.email && setShowPasswordDialog(true)}
+              disabled={!user?.email}
             />
           </div>
         </Card>
@@ -572,7 +600,7 @@ export default function SettingsView() {
               icon={<Shield className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
               title="Blocked Users"
               description="Manage blocked profiles"
-              onClick={() => {}}
+              href="/settings/blocked"
             />
           </div>
         </Card>
@@ -623,17 +651,17 @@ export default function SettingsView() {
             <SettingItem
               icon={<HelpCircle className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
               title="Help Center"
-              onClick={() => {}}
+              href="/help"
             />
             <SettingItem
               icon={<FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
               title="Terms of Service"
-              onClick={() => {}}
+              href="/terms"
             />
             <SettingItem
               icon={<Shield className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
               title="Privacy Policy"
-              onClick={() => {}}
+              href="/privacy"
             />
           </div>
         </Card>
@@ -702,6 +730,43 @@ export default function SettingsView() {
           </Card>
         </div>
       )}
+
+      {/* Password Reset Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {resetSent ? 'Email Sent!' : 'Change Password'}
+            </DialogTitle>
+            <DialogDescription>
+              {resetSent
+                ? `We've sent a password reset link to ${user?.email}. Check your inbox and follow the instructions.`
+                : `We'll send a password reset link to ${user?.email}.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            {resetSent ? (
+              <Button
+                onClick={() => {
+                  setShowPasswordDialog(false);
+                  setResetSent(false);
+                }}
+              >
+                Done
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setShowPasswordDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSendPasswordReset} disabled={sendingReset}>
+                  {sendingReset ? 'Sending...' : 'Send Reset Link'}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

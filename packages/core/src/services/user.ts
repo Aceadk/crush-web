@@ -146,6 +146,50 @@ class UserService {
   }
 
   /**
+   * Get blocked users
+   */
+  async getBlockedUsers(userId: string): Promise<{ id: string; name: string; photoUrl?: string; blockedAt: Date }[]> {
+    const db = getFirebaseDb();
+    const blockedCollection = collection(db, USERS_COLLECTION, userId, 'blocked');
+    const snapshot = await getDocs(blockedCollection);
+
+    const blockedUsers = await Promise.all(
+      snapshot.docs.map(async (blockedDoc) => {
+        const blockedUserId = blockedDoc.id;
+        const blockedData = blockedDoc.data();
+        const userProfile = await this.getUserProfile(blockedUserId);
+
+        return {
+          id: blockedUserId,
+          name: userProfile?.displayName || 'Unknown User',
+          photoUrl: userProfile?.profilePhotoUrl || userProfile?.photos?.[0],
+          blockedAt: blockedData.blockedAt?.toDate() || new Date(),
+        };
+      })
+    );
+
+    return blockedUsers;
+  }
+
+  /**
+   * Block a user
+   */
+  async blockUser(userId: string, blockedUserId: string): Promise<void> {
+    const db = getFirebaseDb();
+    await setDoc(doc(db, USERS_COLLECTION, userId, 'blocked', blockedUserId), {
+      blockedAt: serverTimestamp(),
+    });
+  }
+
+  /**
+   * Unblock a user
+   */
+  async unblockUser(userId: string, blockedUserId: string): Promise<void> {
+    const db = getFirebaseDb();
+    await deleteDoc(doc(db, USERS_COLLECTION, userId, 'blocked', blockedUserId));
+  }
+
+  /**
    * Calculate profile completeness
    */
   calculateProfileCompleteness(profile: UserProfile): number {
