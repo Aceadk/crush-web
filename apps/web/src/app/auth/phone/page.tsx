@@ -11,15 +11,28 @@ type Step = 'phone' | 'code';
 
 export default function PhoneAuthPage() {
   const router = useRouter();
-  const { startPhoneVerification, verifyPhoneCode, loading, error, clearError } = useAuthStore();
+  const { user, profile, startPhoneVerification, verifyPhoneCode, loading, error, clearError, initialized } = useAuthStore();
 
   const [step, setStep] = useState<Step>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const recaptchaContainerId = 'recaptcha-container';
+
+  // Redirect when user is authenticated
+  useEffect(() => {
+    if (initialized && user && !loading) {
+      // Check if user needs onboarding
+      if (profile && profile.onboardingComplete) {
+        router.push('/discover');
+      } else {
+        router.push('/onboarding');
+      }
+    }
+  }, [user, profile, initialized, loading, router]);
 
   useEffect(() => {
     // Focus first code input when on code step
@@ -108,9 +121,11 @@ export default function PhoneAuthPage() {
     }
 
     try {
+      setIsVerifying(true);
       await verifyPhoneCode(fullCode);
-      router.push('/onboarding');
+      // Redirect will happen via useEffect when user state updates
     } catch {
+      setIsVerifying(false);
       // Error is handled by the store
     }
   };
@@ -126,6 +141,8 @@ export default function PhoneAuthPage() {
       // Error is handled by the store
     }
   };
+
+  const isLoading = loading || isVerifying;
 
   return (
     <Card className="border-0 shadow-lg">
@@ -162,7 +179,7 @@ export default function PhoneAuthPage() {
                 value={phoneNumber}
                 onChange={handlePhoneChange}
                 className="pl-20"
-                disabled={loading}
+                disabled={isLoading}
                 maxLength={14}
               />
             </div>
@@ -173,7 +190,7 @@ export default function PhoneAuthPage() {
               </p>
             )}
 
-            <Button type="submit" className="w-full h-12" loading={loading}>
+            <Button type="submit" className="w-full h-12" loading={isLoading}>
               Send Code
               <ChevronRight className="w-5 h-5 ml-2" />
             </Button>
@@ -196,7 +213,7 @@ export default function PhoneAuthPage() {
                   onChange={(e) => handleCodeChange(index, e.target.value)}
                   onKeyDown={(e) => handleCodeKeyDown(index, e)}
                   className="w-12 h-14 text-center text-xl font-semibold border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                  disabled={loading}
+                  disabled={isLoading}
                 />
               ))}
             </div>
@@ -207,8 +224,8 @@ export default function PhoneAuthPage() {
               </p>
             )}
 
-            <Button type="submit" className="w-full h-12" loading={loading}>
-              Verify
+            <Button type="submit" className="w-full h-12" loading={isLoading}>
+              {isVerifying ? 'Verifying...' : 'Verify'}
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
@@ -217,7 +234,7 @@ export default function PhoneAuthPage() {
                 type="button"
                 onClick={handleResendCode}
                 className="text-primary hover:underline font-medium"
-                disabled={loading}
+                disabled={isLoading}
               >
                 Resend
               </button>

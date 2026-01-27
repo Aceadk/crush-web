@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'sonner';
 import { useState, type ReactNode } from 'react';
 import { ThemeProvider } from '@/shared/components/theme';
+import { AuthInitializer } from './auth-initializer';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -28,7 +29,9 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system">
-        {children}
+        <AuthInitializer>
+          {children}
+        </AuthInitializer>
         <Toaster
           position="top-center"
           toastOptions={{

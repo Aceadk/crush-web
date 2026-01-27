@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
@@ -12,12 +12,25 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/discover';
 
-  const { signInWithEmail, signInWithGoogle, loading, error, clearError } = useAuthStore();
+  const { user, profile, signInWithEmail, signInWithGoogle, loading, error, clearError, initialized } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
+  // Redirect when user is authenticated
+  useEffect(() => {
+    if (initialized && user && !loading) {
+      // Check if user needs onboarding
+      if (profile && !profile.onboardingComplete) {
+        router.push('/onboarding');
+      } else {
+        router.push(redirect);
+      }
+    }
+  }, [user, profile, initialized, loading, redirect, router]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,9 +43,11 @@ export default function LoginForm() {
     }
 
     try {
+      setIsSigningIn(true);
       await signInWithEmail(email, password);
-      router.push(redirect);
+      // Redirect will happen via useEffect when user state updates
     } catch {
+      setIsSigningIn(false);
       // Error is handled by the store
     }
   };
@@ -40,12 +55,16 @@ export default function LoginForm() {
   const handleGoogleLogin = async () => {
     clearError();
     try {
+      setIsSigningIn(true);
       await signInWithGoogle();
-      router.push(redirect);
+      // Redirect will happen via useEffect when user state updates
     } catch {
+      setIsSigningIn(false);
       // Error is handled by the store
     }
   };
+
+  const isLoading = loading || isSigningIn;
 
   return (
     <Card className="border-0 shadow-lg">
@@ -61,14 +80,14 @@ export default function LoginForm() {
             variant="outline"
             className="w-full h-12"
             onClick={handleGoogleLogin}
-            disabled={loading}
+            disabled={isLoading}
           >
             <Chrome className="w-5 h-5 mr-2" />
             Continue with Google
           </Button>
 
           <Link href="/auth/phone">
-            <Button variant="outline" className="w-full h-12">
+            <Button variant="outline" className="w-full h-12" disabled={isLoading}>
               <Phone className="w-5 h-5 mr-2" />
               Continue with Phone
             </Button>
@@ -97,7 +116,7 @@ export default function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="pl-10"
-              disabled={loading}
+              disabled={isLoading}
             />
           </div>
 
@@ -109,7 +128,7 @@ export default function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="pl-10 pr-10"
-              disabled={loading}
+              disabled={isLoading}
             />
             <button
               type="button"
@@ -135,8 +154,8 @@ export default function LoginForm() {
             </Link>
           </div>
 
-          <Button type="submit" className="w-full h-12" loading={loading}>
-            Sign In
+          <Button type="submit" className="w-full h-12" loading={isLoading}>
+            {isSigningIn ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
 

@@ -9,15 +9,12 @@ import { Skeleton } from '@crush/ui';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, profile, loading, initialized, initialize } = useAuthStore();
+  const { user, profile, loading, initialized } = useAuthStore();
   const { setIsMobile } = useUIStore();
   const { subscribeToMatches, cleanup } = useMatchStore();
   const isMobile = useIsMobile();
 
-  // Initialize auth and update mobile state
-  useEffect(() => {
-    initialize();
-  }, [initialize]);
+  // Note: Auth is initialized globally in AuthInitializer provider
 
   useEffect(() => {
     setIsMobile(isMobile);

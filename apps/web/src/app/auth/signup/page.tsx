@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
@@ -9,7 +9,7 @@ import { Mail, Lock, Eye, EyeOff, User, Chrome, Phone } from 'lucide-react';
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signUpWithEmail, signInWithGoogle, loading, error, clearError } = useAuthStore();
+  const { user, profile, signUpWithEmail, signInWithGoogle, loading, error, clearError, initialized } = useAuthStore();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -17,6 +17,20 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isSigningUp, setIsSigningUp] = useState(false);
+
+  // Redirect when user is authenticated
+  useEffect(() => {
+    if (initialized && user && !loading) {
+      // New users always go to onboarding
+      // Existing users go to discover or onboarding based on profile
+      if (profile && profile.onboardingComplete) {
+        router.push('/discover');
+      } else {
+        router.push('/onboarding');
+      }
+    }
+  }, [user, profile, initialized, loading, router]);
 
   const validateForm = () => {
     if (!name || !email || !password || !confirmPassword) {
@@ -45,9 +59,11 @@ export default function SignupPage() {
     if (!validateForm()) return;
 
     try {
+      setIsSigningUp(true);
       await signUpWithEmail(email, password, name);
-      router.push('/onboarding');
+      // Redirect will happen via useEffect when user state updates
     } catch {
+      setIsSigningUp(false);
       // Error is handled by the store
     }
   };
@@ -55,12 +71,16 @@ export default function SignupPage() {
   const handleGoogleSignup = async () => {
     clearError();
     try {
+      setIsSigningUp(true);
       await signInWithGoogle();
-      router.push('/onboarding');
+      // Redirect will happen via useEffect when user state updates
     } catch {
+      setIsSigningUp(false);
       // Error is handled by the store
     }
   };
+
+  const isLoading = loading || isSigningUp;
 
   return (
     <Card className="border-0 shadow-lg">
@@ -76,14 +96,14 @@ export default function SignupPage() {
             variant="outline"
             className="w-full h-12"
             onClick={handleGoogleSignup}
-            disabled={loading}
+            disabled={isLoading}
           >
             <Chrome className="w-5 h-5 mr-2" />
             Continue with Google
           </Button>
 
           <Link href="/auth/phone">
-            <Button variant="outline" className="w-full h-12">
+            <Button variant="outline" className="w-full h-12" disabled={isLoading}>
               <Phone className="w-5 h-5 mr-2" />
               Continue with Phone
             </Button>
@@ -112,7 +132,7 @@ export default function SignupPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="pl-10"
-              disabled={loading}
+              disabled={isLoading}
             />
           </div>
 
@@ -124,7 +144,7 @@ export default function SignupPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="pl-10"
-              disabled={loading}
+              disabled={isLoading}
             />
           </div>
 
@@ -136,7 +156,7 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="pl-10 pr-10"
-              disabled={loading}
+              disabled={isLoading}
             />
             <button
               type="button"
@@ -155,7 +175,7 @@ export default function SignupPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="pl-10"
-              disabled={loading}
+              disabled={isLoading}
             />
           </div>
 
@@ -165,8 +185,8 @@ export default function SignupPage() {
             </p>
           )}
 
-          <Button type="submit" className="w-full h-12" loading={loading}>
-            Create Account
+          <Button type="submit" className="w-full h-12" loading={isLoading}>
+            {isSigningUp ? 'Creating account...' : 'Create Account'}
           </Button>
         </form>
 
