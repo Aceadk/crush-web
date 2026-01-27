@@ -162,6 +162,8 @@ export default function ProfileEditForm() {
         photos,
         profilePhotoUrl: photos[0] || undefined,
         location: formData.location.city ? formData.location : undefined,
+        // Ensure profileComplete is set for existing users who may not have this flag
+        profileComplete: true,
       });
 
       await refreshProfile();

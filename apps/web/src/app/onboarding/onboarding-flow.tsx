@@ -216,6 +216,7 @@ export default function OnboardingFlow() {
           bio: data.bio.trim(),
           location: locationData,
           onboardingComplete: true,
+          profileComplete: true,
         });
 
         // Save location preference
