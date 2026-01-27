@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthStore, useMatchStore, useUIStore } from '@crush/core';
-import { SwipeCard, ActionButtons, MatchModal } from '@/features/discover';
+import { useAuthStore, useMatchStore, useUIStore, DiscoveryFilters } from '@crush/core';
+import { SwipeCard, ActionButtons, MatchModal, FilterDialog } from '@/features/discover';
 import { SkeletonSwipeCard, Button } from '@crush/ui';
 import { RefreshCw, Sliders } from 'lucide-react';
 
@@ -13,13 +13,16 @@ export default function DiscoverPage() {
     currentProfileIndex,
     loading,
     error,
+    filters,
     loadDiscoveryProfiles,
     swipe,
     previousProfile,
+    setFilters,
   } = useMatchStore();
   const { addToast } = useUIStore();
 
   const [showMatchModal, setShowMatchModal] = useState(false);
+  const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [matchedUser, setMatchedUser] = useState<{ name: string; photo: string } | null>(null);
   const [swiping, setSwiping] = useState(false);
 
@@ -67,6 +70,14 @@ export default function DiscoverPage() {
     }
   };
 
+  const handleApplyFilters = (newFilters: DiscoveryFilters) => {
+    setFilters(newFilters);
+    // Reload profiles with new filters
+    if (user) {
+      loadDiscoveryProfiles(user.uid);
+    }
+  };
+
   // Empty state
   if (!loading && discoveryProfiles.length === 0) {
     return (
@@ -83,11 +94,19 @@ export default function DiscoverPage() {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setShowFilterDialog(true)}>
             <Sliders className="w-4 h-4 mr-2" />
             Filters
           </Button>
         </div>
+
+        {/* Filter dialog */}
+        <FilterDialog
+          open={showFilterDialog}
+          onOpenChange={setShowFilterDialog}
+          filters={filters}
+          onApplyFilters={handleApplyFilters}
+        />
       </div>
     );
   }
@@ -115,7 +134,7 @@ export default function DiscoverPage() {
         <Button variant="ghost" size="icon" onClick={handleRefresh}>
           <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
         </Button>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" onClick={() => setShowFilterDialog(true)}>
           <Sliders className="w-5 h-5" />
         </Button>
       </div>
@@ -167,6 +186,14 @@ export default function DiscoverPage() {
           {error}
         </div>
       )}
+
+      {/* Filter dialog */}
+      <FilterDialog
+        open={showFilterDialog}
+        onOpenChange={setShowFilterDialog}
+        filters={filters}
+        onApplyFilters={handleApplyFilters}
+      />
     </div>
   );
 }

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@crush/core';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuthStore, useUIStore } from '@crush/core';
 import { Button, Card, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
+import { loadStripe } from '@stripe/stripe-js';
 import {
   ArrowLeft,
   Sparkles,
@@ -105,17 +106,80 @@ const PLANS = [
   },
 ];
 
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+
 export default function PremiumView() {
   const router = useRouter();
-  const { profile } = useAuthStore();
+  const searchParams = useSearchParams();
+  const { user, profile } = useAuthStore();
+  const { addToast } = useUIStore();
   const [selectedPlan, setSelectedPlan] = useState('quarterly');
   const [loading, setLoading] = useState(false);
 
+  // Handle canceled payment redirect
+  useEffect(() => {
+    if (searchParams.get('canceled') === 'true') {
+      addToast({
+        type: 'info',
+        title: 'Payment Canceled',
+        description: 'Your payment was canceled. You can try again anytime.',
+      });
+      // Remove the query param
+      router.replace('/premium');
+    }
+  }, [searchParams, addToast, router]);
+
   const handleSubscribe = async () => {
+    if (!user) {
+      addToast({
+        type: 'error',
+        title: 'Not logged in',
+        description: 'Please log in to subscribe.',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      // TODO: Implement payment flow
-      console.log('Subscribe to plan:', selectedPlan);
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          planId: selectedPlan,
+          userId: user.uid,
+          userEmail: user.email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session');
+      }
+
+      // Redirect to Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        const stripe = await stripePromise;
+        if (stripe && data.sessionId) {
+          const { error } = await stripe.redirectToCheckout({
+            sessionId: data.sessionId,
+          });
+          if (error) {
+            throw error;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Subscription error:', error);
+      addToast({
+        type: 'error',
+        title: 'Payment Error',
+        description: error instanceof Error ? error.message : 'Failed to start payment. Please try again.',
+      });
     } finally {
       setLoading(false);
     }
