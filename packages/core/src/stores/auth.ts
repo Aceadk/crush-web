@@ -4,6 +4,7 @@ import { User } from 'firebase/auth';
 import { authService } from '../services/auth';
 import { userService } from '../services/user';
 import { UserProfile } from '../types/user';
+import { isFirebaseConfigured } from '../firebase/config';
 
 // Helper to set auth cookie for middleware
 const setAuthCookie = async (user: User | null) => {
@@ -60,38 +61,50 @@ export const useAuthStore = create<AuthState>()(
       initialize: () => {
         if (get().initialized) return;
 
-        authService.onAuthStateChange(async (user) => {
-          set({ user, loading: true });
+        // Check if Firebase is configured before initializing
+        if (!isFirebaseConfigured()) {
+          console.warn('Firebase is not configured. Auth will not be initialized.');
+          set({ initialized: true, loading: false });
+          return;
+        }
 
-          // Set or remove auth cookie for middleware
-          await setAuthCookie(user);
+        try {
+          authService.onAuthStateChange(async (user) => {
+            set({ user, loading: true });
 
-          if (user) {
-            try {
-              let profile = await userService.getUserProfile(user.uid);
+            // Set or remove auth cookie for middleware
+            await setAuthCookie(user);
 
-              // Create profile if it doesn't exist
-              if (!profile) {
-                profile = await userService.createUserProfile(user.uid, {
-                  email: user.email || undefined,
-                  phoneNumber: user.phoneNumber || undefined,
-                  displayName: user.displayName || '',
-                  profilePhotoUrl: user.photoURL || undefined,
-                });
+            if (user) {
+              try {
+                let profile = await userService.getUserProfile(user.uid);
+
+                // Create profile if it doesn't exist
+                if (!profile) {
+                  profile = await userService.createUserProfile(user.uid, {
+                    email: user.email || undefined,
+                    phoneNumber: user.phoneNumber || undefined,
+                    displayName: user.displayName || '',
+                    profilePhotoUrl: user.photoURL || undefined,
+                  });
+                }
+
+                // Update last active
+                await userService.updateLastActive(user.uid);
+
+                set({ profile, loading: false, initialized: true });
+              } catch (error) {
+                console.error('Failed to load profile:', error);
+                set({ loading: false, initialized: true });
               }
-
-              // Update last active
-              await userService.updateLastActive(user.uid);
-
-              set({ profile, loading: false, initialized: true });
-            } catch (error) {
-              console.error('Failed to load profile:', error);
-              set({ loading: false, initialized: true });
+            } else {
+              set({ profile: null, loading: false, initialized: true });
             }
-          } else {
-            set({ profile: null, loading: false, initialized: true });
-          }
-        });
+          });
+        } catch (error) {
+          console.error('Failed to initialize auth listener:', error);
+          set({ initialized: true, loading: false });
+        }
       },
 
       // Sign in with email

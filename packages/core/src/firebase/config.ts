@@ -13,13 +13,23 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+// Check if Firebase is configured (only on client side)
+export function isFirebaseConfigured(): boolean {
+  return typeof window !== 'undefined' &&
+    Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+}
+
 // Initialize Firebase only once
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-let storage: FirebaseStorage;
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 
 function getFirebaseApp(): FirebaseApp {
+  if (!isFirebaseConfigured()) {
+    console.warn('Firebase is not configured. Please set environment variables.');
+    throw new Error('Firebase is not configured');
+  }
   if (!app) {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
   }

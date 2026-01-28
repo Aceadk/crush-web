@@ -16,9 +16,14 @@ export function AuthInitializer({ children }: AuthInitializerProps) {
   const initialize = useAuthStore((state) => state.initialize);
 
   useEffect(() => {
-    // Initialize auth listener on mount
-    initialize();
+    // Initialize auth listener on mount with error handling
+    try {
+      initialize();
+    } catch (error) {
+      console.error('Failed to initialize auth:', error);
+    }
   }, [initialize]);
 
+  // Always render children - don't block rendering
   return <>{children}</>;
 }
