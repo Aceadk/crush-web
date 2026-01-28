@@ -34,9 +34,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (initialized && !loading && !user) {
-      router.push('/auth/login');
+      // Clear any stale auth cookie before redirecting
+      // This prevents redirect loop with middleware
+      document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      // Use window.location for full page reload to ensure cookie is cleared
+      window.location.href = '/auth/login';
     }
-  }, [user, loading, initialized, router]);
+  }, [user, loading, initialized]);
 
   // Redirect to onboarding if not completed
   useEffect(() => {

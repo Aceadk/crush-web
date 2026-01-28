@@ -6,6 +6,12 @@ import { userService } from '../services/user';
 import { UserProfile } from '../types/user';
 import { isFirebaseConfigured } from '../firebase/config';
 
+// Helper to clear auth cookie
+const clearAuthCookie = () => {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+};
+
 // Helper to set auth cookie for middleware
 const setAuthCookie = async (user: User | null) => {
   if (typeof document === 'undefined') return;
@@ -19,10 +25,12 @@ const setAuthCookie = async (user: User | null) => {
       document.cookie = `auth-token=${token}; path=/; expires=${expires}; SameSite=Lax${secure}`;
     } catch (error) {
       console.error('Failed to set auth cookie:', error);
+      // Clear potentially stale cookie on error
+      clearAuthCookie();
     }
   } else {
     // Remove cookie
-    document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    clearAuthCookie();
   }
 };
 
@@ -64,6 +72,8 @@ export const useAuthStore = create<AuthState>()(
         // Check if Firebase is configured before initializing
         if (!isFirebaseConfigured()) {
           console.warn('Firebase is not configured. Auth will not be initialized.');
+          // Clear any stale auth cookie to prevent redirect loops
+          clearAuthCookie();
           set({ initialized: true, loading: false });
           return;
         }
