@@ -7,7 +7,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-background">
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary-dark to-secondary relative overflow-hidden">
         {/* Decorative elements */}
@@ -53,7 +53,7 @@ export default function AuthLayout({
       </div>
 
       {/* Right side - Auth form */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-background">
         {/* Mobile header */}
         <div className="lg:hidden p-6 flex justify-center">
           <Link href="/" className="flex items-center gap-2 text-primary">
