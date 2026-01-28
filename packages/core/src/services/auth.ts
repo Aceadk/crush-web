@@ -11,6 +11,11 @@ import {
   signInWithPopup,
   sendPasswordResetEmail,
   updateProfile,
+  updateEmail as firebaseUpdateEmail,
+  updatePassword as firebaseUpdatePassword,
+  sendEmailVerification as firebaseSendEmailVerification,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
 import { getFirebaseAuth } from '../firebase/config';
 
@@ -131,6 +136,53 @@ class AuthService {
     const user = this.getCurrentUser();
     if (!user) return null;
     return user.getIdToken();
+  }
+
+  /**
+   * Update the user's email address
+   * Requires reauthentication with current password
+   */
+  async updateEmail(newEmail: string, currentPassword: string): Promise<void> {
+    const user = this.getCurrentUser();
+    if (!user || !user.email) {
+      throw new Error('No authenticated user with email');
+    }
+
+    // Reauthenticate first
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+
+    // Update email
+    await firebaseUpdateEmail(user, newEmail);
+  }
+
+  /**
+   * Update the user's password
+   * Requires reauthentication with current password
+   */
+  async updatePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const user = this.getCurrentUser();
+    if (!user || !user.email) {
+      throw new Error('No authenticated user with email');
+    }
+
+    // Reauthenticate first
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+
+    // Update password
+    await firebaseUpdatePassword(user, newPassword);
+  }
+
+  /**
+   * Send email verification to current user
+   */
+  async sendEmailVerification(): Promise<void> {
+    const user = this.getCurrentUser();
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
+    await firebaseSendEmailVerification(user);
   }
 }
 

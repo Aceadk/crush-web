@@ -186,6 +186,14 @@ export default function PremiumView() {
   };
 
   if (profile?.isPremium) {
+    // Get subscription details from profile (would be populated by webhook)
+    const subscriptionEndDate = profile.premiumExpiresAt
+      ? new Date(profile.premiumExpiresAt)
+      : null;
+    const daysRemaining = subscriptionEndDate
+      ? Math.max(0, Math.ceil((subscriptionEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : null;
+
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
         <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
@@ -202,20 +210,106 @@ export default function PremiumView() {
           </div>
         </div>
 
-        <div className="max-w-2xl mx-auto px-4 py-12 text-center">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <Crown className="w-10 h-10 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            You're a Premium Member!
-          </h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-8">
-            Enjoy all the benefits of Crush Premium
-          </p>
+        <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+          {/* Subscription Status Card */}
+          <Card className="overflow-hidden">
+            <div className="bg-gradient-to-br from-primary to-secondary p-6 text-white text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/20 flex items-center justify-center">
+                <Crown className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-bold mb-1">Premium Member</h2>
+              <p className="text-white/80">You have full access to all features</p>
+            </div>
 
-          <Card className="p-6 text-left">
+            <div className="p-6 space-y-4">
+              {/* Subscription Status */}
+              <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800">
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    Active
+                  </p>
+                </div>
+                <Badge variant="secondary" className="bg-green-100 text-green-700">
+                  Premium
+                </Badge>
+              </div>
+
+              {/* Plan Type */}
+              {profile.premiumPlan && (
+                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800">
+                  <div>
+                    <p className="text-sm text-gray-500">Current Plan</p>
+                    <p className="font-medium text-gray-900 dark:text-white capitalize">
+                      {profile.premiumPlan} Plan
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Renewal Date */}
+              {subscriptionEndDate && (
+                <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800">
+                  <div>
+                    <p className="text-sm text-gray-500">
+                      {profile.premiumAutoRenew ? 'Renews on' : 'Expires on'}
+                    </p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {subscriptionEndDate.toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </p>
+                  </div>
+                  {daysRemaining !== null && daysRemaining <= 7 && (
+                    <Badge variant="outline" className="text-orange-600 border-orange-300">
+                      {daysRemaining} days left
+                    </Badge>
+                  )}
+                </div>
+              )}
+
+              {/* Auto-Renewal Status */}
+              <div className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm text-gray-500">Auto-Renewal</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {profile.premiumAutoRenew ? 'Enabled' : 'Disabled'}
+                  </p>
+                </div>
+                <span className={cn(
+                  'text-sm font-medium',
+                  profile.premiumAutoRenew ? 'text-green-600' : 'text-gray-500'
+                )}>
+                  {profile.premiumAutoRenew ? 'On' : 'Off'}
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Manage Subscription */}
+          <Card className="p-4">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                // Open Stripe Customer Portal or management page
+                window.open('https://billing.stripe.com/p/login/test', '_blank');
+              }}
+            >
+              Manage Subscription
+            </Button>
+            <p className="text-xs text-gray-500 text-center mt-2">
+              Update payment method, change plan, or cancel subscription
+            </p>
+          </Card>
+
+          {/* Your Benefits */}
+          <Card className="p-6">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
-              Your Benefits
+              Your Premium Benefits
             </h3>
             <ul className="space-y-3">
               {PREMIUM_FEATURES.map((feature) => (
@@ -223,11 +317,27 @@ export default function PremiumView() {
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                     <feature.icon className="w-4 h-4 text-primary" />
                   </div>
-                  <span className="text-gray-700 dark:text-gray-300">{feature.title}</span>
+                  <div className="flex-1">
+                    <span className="text-gray-700 dark:text-gray-300">{feature.title}</span>
+                  </div>
+                  <Check className="w-4 h-4 text-green-500" />
                 </li>
               ))}
             </ul>
           </Card>
+
+          {/* Help Section */}
+          <div className="text-center text-sm text-gray-500">
+            <p>
+              Need help with your subscription?{' '}
+              <button
+                onClick={() => router.push('/help')}
+                className="text-primary hover:underline"
+              >
+                Contact Support
+              </button>
+            </p>
+          </div>
         </div>
       </div>
     );

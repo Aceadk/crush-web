@@ -7,7 +7,6 @@ import { useAuthStore, userService, authService } from '@crush/core';
 import {
   Button,
   Card,
-  Input,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -155,24 +154,11 @@ export default function SettingsView() {
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
-  const [preferences, setPreferences] = useState({
-    notifications: {
-      matches: true,
-      messages: true,
-      likes: true,
-      marketing: false,
-    },
-    privacy: {
-      showOnlineStatus: true,
-      showDistance: true,
-      showAge: true,
-    },
-    discovery: {
-      showMe: profile?.gender === 'male' ? 'women' : 'men',
-      ageMin: 18,
-      ageMax: 50,
-      distance: 50,
-    },
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    matches: true,
+    messages: true,
+    likes: true,
+    marketing: false,
   });
 
   const handleSignOut = useCallback(async () => {
@@ -195,17 +181,10 @@ export default function SettingsView() {
     }
   }, [user, signOut, router]);
 
-  const updateNotificationPreference = (key: keyof typeof preferences.notifications, value: boolean) => {
-    setPreferences(prev => ({
+  const updateNotificationPreference = (key: keyof typeof notificationPrefs, value: boolean) => {
+    setNotificationPrefs(prev => ({
       ...prev,
-      notifications: { ...prev.notifications, [key]: value },
-    }));
-  };
-
-  const updatePrivacyPreference = (key: keyof typeof preferences.privacy, value: boolean) => {
-    setPreferences(prev => ({
-      ...prev,
-      privacy: { ...prev.privacy, [key]: value },
+      [key]: value,
     }));
   };
 
@@ -275,10 +254,9 @@ export default function SettingsView() {
             />
             <SettingItem
               icon={<Lock className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
-              title="Change Password"
-              description={user?.email ? 'Send password reset email' : 'No email linked'}
-              onClick={() => user?.email && setShowPasswordDialog(true)}
-              disabled={!user?.email}
+              title="Account Management"
+              description="Email, password, data export"
+              href="/settings/account"
             />
           </div>
         </Card>
@@ -407,95 +385,13 @@ export default function SettingsView() {
               Discovery
             </h2>
           </div>
-          <div className="p-4 space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Show Me
-                </label>
-                <span className="text-sm text-primary capitalize">{preferences.discovery.showMe}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {['men', 'women', 'everyone'].map((option) => (
-                  <button
-                    key={option}
-                    onClick={() => setPreferences(prev => ({
-                      ...prev,
-                      discovery: { ...prev.discovery, showMe: option }
-                    }))}
-                    className={cn(
-                      'py-2 px-3 rounded-lg text-sm font-medium transition-all capitalize',
-                      preferences.discovery.showMe === option
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                    )}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Age Range
-                </label>
-                <span className="text-sm text-primary">
-                  {preferences.discovery.ageMin} - {preferences.discovery.ageMax}
-                </span>
-              </div>
-              <div className="flex gap-4">
-                <Input
-                  type="number"
-                  value={preferences.discovery.ageMin}
-                  onChange={(e) => setPreferences(prev => ({
-                    ...prev,
-                    discovery: { ...prev.discovery, ageMin: parseInt(e.target.value) || 18 }
-                  }))}
-                  min={18}
-                  max={99}
-                  className="text-center"
-                />
-                <span className="self-center text-gray-400">to</span>
-                <Input
-                  type="number"
-                  value={preferences.discovery.ageMax}
-                  onChange={(e) => setPreferences(prev => ({
-                    ...prev,
-                    discovery: { ...prev.discovery, ageMax: parseInt(e.target.value) || 99 }
-                  }))}
-                  min={18}
-                  max={99}
-                  className="text-center"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Maximum Distance
-                </label>
-                <span className="text-sm text-primary">{preferences.discovery.distance} km</span>
-              </div>
-              <input
-                type="range"
-                value={preferences.discovery.distance}
-                onChange={(e) => setPreferences(prev => ({
-                  ...prev,
-                  discovery: { ...prev.discovery, distance: parseInt(e.target.value) }
-                }))}
-                min={1}
-                max={500}
-                className="w-full accent-primary"
-              />
-              {!isLocationEnabled && (
-                <p className="text-xs text-amber-500 mt-1">
-                  Enable location services to filter by distance
-                </p>
-              )}
-            </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            <SettingItem
+              icon={<Heart className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
+              title="Discovery Preferences"
+              description="Distance, age range, and who you see"
+              href="/settings/discovery"
+            />
           </div>
         </Card>
 
@@ -513,7 +409,7 @@ export default function SettingsView() {
               description="Get notified when you match"
               rightElement={
                 <Toggle
-                  enabled={preferences.notifications.matches}
+                  enabled={notificationPrefs.matches}
                   onChange={(v) => updateNotificationPreference('matches', v)}
                 />
               }
@@ -524,7 +420,7 @@ export default function SettingsView() {
               description="Get notified for new messages"
               rightElement={
                 <Toggle
-                  enabled={preferences.notifications.messages}
+                  enabled={notificationPrefs.messages}
                   onChange={(v) => updateNotificationPreference('messages', v)}
                 />
               }
@@ -535,7 +431,7 @@ export default function SettingsView() {
               description="Get notified when someone likes you"
               rightElement={
                 <Toggle
-                  enabled={preferences.notifications.likes}
+                  enabled={notificationPrefs.likes}
                   onChange={(v) => updateNotificationPreference('likes', v)}
                 />
               }
@@ -546,7 +442,7 @@ export default function SettingsView() {
               description="Tips, offers, and promotions"
               rightElement={
                 <Toggle
-                  enabled={preferences.notifications.marketing}
+                  enabled={notificationPrefs.marketing}
                   onChange={(v) => updateNotificationPreference('marketing', v)}
                 />
               }
@@ -558,43 +454,27 @@ export default function SettingsView() {
         <Card className="overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-              Privacy
+              Privacy & Safety
             </h2>
           </div>
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
             <SettingItem
+              icon={<Eye className="w-5 h-5 text-purple-500" />}
+              title="Incognito Mode"
+              description="Browse privately without being seen"
+              href="/settings/incognito"
+            />
+            <SettingItem
               icon={<Eye className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
-              title="Online Status"
-              description="Let others see when you're online"
-              rightElement={
-                <Toggle
-                  enabled={preferences.privacy.showOnlineStatus}
-                  onChange={(v) => updatePrivacyPreference('showOnlineStatus', v)}
-                />
-              }
+              title="Privacy Settings"
+              description="Control what others can see"
+              href="/settings/privacy"
             />
             <SettingItem
-              icon={<MapPin className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
-              title="Show Distance"
-              description="Show how far away you are"
-              rightElement={
-                <Toggle
-                  enabled={preferences.privacy.showDistance}
-                  onChange={(v) => updatePrivacyPreference('showDistance', v)}
-                  disabled={!isLocationEnabled}
-                />
-              }
-            />
-            <SettingItem
-              icon={<User className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
-              title="Show Age"
-              description="Display your age on profile"
-              rightElement={
-                <Toggle
-                  enabled={preferences.privacy.showAge}
-                  onChange={(v) => updatePrivacyPreference('showAge', v)}
-                />
-              }
+              icon={<Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
+              title="Notification Settings"
+              description="Manage push & email notifications"
+              href="/settings/notifications"
             />
             <SettingItem
               icon={<Shield className="w-5 h-5 text-gray-600 dark:text-gray-400" />}

@@ -15,7 +15,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
-import { Match, MatchStatus, SwipeAction, DiscoveryProfile, DiscoveryFilters } from '../types/match';
+import { Match, MatchStatus, SwipeAction, DiscoveryProfile, DiscoveryFilters, ReceivedLike, MessageRequest, WeeklyPick } from '../types/match';
 
 const MATCHES_COLLECTION = 'matches';
 const SWIPES_COLLECTION = 'swipes';
@@ -228,6 +228,226 @@ class MatchService {
     }
 
     return profiles;
+  }
+
+  /**
+   * Get users who have liked the current user (premium feature)
+   */
+  async getLikesReceived(userId: string): Promise<ReceivedLike[]> {
+    const db = getFirebaseDb();
+
+    // Query swipes where the current user was swiped on with like/superlike
+    const swipesQuery = query(
+      collection(db, SWIPES_COLLECTION),
+      where('swipedUserId', '==', userId),
+      where('action', 'in', ['like', 'superlike']),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+
+    const swipesSnapshot = await getDocs(swipesQuery);
+
+    // Get users who have already matched with the current user
+    const matchesQuery = query(
+      collection(db, MATCHES_COLLECTION),
+      where('userId', '==', userId),
+      where('status', '==', 'mutual')
+    );
+    const matchesSnapshot = await getDocs(matchesQuery);
+    const matchedUserIds = new Set(
+      matchesSnapshot.docs.map((doc) => doc.data().otherUserId as string)
+    );
+
+    const receivedLikes: ReceivedLike[] = [];
+
+    for (const swipeDoc of swipesSnapshot.docs) {
+      const swipeData = swipeDoc.data();
+      const likerUserId = swipeData.swiperId as string;
+
+      // Skip if already matched
+      if (matchedUserIds.has(likerUserId)) continue;
+
+      // Get liker's profile info
+      const likerDoc = await getDoc(doc(db, USERS_COLLECTION, likerUserId));
+      if (!likerDoc.exists()) continue;
+
+      const likerData = likerDoc.data();
+
+      receivedLikes.push({
+        id: swipeDoc.id,
+        likerUserId,
+        likerName: likerData.displayName as string || 'Unknown',
+        likerPhotoUrl: likerData.photos?.[0] as string || likerData.profilePhotoUrl as string,
+        likerAge: likerData.age as number | undefined,
+        isSuperLike: swipeData.action === 'superlike',
+        timestamp: this.timestampToString(swipeData.timestamp),
+      });
+    }
+
+    return receivedLikes;
+  }
+
+  /**
+   * Get message requests (messages from people who liked you but you haven't matched yet)
+   * This is a premium feature
+   */
+  async getMessageRequests(userId: string): Promise<MessageRequest[]> {
+    const db = getFirebaseDb();
+
+    // Get swipes with message requests (people who liked this user and sent a message)
+    const swipesQuery = query(
+      collection(db, SWIPES_COLLECTION),
+      where('swipedUserId', '==', userId),
+      where('action', 'in', ['like', 'superlike']),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+
+    const swipesSnapshot = await getDocs(swipesQuery);
+
+    // Get users who have already matched with the current user
+    const matchesQuery = query(
+      collection(db, MATCHES_COLLECTION),
+      where('userId', '==', userId),
+      where('status', '==', 'mutual')
+    );
+    const matchesSnapshot = await getDocs(matchesQuery);
+    const matchedUserIds = new Set(
+      matchesSnapshot.docs.map((doc) => doc.data().otherUserId as string)
+    );
+
+    const messageRequests: MessageRequest[] = [];
+
+    for (const swipeDoc of swipesSnapshot.docs) {
+      const swipeData = swipeDoc.data();
+      const fromUserId = swipeData.swiperId as string;
+      const message = swipeData.message as string | undefined;
+
+      // Skip if already matched or no message
+      if (matchedUserIds.has(fromUserId) || !message) continue;
+
+      // Get sender's profile info
+      const senderDoc = await getDoc(doc(db, USERS_COLLECTION, fromUserId));
+      if (!senderDoc.exists()) continue;
+
+      const senderData = senderDoc.data();
+
+      messageRequests.push({
+        id: swipeDoc.id,
+        fromUserId,
+        fromUserName: senderData.displayName as string || 'Unknown',
+        fromUserPhotoUrl: senderData.photos?.[0] as string || senderData.profilePhotoUrl as string,
+        fromUserAge: senderData.age as number | undefined,
+        message,
+        isSuperLike: swipeData.action === 'superlike',
+        timestamp: this.timestampToString(swipeData.timestamp),
+      });
+    }
+
+    return messageRequests;
+  }
+
+  /**
+   * Accept a message request (like the user back, creating a match)
+   */
+  async acceptMessageRequest(userId: string, fromUserId: string): Promise<{ matchId: string }> {
+    // Simply swipe like - if they already liked us, it will create a match
+    const result = await this.swipe(userId, fromUserId, 'like');
+    if (!result.isMatch || !result.matchId) {
+      throw new Error('Failed to create match');
+    }
+    return { matchId: result.matchId };
+  }
+
+  /**
+   * Decline a message request (pass on the user)
+   */
+  async declineMessageRequest(userId: string, fromUserId: string): Promise<void> {
+    await this.swipe(userId, fromUserId, 'pass');
+  }
+
+  /**
+   * Get weekly picks - curated profiles for the user
+   * These are high-quality matches selected based on compatibility
+   */
+  async getWeeklyPicks(userId: string): Promise<WeeklyPick[]> {
+    const db = getFirebaseDb();
+
+    // Get users already swiped
+    const swipesQuery = query(
+      collection(db, SWIPES_COLLECTION),
+      where('swiperId', '==', userId)
+    );
+    const swipesSnapshot = await getDocs(swipesQuery);
+    const swipedUserIds = new Set(
+      swipesSnapshot.docs.map((doc) => doc.data().swipedUserId as string)
+    );
+    swipedUserIds.add(userId); // Exclude self
+
+    // Get current user's profile for matching interests
+    const currentUserDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
+    const currentUserData = currentUserDoc.data();
+    const currentUserInterests = (currentUserData?.interests as string[]) || [];
+
+    // Query active users with complete profiles
+    const usersQuery = query(
+      collection(db, USERS_COLLECTION),
+      where('onboardingComplete', '==', true),
+      where('profileComplete', '==', true),
+      limit(100) // Get more to filter and rank
+    );
+
+    const usersSnapshot = await getDocs(usersQuery);
+
+    const picks: WeeklyPick[] = [];
+    const now = new Date();
+    const weekEnd = new Date(now);
+    weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay())); // End of week
+    weekEnd.setHours(23, 59, 59, 999);
+
+    for (const userDoc of usersSnapshot.docs) {
+      if (swipedUserIds.has(userDoc.id)) continue;
+
+      const data = userDoc.data();
+      const userInterests = (data.interests as string[]) || [];
+
+      // Calculate compatibility score based on shared interests
+      const sharedInterests = currentUserInterests.filter(
+        (interest) => userInterests.includes(interest)
+      );
+      const compatibilityScore = currentUserInterests.length > 0
+        ? Math.round((sharedInterests.length / Math.max(currentUserInterests.length, 1)) * 100)
+        : 50;
+
+      // Determine pick reason
+      let pickReason = 'Featured profile';
+      if (sharedInterests.length >= 3) {
+        pickReason = `${sharedInterests.length} shared interests`;
+      } else if (data.isVerified) {
+        pickReason = 'Verified profile';
+      } else if (data.photos?.length >= 3) {
+        pickReason = 'Active user';
+      }
+
+      picks.push({
+        id: `pick_${userDoc.id}`,
+        userId: userDoc.id,
+        displayName: data.displayName as string || '',
+        age: data.age as number | undefined,
+        bio: data.bio as string | undefined,
+        photos: (data.photos as string[]) || [],
+        interests: userInterests,
+        prompts: data.prompts as WeeklyPick['prompts'],
+        isVerified: data.isVerified as boolean || false,
+        compatibilityScore,
+        pickReason,
+        expiresAt: weekEnd.toISOString(),
+      });
+    }
+
+    // Sort by compatibility score and return top 10
+    picks.sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
+    return picks.slice(0, 10);
   }
 
   /**

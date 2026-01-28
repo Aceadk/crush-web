@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuthStore, useMessageStore, useMatchStore, Conversation } from '@crush/core';
 import { Card, Avatar, AvatarImage, AvatarFallback, Input, SkeletonProfile, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
-import { Search, MessageCircle, ChevronRight } from 'lucide-react';
+import { Search, MessageCircle, ChevronRight, Inbox } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function MessagesPage() {
@@ -49,6 +49,24 @@ export default function MessagesPage() {
           {conversations.length} {conversations.length === 1 ? 'conversation' : 'conversations'}
         </p>
       </div>
+
+      {/* Message Requests Link */}
+      <Link href="/messages/requests">
+        <Card className="p-4 mb-6 hover:shadow-md transition-shadow cursor-pointer group">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-100 to-rose-100 dark:from-pink-900/30 dark:to-rose-900/30 flex items-center justify-center">
+              <Inbox className="w-6 h-6 text-pink-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold">Message Requests</h3>
+              <p className="text-sm text-muted-foreground">
+                Messages from people who liked you
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+        </Card>
+      </Link>
 
       {/* Search */}
       <div className="mb-6">

@@ -6,6 +6,15 @@ export type MessageType = 'text' | 'image' | 'gif' | 'audio' | 'video' | 'system
 
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
+// Available message reactions
+export type MessageReactionType = '❤️' | '😂' | '😮' | '😢' | '😡' | '👍';
+
+export interface MessageReaction {
+  emoji: MessageReactionType;
+  userId: string;
+  timestamp: string;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -18,6 +27,11 @@ export interface Message {
   deliveredAt?: string;
   replyToId?: string;
   metadata?: MessageMetadata;
+  reactions?: MessageReaction[];
+  // Edit/delete support
+  editedAt?: string;
+  isDeleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface MessageMetadata {

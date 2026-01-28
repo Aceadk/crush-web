@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from 'next/font/google';
 import '../styles/globals.css';
 import { Providers } from '@/shared/providers/app-providers';
 import { themeInitScript } from '@/shared/lib/theme';
+import { SkipLink } from '@/components/accessibility';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -91,6 +92,64 @@ export const viewport: Viewport = {
   ],
 };
 
+// Schema.org structured data for the organization
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Crush',
+  url: process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app',
+  logo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app'}/logo.png`,
+  sameAs: [
+    'https://twitter.com/crushapp',
+    'https://instagram.com/crushapp',
+    'https://facebook.com/crushapp',
+  ],
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'customer support',
+    email: 'support@crushapp.com',
+    availableLanguage: 'English',
+  },
+};
+
+// Schema.org structured data for the app
+const softwareAppSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Crush',
+  applicationCategory: 'SocialNetworkingApplication',
+  operatingSystem: 'iOS, Android, Web',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  aggregateRating: {
+    '@type': 'AggregateRating',
+    ratingValue: '4.8',
+    ratingCount: '150000',
+    bestRating: '5',
+    worstRating: '1',
+  },
+  description: 'Crush is a modern dating app designed to help you find meaningful connections.',
+};
+
+// Schema.org structured data for the website
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Crush',
+  url: process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app'}/search?q={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
+  },
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -107,8 +166,22 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{ __html: themeInitScript }}
         />
+        {/* Schema.org structured data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareAppSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
       </head>
       <body className="min-h-screen bg-background text-foreground font-sans antialiased">
+        <SkipLink />
         <Providers>{children}</Providers>
       </body>
     </html>

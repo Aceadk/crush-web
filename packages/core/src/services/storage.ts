@@ -10,7 +10,9 @@ import {
 import { getFirebaseStorage } from '../firebase/config';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_AUDIO_SIZE = 5 * 1024 * 1024; // 5MB for voice notes
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+const ALLOWED_AUDIO_TYPES = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/wav'];
 
 export interface UploadProgress {
   progress: number;
@@ -64,6 +66,35 @@ class StorageService {
     }
 
     await uploadBytes(storageRef, file);
+    return getDownloadURL(storageRef);
+  }
+
+  /**
+   * Upload a voice note
+   */
+  async uploadVoiceNote(
+    conversationId: string,
+    senderId: string,
+    audioBlob: Blob,
+    onProgress?: (progress: UploadProgress) => void
+  ): Promise<string> {
+    // Validate audio size
+    if (audioBlob.size > MAX_AUDIO_SIZE) {
+      throw new Error(`Voice note exceeds ${MAX_AUDIO_SIZE / 1024 / 1024}MB limit`);
+    }
+
+    const storage = getFirebaseStorage();
+    const fileName = `${Date.now()}_voice.webm`;
+    const storageRef = ref(
+      storage,
+      `conversations/${conversationId}/audio/${senderId}/${fileName}`
+    );
+
+    if (onProgress) {
+      return this.uploadBlobWithProgress(storageRef, audioBlob, onProgress);
+    }
+
+    await uploadBytes(storageRef, audioBlob);
     return getDownloadURL(storageRef);
   }
 
@@ -131,6 +162,38 @@ class StorageService {
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          onProgress({
+            progress,
+            bytesTransferred: snapshot.bytesTransferred,
+            totalBytes: snapshot.totalBytes,
+          });
+        },
+        (error) => {
+          reject(error);
+        },
+        async () => {
+          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(downloadUrl);
+        }
+      );
+    });
+  }
+
+  /**
+   * Upload blob with progress tracking (for voice notes)
+   */
+  private uploadBlobWithProgress(
+    storageRef: ReturnType<typeof ref>,
+    blob: Blob,
+    onProgress: (progress: UploadProgress) => void
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const uploadTask = uploadBytesResumable(storageRef, blob);
 
       uploadTask.on(
         'state_changed',

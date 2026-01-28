@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore, useMatchStore, useUIStore, DiscoveryFilters } from '@crush/core';
 import { SwipeCard, ActionButtons, MatchModal, FilterDialog } from '@/features/discover';
-import { SkeletonSwipeCard, Button } from '@crush/ui';
-import { RefreshCw, Sliders } from 'lucide-react';
+import { SkeletonSwipeCard, Button, Badge } from '@crush/ui';
+import { RefreshCw, Sliders, Keyboard } from 'lucide-react';
 
 export default function DiscoverPage() {
   const { user, profile } = useAuthStore();
@@ -25,6 +25,10 @@ export default function DiscoverPage() {
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [matchedUser, setMatchedUser] = useState<{ name: string; photo: string } | null>(null);
   const [swiping, setSwiping] = useState(false);
+  const [showKeyboardHint, setShowKeyboardHint] = useState(false);
+
+  const currentProfile = discoveryProfiles[currentProfileIndex];
+  const nextProfile = discoveryProfiles[currentProfileIndex + 1];
 
   // Load profiles on mount
   useEffect(() => {
@@ -32,9 +36,6 @@ export default function DiscoverPage() {
       loadDiscoveryProfiles(user.uid);
     }
   }, [user, loadDiscoveryProfiles]);
-
-  const currentProfile = discoveryProfiles[currentProfileIndex];
-  const nextProfile = discoveryProfiles[currentProfileIndex + 1];
 
   const handleSwipe = async (direction: 'left' | 'right' | 'up') => {
     if (!user || !currentProfile || swiping) return;
@@ -77,6 +78,66 @@ export default function DiscoverPage() {
       loadDiscoveryProfiles(user.uid);
     }
   };
+
+  // Keyboard shortcuts handler
+  const handleKeyPress = useCallback((e: KeyboardEvent) => {
+    // Don't trigger if user is typing in an input field or modal is open
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement ||
+      showMatchModal ||
+      showFilterDialog
+    ) {
+      return;
+    }
+
+    const key = e.key.toLowerCase();
+
+    // Pass: Left arrow or 'a' key
+    if (key === 'arrowleft' || key === 'a') {
+      e.preventDefault();
+      if (!swiping && currentProfile) {
+        handleSwipe('left');
+      }
+    }
+
+    // Like: Right arrow or 'd' key
+    if (key === 'arrowright' || key === 'd') {
+      e.preventDefault();
+      if (!swiping && currentProfile) {
+        handleSwipe('right');
+      }
+    }
+
+    // Super Like: Up arrow or 'w' key
+    if (key === 'arrowup' || key === 'w') {
+      e.preventDefault();
+      if (!swiping && currentProfile) {
+        handleSwipe('up');
+      }
+    }
+
+    // Undo: 'z' key
+    if (key === 'z') {
+      e.preventDefault();
+      if (currentProfileIndex > 0) {
+        previousProfile();
+      }
+    }
+
+    // Toggle keyboard hints: '?' key
+    if (key === '?') {
+      e.preventDefault();
+      setShowKeyboardHint(prev => !prev);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMatchModal, showFilterDialog, swiping, currentProfile, currentProfileIndex, previousProfile]);
+
+  // Register keyboard event listener
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [handleKeyPress]);
 
   // Empty state
   if (!loading && discoveryProfiles.length === 0) {
@@ -194,6 +255,65 @@ export default function DiscoverPage() {
         filters={filters}
         onApplyFilters={handleApplyFilters}
       />
+
+      {/* Keyboard shortcuts hint */}
+      <div className="hidden md:block fixed bottom-4 left-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowKeyboardHint(!showKeyboardHint)}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Keyboard className="w-4 h-4 mr-2" />
+          Keyboard shortcuts
+        </Button>
+      </div>
+
+      {/* Keyboard shortcuts panel */}
+      {showKeyboardHint && (
+        <div className="hidden md:block fixed bottom-16 left-4 bg-background border rounded-xl shadow-lg p-4 w-64 z-50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Keyboard Shortcuts</h3>
+            <button
+              onClick={() => setShowKeyboardHint(false)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              ×
+            </button>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Pass</span>
+              <div className="flex gap-1">
+                <Badge variant="secondary" className="text-xs px-2">←</Badge>
+                <Badge variant="secondary" className="text-xs px-2">A</Badge>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Like</span>
+              <div className="flex gap-1">
+                <Badge variant="secondary" className="text-xs px-2">→</Badge>
+                <Badge variant="secondary" className="text-xs px-2">D</Badge>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Super Like</span>
+              <div className="flex gap-1">
+                <Badge variant="secondary" className="text-xs px-2">↑</Badge>
+                <Badge variant="secondary" className="text-xs px-2">W</Badge>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Undo</span>
+              <Badge variant="secondary" className="text-xs px-2">Z</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Toggle hints</span>
+              <Badge variant="secondary" className="text-xs px-2">?</Badge>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

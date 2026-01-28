@@ -16,12 +16,17 @@ import {
   Unsubscribe,
   addDoc,
   DocumentSnapshot,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
 import {
   Message,
   MessageType,
   MessageStatus,
+  MessageMetadata,
+  MessageReaction,
+  MessageReactionType,
   Conversation,
   TypingIndicator,
   MESSAGES_PER_PAGE,
@@ -146,12 +151,13 @@ class MessageService {
     conversationId: string,
     senderId: string,
     content: string,
-    type: MessageType = 'text'
+    type: MessageType = 'text',
+    metadata?: MessageMetadata
   ): Promise<Message> {
     const db = getFirebaseDb();
     const now = serverTimestamp();
 
-    const messageData = {
+    const messageData: Record<string, unknown> = {
       senderId,
       content,
       type,
@@ -159,16 +165,21 @@ class MessageService {
       timestamp: now,
     };
 
+    if (metadata) {
+      messageData.metadata = metadata;
+    }
+
     const messageRef = await addDoc(
       collection(db, CONVERSATIONS_COLLECTION, conversationId, MESSAGES_COLLECTION),
       messageData
     );
 
     // Update conversation's last message
+    const lastMessageContent = type === 'image' ? '📷 Photo' : content;
     await updateDoc(doc(db, CONVERSATIONS_COLLECTION, conversationId), {
       lastMessage: {
         id: messageRef.id,
-        content,
+        content: lastMessageContent,
         senderId,
         timestamp: now,
       },
@@ -184,6 +195,7 @@ class MessageService {
       type,
       status: 'sent',
       timestamp: new Date().toISOString(),
+      metadata,
     };
   }
 
@@ -295,6 +307,242 @@ class MessageService {
   }
 
   /**
+   * Add a reaction to a message
+   */
+  async addReaction(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    emoji: MessageReactionType
+  ): Promise<void> {
+    const db = getFirebaseDb();
+    const messageRef = doc(
+      db,
+      CONVERSATIONS_COLLECTION,
+      conversationId,
+      MESSAGES_COLLECTION,
+      messageId
+    );
+
+    const reaction: MessageReaction = {
+      emoji,
+      userId,
+      timestamp: new Date().toISOString(),
+    };
+
+    // First, remove any existing reaction from this user
+    const messageSnap = await getDoc(messageRef);
+    if (messageSnap.exists()) {
+      const existingReactions = (messageSnap.data().reactions || []) as MessageReaction[];
+      const userReaction = existingReactions.find(r => r.userId === userId);
+      if (userReaction) {
+        await updateDoc(messageRef, {
+          reactions: arrayRemove(userReaction),
+        });
+      }
+    }
+
+    // Add the new reaction
+    await updateDoc(messageRef, {
+      reactions: arrayUnion(reaction),
+    });
+  }
+
+  /**
+   * Remove a reaction from a message
+   */
+  async removeReaction(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    emoji: MessageReactionType
+  ): Promise<void> {
+    const db = getFirebaseDb();
+    const messageRef = doc(
+      db,
+      CONVERSATIONS_COLLECTION,
+      conversationId,
+      MESSAGES_COLLECTION,
+      messageId
+    );
+
+    const messageSnap = await getDoc(messageRef);
+    if (messageSnap.exists()) {
+      const existingReactions = (messageSnap.data().reactions || []) as MessageReaction[];
+      const reactionToRemove = existingReactions.find(
+        r => r.userId === userId && r.emoji === emoji
+      );
+      if (reactionToRemove) {
+        await updateDoc(messageRef, {
+          reactions: arrayRemove(reactionToRemove),
+        });
+      }
+    }
+  }
+
+  /**
+   * Edit a message (only sender can edit, within time limit)
+   */
+  async editMessage(
+    conversationId: string,
+    messageId: string,
+    senderId: string,
+    newContent: string
+  ): Promise<void> {
+    const db = getFirebaseDb();
+    const messageRef = doc(
+      db,
+      CONVERSATIONS_COLLECTION,
+      conversationId,
+      MESSAGES_COLLECTION,
+      messageId
+    );
+
+    // Verify sender owns the message
+    const messageSnap = await getDoc(messageRef);
+    if (!messageSnap.exists()) {
+      throw new Error('Message not found');
+    }
+
+    const messageData = messageSnap.data();
+    if (messageData.senderId !== senderId) {
+      throw new Error('You can only edit your own messages');
+    }
+
+    // Check if message is already deleted
+    if (messageData.isDeleted) {
+      throw new Error('Cannot edit a deleted message');
+    }
+
+    // Check time limit (15 minutes)
+    const messageTime = messageData.timestamp?.toDate?.() || new Date(messageData.timestamp);
+    const timeDiff = Date.now() - messageTime.getTime();
+    const fifteenMinutes = 15 * 60 * 1000;
+    if (timeDiff > fifteenMinutes) {
+      throw new Error('Messages can only be edited within 15 minutes');
+    }
+
+    await updateDoc(messageRef, {
+      content: newContent,
+      editedAt: serverTimestamp(),
+    });
+
+    // Update last message in conversation if this was the last message
+    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+    const conversationSnap = await getDoc(conversationRef);
+    if (conversationSnap.exists()) {
+      const lastMessage = conversationSnap.data().lastMessage;
+      if (lastMessage?.id === messageId) {
+        await updateDoc(conversationRef, {
+          'lastMessage.content': newContent,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+  }
+
+  /**
+   * Delete/unsend a message (only sender can delete)
+   */
+  async deleteMessage(
+    conversationId: string,
+    messageId: string,
+    senderId: string
+  ): Promise<void> {
+    const db = getFirebaseDb();
+    const messageRef = doc(
+      db,
+      CONVERSATIONS_COLLECTION,
+      conversationId,
+      MESSAGES_COLLECTION,
+      messageId
+    );
+
+    // Verify sender owns the message
+    const messageSnap = await getDoc(messageRef);
+    if (!messageSnap.exists()) {
+      throw new Error('Message not found');
+    }
+
+    const messageData = messageSnap.data();
+    if (messageData.senderId !== senderId) {
+      throw new Error('You can only delete your own messages');
+    }
+
+    // Soft delete - mark as deleted rather than removing
+    await updateDoc(messageRef, {
+      isDeleted: true,
+      deletedAt: serverTimestamp(),
+      content: '', // Clear content for privacy
+      metadata: null, // Clear any attachments
+    });
+
+    // Update last message in conversation if this was the last message
+    const conversationRef = doc(db, CONVERSATIONS_COLLECTION, conversationId);
+    const conversationSnap = await getDoc(conversationRef);
+    if (conversationSnap.exists()) {
+      const lastMessage = conversationSnap.data().lastMessage;
+      if (lastMessage?.id === messageId) {
+        await updateDoc(conversationRef, {
+          'lastMessage.content': 'Message deleted',
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+  }
+
+  /**
+   * Toggle a reaction on a message (add if not exists, remove if exists)
+   */
+  async toggleReaction(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    emoji: MessageReactionType
+  ): Promise<void> {
+    const db = getFirebaseDb();
+    const messageRef = doc(
+      db,
+      CONVERSATIONS_COLLECTION,
+      conversationId,
+      MESSAGES_COLLECTION,
+      messageId
+    );
+
+    const messageSnap = await getDoc(messageRef);
+    if (messageSnap.exists()) {
+      const existingReactions = (messageSnap.data().reactions || []) as MessageReaction[];
+      const existingReaction = existingReactions.find(
+        r => r.userId === userId && r.emoji === emoji
+      );
+
+      if (existingReaction) {
+        // Remove the reaction
+        await updateDoc(messageRef, {
+          reactions: arrayRemove(existingReaction),
+        });
+      } else {
+        // Remove any other reaction from this user first
+        const userReaction = existingReactions.find(r => r.userId === userId);
+        if (userReaction) {
+          await updateDoc(messageRef, {
+            reactions: arrayRemove(userReaction),
+          });
+        }
+        // Add the new reaction
+        const reaction: MessageReaction = {
+          emoji,
+          userId,
+          timestamp: new Date().toISOString(),
+        };
+        await updateDoc(messageRef, {
+          reactions: arrayUnion(reaction),
+        });
+      }
+    }
+  }
+
+  /**
    * Map Firestore document to Message
    */
   private mapDocToMessage(
@@ -314,6 +562,10 @@ class MessageService {
       deliveredAt: this.timestampToString(data.deliveredAt),
       replyToId: data.replyToId as string | undefined,
       metadata: data.metadata as Message['metadata'],
+      reactions: data.reactions as MessageReaction[] | undefined,
+      editedAt: data.editedAt ? this.timestampToString(data.editedAt) : undefined,
+      isDeleted: data.isDeleted as boolean | undefined,
+      deletedAt: data.deletedAt ? this.timestampToString(data.deletedAt) : undefined,
     };
   }
 

@@ -2,15 +2,13 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore, userService, storageService, locationService, LocationDetails } from '@crush/core';
+import { useAuthStore, userService, storageService, locationService, LocationDetails, Gender, SexualOrientation } from '@crush/core';
 import { Button, Card, Input } from '@crush/ui';
 import { cn } from '@crush/ui';
 import {
   ArrowLeft,
   ArrowRight,
   Camera,
-  Plus,
-  X,
   Check,
   Sparkles,
   Heart,
@@ -20,11 +18,19 @@ import {
   MapPinOff,
   Navigation,
   AlertCircle,
+  FileText,
+  Shield,
+  ExternalLink,
+  Users,
 } from 'lucide-react';
+import Link from 'next/link';
+import { PhotoGridReorder } from '@/components/profile/photo-grid-reorder';
 
 const STEPS = [
   { id: 'welcome', title: 'Welcome', icon: Heart },
+  { id: 'terms', title: 'Terms', icon: FileText },
   { id: 'basics', title: 'Basics', icon: User },
+  { id: 'preferences', title: 'Preferences', icon: Users },
   { id: 'photos', title: 'Photos', icon: Camera },
   { id: 'interests', title: 'Interests', icon: Sparkles },
   { id: 'location', title: 'Location', icon: MapPin },
@@ -39,9 +45,13 @@ const AVAILABLE_INTERESTS = [
 ];
 
 interface OnboardingData {
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
   displayName: string;
   birthDate: string;
   gender: 'male' | 'female' | 'other' | '';
+  sexualOrientation: SexualOrientation | '';
+  interestedIn: Gender[];
   photos: string[];
   interests: string[];
   bio: string;
@@ -65,9 +75,13 @@ export default function OnboardingFlow() {
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
   const [data, setData] = useState<OnboardingData>({
+    termsAccepted: false,
+    privacyAccepted: false,
     displayName: profile?.displayName || user?.displayName || '',
     birthDate: '',
     gender: '',
+    sexualOrientation: '',
+    interestedIn: [],
     photos: [],
     interests: [],
     bio: '',
@@ -132,6 +146,10 @@ export default function OnboardingFlow() {
     }));
   };
 
+  const handlePhotosReorder = (newPhotos: string[]) => {
+    setData(prev => ({ ...prev, photos: newPhotos }));
+  };
+
   const toggleInterest = (interest: string) => {
     setData(prev => ({
       ...prev,
@@ -164,8 +182,12 @@ export default function OnboardingFlow() {
     switch (stepId) {
       case 'welcome':
         return true;
+      case 'terms':
+        return data.termsAccepted && data.privacyAccepted;
       case 'basics':
         return data.displayName.trim().length >= 2 && data.birthDate && data.gender;
+      case 'preferences':
+        return data.interestedIn.length > 0;
       case 'photos':
         return data.photos.length >= 1;
       case 'interests':
@@ -180,6 +202,19 @@ export default function OnboardingFlow() {
   }, [stepId, data, hasValidLocation]);
 
   const handleNext = useCallback(async () => {
+    // Save terms acceptance when moving past the terms step
+    if (stepId === 'terms' && user) {
+      setLoading(true);
+      try {
+        await userService.acceptTermsAndConditions(user.uid);
+        await refreshProfile();
+      } catch (error) {
+        console.error('Failed to save terms acceptance:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(prev => prev + 1);
     } else {
@@ -210,6 +245,8 @@ export default function OnboardingFlow() {
           birthDate: data.birthDate,
           age,
           gender: data.gender as 'male' | 'female' | 'other',
+          sexualOrientation: data.sexualOrientation || undefined,
+          interestedIn: data.interestedIn,
           photos: data.photos,
           profilePhotoUrl: data.photos[0],
           interests: data.interests,
@@ -331,6 +368,107 @@ export default function OnboardingFlow() {
             </div>
           )}
 
+          {/* Terms step */}
+          {stepId === 'terms' && (
+            <div className="py-8 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <FileText className="w-8 h-8 text-primary" />
+                </div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                  Terms & Conditions
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Please review and accept our terms to continue
+                </p>
+              </div>
+
+              <Card className="p-6 space-y-6">
+                {/* Safety Commitment */}
+                <div className="p-4 bg-primary/5 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <Shield className="w-6 h-6 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                        Our Safety Commitment
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        We're committed to creating a safe and respectful community. We have zero tolerance for harassment, hate speech, or inappropriate behavior.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Terms checkbox */}
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative flex-shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={data.termsAccepted}
+                      onChange={(e) => setData(prev => ({ ...prev, termsAccepted: e.target.checked }))}
+                      className="sr-only"
+                    />
+                    <div className={cn(
+                      'w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all',
+                      data.termsAccepted
+                        ? 'bg-primary border-primary'
+                        : 'border-gray-300 dark:border-gray-600 group-hover:border-primary'
+                    )}>
+                      {data.termsAccepted && <Check className="w-4 h-4 text-white" />}
+                    </div>
+                  </div>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    I agree to the{' '}
+                    <Link href="/terms" target="_blank" className="text-primary hover:underline inline-flex items-center gap-1">
+                      Terms of Service
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                    {' '}and confirm that I am at least 18 years old.
+                  </span>
+                </label>
+
+                {/* Privacy checkbox */}
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative flex-shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={data.privacyAccepted}
+                      onChange={(e) => setData(prev => ({ ...prev, privacyAccepted: e.target.checked }))}
+                      className="sr-only"
+                    />
+                    <div className={cn(
+                      'w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all',
+                      data.privacyAccepted
+                        ? 'bg-primary border-primary'
+                        : 'border-gray-300 dark:border-gray-600 group-hover:border-primary'
+                    )}>
+                      {data.privacyAccepted && <Check className="w-4 h-4 text-white" />}
+                    </div>
+                  </div>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    I have read and agree to the{' '}
+                    <Link href="/privacy" target="_blank" className="text-primary hover:underline inline-flex items-center gap-1">
+                      Privacy Policy
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                    {' '}and understand how my data will be used.
+                  </span>
+                </label>
+
+                {/* Community Guidelines */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    By continuing, you also agree to follow our{' '}
+                    <Link href="/terms#community-guidelines" target="_blank" className="text-primary hover:underline">
+                      Community Guidelines
+                    </Link>
+                    . Violations may result in account suspension.
+                  </p>
+                </div>
+              </Card>
+            </div>
+          )}
+
           {/* Basics step */}
           {stepId === 'basics' && (
             <div className="py-8 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -403,6 +541,114 @@ export default function OnboardingFlow() {
             </div>
           )}
 
+          {/* Preferences step */}
+          {stepId === 'preferences' && (
+            <div className="py-8 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Users className="w-8 h-8 text-primary" />
+                </div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                  Your dating preferences
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Help us find your perfect match
+                </p>
+              </div>
+
+              <Card className="p-6 space-y-6">
+                {/* Sexual Orientation */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Sexual orientation <span className="text-gray-400">(optional)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'straight', label: 'Straight' },
+                      { value: 'gay', label: 'Gay' },
+                      { value: 'lesbian', label: 'Lesbian' },
+                      { value: 'bisexual', label: 'Bisexual' },
+                      { value: 'pansexual', label: 'Pansexual' },
+                      { value: 'asexual', label: 'Asexual' },
+                      { value: 'other', label: 'Other' },
+                      { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setData(prev => ({
+                          ...prev,
+                          sexualOrientation: option.value as SexualOrientation
+                        }))}
+                        className={cn(
+                          'py-2.5 px-4 rounded-xl text-sm font-medium transition-all text-left',
+                          data.sexualOrientation === option.value
+                            ? 'bg-primary text-white shadow-lg shadow-primary/25'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Interested In */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    I'm interested in...
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {(['male', 'female', 'everyone'] as const).map((optionValue) => {
+                      const label = optionValue === 'male' ? 'Men' : optionValue === 'female' ? 'Women' : 'Everyone';
+                      const isSelected = optionValue === 'everyone'
+                        ? data.interestedIn.length >= 2
+                        : data.interestedIn.includes(optionValue as Gender);
+                      return (
+                        <button
+                          key={optionValue}
+                          onClick={() => {
+                            if (optionValue === 'everyone') {
+                              // "Everyone" selects male and female
+                              setData(prev => ({
+                                ...prev,
+                                interestedIn: ['male', 'female'] as Gender[]
+                              }));
+                            } else {
+                              const genderValue = optionValue as Gender;
+                              setData(prev => {
+                                const hasGender = prev.interestedIn.includes(genderValue);
+                                const updated: Gender[] = hasGender
+                                  ? prev.interestedIn.filter(g => g !== genderValue)
+                                  : [...prev.interestedIn, genderValue];
+                                return { ...prev, interestedIn: updated };
+                              });
+                            }
+                          }}
+                          className={cn(
+                            'py-3 px-4 rounded-xl text-sm font-medium transition-all',
+                            isSelected
+                              ? 'bg-primary text-white shadow-lg shadow-primary/25'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                          )}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Select one or more</p>
+                </div>
+
+                {/* Privacy note */}
+                <div className="p-4 bg-primary/5 rounded-xl">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <span className="font-medium text-primary">Privacy:</span> Your sexual orientation is only shown to other users if you choose to display it in your settings.
+                  </p>
+                </div>
+              </Card>
+            </div>
+          )}
+
           {/* Photos step */}
           {stepId === 'photos' && (
             <div className="py-8 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -419,52 +665,14 @@ export default function OnboardingFlow() {
               </div>
 
               <Card className="p-6">
-                <div className="grid grid-cols-3 gap-3">
-                  {data.photos.map((photo, index) => (
-                    <div
-                      key={index}
-                      className={cn(
-                        'relative aspect-[3/4] rounded-xl overflow-hidden group',
-                        index === 0 && 'col-span-2 row-span-2'
-                      )}
-                    >
-                      <img src={photo} alt="" className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => handleRemovePhoto(index)}
-                        className="absolute top-2 right-2 p-1.5 bg-black/50 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      {index === 0 && (
-                        <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded-full">
-                          Main photo
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {data.photos.length < 6 && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      className={cn(
-                        'aspect-[3/4] rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600',
-                        'flex flex-col items-center justify-center gap-2 text-gray-400',
-                        'hover:border-primary hover:text-primary transition-colors',
-                        uploading && 'opacity-50 cursor-not-allowed'
-                      )}
-                    >
-                      {uploading ? (
-                        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <Plus className="w-8 h-8" />
-                          <span className="text-xs">Add</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
+                <PhotoGridReorder
+                  photos={data.photos}
+                  onPhotosChange={handlePhotosReorder}
+                  onAddPhoto={() => fileInputRef.current?.click()}
+                  onRemovePhoto={handleRemovePhoto}
+                  isUploading={uploading}
+                  maxPhotos={6}
+                />
 
                 <input
                   ref={fileInputRef}

@@ -7,14 +7,13 @@ import { Button, Card, Badge, Input, Textarea } from '@crush/ui';
 import { cn } from '@crush/ui';
 import {
   ArrowLeft,
-  Camera,
   Plus,
   X,
-  GripVertical,
   Sparkles,
   Check,
   AlertCircle,
 } from 'lucide-react';
+import { PhotoGridReorder } from '@/components/profile/photo-grid-reorder';
 
 const AVAILABLE_INTERESTS = [
   'Travel', 'Music', 'Movies', 'Reading', 'Cooking', 'Fitness',
@@ -63,7 +62,6 @@ export default function ProfileEditForm() {
   });
 
   const [photos, setPhotos] = useState<string[]>(profile?.photos || []);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [activePromptIndex, setActivePromptIndex] = useState<number | null>(null);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,23 +86,8 @@ export default function ProfileEditForm() {
     setPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-
-    const newPhotos = [...photos];
-    const [draggedPhoto] = newPhotos.splice(draggedIndex, 1);
-    newPhotos.splice(index, 0, draggedPhoto);
+  const handlePhotosReorder = (newPhotos: string[]) => {
     setPhotos(newPhotos);
-    setDraggedIndex(index);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
   };
 
   const toggleInterest = (interest: string) => {
@@ -265,71 +248,15 @@ export default function ProfileEditForm() {
           <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
             Photos
           </h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Add up to 6 photos. Drag to reorder. First photo is your main profile picture.
-          </p>
 
-          <div className="grid grid-cols-3 gap-2">
-            {photos.map((photo, index) => (
-              <div
-                key={index}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-                className={cn(
-                  'relative aspect-[3/4] rounded-xl overflow-hidden group cursor-move',
-                  index === 0 && 'col-span-2 row-span-2',
-                  draggedIndex === index && 'opacity-50'
-                )}
-              >
-                <img src={photo} alt="" className="w-full h-full object-cover" />
-
-                {/* Drag handle */}
-                <div className="absolute top-2 left-2 p-1.5 bg-black/50 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                  <GripVertical className="w-4 h-4" />
-                </div>
-
-                {/* Remove button */}
-                <button
-                  onClick={() => handleRemovePhoto(index)}
-                  className="absolute top-2 right-2 p-1.5 bg-black/50 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-
-                {/* Main photo badge */}
-                {index === 0 && (
-                  <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded-full">
-                    Main photo
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* Add photo button */}
-            {photos.length < 6 && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className={cn(
-                  'aspect-[3/4] rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600',
-                  'flex flex-col items-center justify-center gap-2 text-gray-400',
-                  'hover:border-primary hover:text-primary transition-colors',
-                  uploading && 'opacity-50 cursor-not-allowed'
-                )}
-              >
-                {uploading ? (
-                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Camera className="w-8 h-8" />
-                    <span className="text-xs">Add Photo</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
+          <PhotoGridReorder
+            photos={photos}
+            onPhotosChange={handlePhotosReorder}
+            onAddPhoto={() => fileInputRef.current?.click()}
+            onRemovePhoto={handleRemovePhoto}
+            isUploading={uploading}
+            maxPhotos={6}
+          />
 
           <input
             ref={fileInputRef}

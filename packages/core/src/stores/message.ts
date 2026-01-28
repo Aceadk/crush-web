@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { messageService } from '../services/message';
-import { Message, Conversation, TypingIndicator, MessageType, MESSAGES_PER_PAGE } from '../types/message';
+import { Message, Conversation, TypingIndicator, MessageType, MessageMetadata, MessageReactionType, MESSAGES_PER_PAGE } from '../types/message';
 import { DocumentSnapshot } from 'firebase/firestore';
 
 interface MessageState {
@@ -22,9 +22,14 @@ interface MessageState {
   openConversation: (matchId: string, participants: string[], currentUserId: string) => Promise<void>;
   loadMessages: (conversationId: string) => Promise<void>;
   loadMoreMessages: (conversationId: string) => Promise<void>;
-  sendMessage: (content: string, currentUserId: string, type?: MessageType) => Promise<void>;
+  sendMessage: (content: string, currentUserId: string, type?: MessageType, metadata?: MessageMetadata) => Promise<void>;
+  sendImageMessage: (imageUrl: string, currentUserId: string, thumbnailUrl?: string) => Promise<void>;
+  sendVoiceMessage: (audioUrl: string, duration: number, currentUserId: string) => Promise<void>;
   markAsRead: (userId: string, messageIds: string[]) => Promise<void>;
   setTyping: (userId: string, isTyping: boolean) => Promise<void>;
+  toggleReaction: (messageId: string, userId: string, emoji: MessageReactionType) => Promise<void>;
+  editMessage: (messageId: string, userId: string, newContent: string) => Promise<void>;
+  deleteMessage: (messageId: string, userId: string) => Promise<void>;
   blockConversation: (userId: string) => Promise<void>;
   closeConversation: () => void;
   cleanup: () => void;
@@ -138,7 +143,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
   },
 
   // Send a message
-  sendMessage: async (content, currentUserId, type = 'text') => {
+  sendMessage: async (content, currentUserId, type = 'text', metadata) => {
     const { currentConversation, messages } = get();
     if (!currentConversation) {
       set({ error: 'No conversation selected' });
@@ -154,6 +159,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
       type,
       status: 'sending',
       timestamp: new Date().toISOString(),
+      metadata,
     };
 
     set({ messages: [...messages, tempMessage] });
@@ -163,7 +169,8 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
         currentConversation.id,
         currentUserId,
         content,
-        type
+        type,
+        metadata
       );
 
       // Replace temp message with real one
@@ -181,6 +188,24 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to send message',
       });
     }
+  },
+
+  // Send an image message
+  sendImageMessage: async (imageUrl, currentUserId, thumbnailUrl) => {
+    const metadata: MessageMetadata = {
+      imageUrl,
+      thumbnailUrl: thumbnailUrl || imageUrl,
+    };
+    await get().sendMessage(imageUrl, currentUserId, 'image', metadata);
+  },
+
+  // Send a voice message
+  sendVoiceMessage: async (audioUrl, duration, currentUserId) => {
+    const metadata: MessageMetadata = {
+      audioUrl,
+      audioDuration: duration,
+    };
+    await get().sendMessage('Voice message', currentUserId, 'audio', metadata);
   },
 
   // Mark messages as read
@@ -212,6 +237,120 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
       );
     } catch (error) {
       console.error('Failed to set typing indicator:', error);
+    }
+  },
+
+  // Toggle reaction on a message
+  toggleReaction: async (messageId, userId, emoji) => {
+    const { currentConversation, messages } = get();
+    if (!currentConversation) return;
+
+    // Optimistic update
+    const updatedMessages = messages.map((m) => {
+      if (m.id !== messageId) return m;
+
+      const existingReactions = m.reactions || [];
+      const hasReaction = existingReactions.some(
+        (r) => r.userId === userId && r.emoji === emoji
+      );
+
+      let newReactions;
+      if (hasReaction) {
+        // Remove the reaction
+        newReactions = existingReactions.filter(
+          (r) => !(r.userId === userId && r.emoji === emoji)
+        );
+      } else {
+        // Remove any other reaction from this user and add the new one
+        newReactions = existingReactions.filter((r) => r.userId !== userId);
+        newReactions.push({
+          emoji,
+          userId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return { ...m, reactions: newReactions };
+    });
+
+    set({ messages: updatedMessages });
+
+    try {
+      await messageService.toggleReaction(
+        currentConversation.id,
+        messageId,
+        userId,
+        emoji
+      );
+    } catch (error) {
+      // Revert on error
+      set({ messages });
+      console.error('Failed to toggle reaction:', error);
+    }
+  },
+
+  // Edit a message
+  editMessage: async (messageId, userId, newContent) => {
+    const { currentConversation, messages } = get();
+    if (!currentConversation) return;
+
+    // Store original for rollback
+    const originalMessages = [...messages];
+
+    // Optimistic update
+    set({
+      messages: messages.map((m) =>
+        m.id === messageId
+          ? { ...m, content: newContent, editedAt: new Date().toISOString() }
+          : m
+      ),
+    });
+
+    try {
+      await messageService.editMessage(
+        currentConversation.id,
+        messageId,
+        userId,
+        newContent
+      );
+    } catch (error) {
+      // Revert on error
+      set({ messages: originalMessages });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to edit message';
+      set({ error: errorMessage });
+      throw error;
+    }
+  },
+
+  // Delete/unsend a message
+  deleteMessage: async (messageId, userId) => {
+    const { currentConversation, messages } = get();
+    if (!currentConversation) return;
+
+    // Store original for rollback
+    const originalMessages = [...messages];
+
+    // Optimistic update
+    set({
+      messages: messages.map((m) =>
+        m.id === messageId
+          ? { ...m, isDeleted: true, content: '', deletedAt: new Date().toISOString() }
+          : m
+      ),
+    });
+
+    try {
+      await messageService.deleteMessage(
+        currentConversation.id,
+        messageId,
+        userId
+      );
+    } catch (error) {
+      // Revert on error
+      set({ messages: originalMessages });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete message';
+      set({ error: errorMessage });
+      throw error;
     }
   },
 

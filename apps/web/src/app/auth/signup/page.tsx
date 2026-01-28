@@ -1,11 +1,61 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@crush/ui';
-import { Mail, Lock, Eye, EyeOff, User, Chrome, Phone } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, Chrome, Phone, Check, X } from 'lucide-react';
+
+// Password strength calculation
+interface PasswordStrength {
+  score: number; // 0-4
+  label: string;
+  color: string;
+  requirements: {
+    length: boolean;
+    uppercase: boolean;
+    lowercase: boolean;
+    number: boolean;
+    special: boolean;
+  };
+}
+
+function calculatePasswordStrength(password: string): PasswordStrength {
+  const requirements = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+  };
+
+  const metCount = Object.values(requirements).filter(Boolean).length;
+
+  let score = 0;
+  let label = 'Too weak';
+  let color = 'bg-red-500';
+
+  if (metCount >= 5) {
+    score = 4;
+    label = 'Very strong';
+    color = 'bg-green-500';
+  } else if (metCount >= 4) {
+    score = 3;
+    label = 'Strong';
+    color = 'bg-green-400';
+  } else if (metCount >= 3) {
+    score = 2;
+    label = 'Fair';
+    color = 'bg-yellow-500';
+  } else if (metCount >= 2) {
+    score = 1;
+    label = 'Weak';
+    color = 'bg-orange-500';
+  }
+
+  return { score, label, color, requirements };
+}
 
 export default function SignupPage() {
   const router = useRouter();
@@ -18,6 +68,9 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSigningUp, setIsSigningUp] = useState(false);
+  const [showRequirements, setShowRequirements] = useState(false);
+
+  const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
 
   // Redirect when user is authenticated
   useEffect(() => {
@@ -148,23 +201,76 @@ export default function SignupPage() {
             />
           </div>
 
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <Input
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pl-10 pr-10"
-              disabled={isLoading}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
+          <div className="space-y-2">
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setShowRequirements(true)}
+                onBlur={() => setShowRequirements(false)}
+                className="pl-10 pr-10"
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+
+            {/* Password strength indicator */}
+            {password.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${passwordStrength.color}`}
+                      style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
+                    />
+                  </div>
+                  <span className={`text-xs font-medium ${
+                    passwordStrength.score >= 3 ? 'text-green-500' :
+                    passwordStrength.score >= 2 ? 'text-yellow-500' : 'text-red-500'
+                  }`}>
+                    {passwordStrength.label}
+                  </span>
+                </div>
+
+                {/* Password requirements */}
+                {showRequirements && (
+                  <div className="p-3 bg-muted/50 rounded-lg space-y-1.5 text-xs">
+                    <p className="font-medium text-muted-foreground mb-2">Password requirements:</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      <div className={`flex items-center gap-1 ${passwordStrength.requirements.length ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {passwordStrength.requirements.length ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>8+ characters</span>
+                      </div>
+                      <div className={`flex items-center gap-1 ${passwordStrength.requirements.uppercase ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {passwordStrength.requirements.uppercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>Uppercase letter</span>
+                      </div>
+                      <div className={`flex items-center gap-1 ${passwordStrength.requirements.lowercase ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {passwordStrength.requirements.lowercase ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>Lowercase letter</span>
+                      </div>
+                      <div className={`flex items-center gap-1 ${passwordStrength.requirements.number ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {passwordStrength.requirements.number ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>Number</span>
+                      </div>
+                      <div className={`flex items-center gap-1 ${passwordStrength.requirements.special ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {passwordStrength.requirements.special ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                        <span>Special character</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="relative">

@@ -10,9 +10,11 @@ export {
 export type {
   UserProfile,
   Gender,
+  SexualOrientation,
   GeoLocation,
   UserPrompt,
   UserSettings,
+  NotificationSettings,
   UserStats,
 } from './types/user';
 export { DEFAULT_USER_SETTINGS } from './types/user';
@@ -23,6 +25,9 @@ export type {
   SwipeAction,
   DiscoveryProfile,
   DiscoveryFilters,
+  ReceivedLike,
+  MessageRequest,
+  WeeklyPick,
 } from './types/match';
 export { DEFAULT_DISCOVERY_FILTERS } from './types/match';
 
@@ -31,11 +36,31 @@ export type {
   MessageType,
   MessageStatus,
   MessageMetadata,
+  MessageReaction,
+  MessageReactionType,
   Conversation,
   TypingIndicator,
   ReadReceipt,
 } from './types/message';
 export { MESSAGES_PER_PAGE } from './types/message';
+
+export type {
+  StreakData,
+  LikeLimitInfo,
+  StreakInfo,
+  StreakMilestone,
+} from './types/streak';
+export {
+  STREAK_MILESTONES,
+  BASE_DAILY_LIKES,
+  MAX_DAILY_LIKES,
+  LIKES_RESET_HOURS,
+  calculateStreakBonus,
+  calculateTotalAllowedLikes,
+  getCurrentMilestone,
+  getNextMilestone,
+  DEFAULT_STREAK_DATA,
+} from './types/streak';
 
 // Services
 export { authService } from './services/auth';
@@ -55,8 +80,11 @@ export type {
   LocationError,
 } from './services/location';
 
+export { streakService } from './services/streak';
+
 // Stores
 export { useAuthStore } from './stores/auth';
 export { useMatchStore } from './stores/match';
 export { useMessageStore } from './stores/message';
 export { useUIStore } from './stores/ui';
+export { useStreakStore } from './stores/streak';

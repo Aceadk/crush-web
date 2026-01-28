@@ -20,6 +20,7 @@ import { ThemeSwitcher } from '@/shared/components/theme';
 const navItems = [
   { href: '/discover', label: 'Discover', icon: Compass },
   { href: '/matches', label: 'Matches', icon: Heart },
+  { href: '/likes', label: 'Likes You', icon: Sparkles, premium: true },
   { href: '/messages', label: 'Messages', icon: MessageCircle },
   { href: '/profile', label: 'Profile', icon: User },
   { href: '/settings', label: 'Settings', icon: Settings },
@@ -122,6 +123,7 @@ export function Sidebar() {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
               const showBadge = item.href === '/messages' && unreadCount > 0;
+              const isPremiumItem = 'premium' in item && item.premium;
 
               return (
                 <Link
@@ -135,8 +137,13 @@ export function Sidebar() {
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className={cn('w-4 h-4', isPremiumItem && 'text-yellow-500')} />
                   <span>{item.label}</span>
+                  {isPremiumItem && !profile?.isPremium && (
+                    <span className="ml-auto text-[10px] text-yellow-600 dark:text-yellow-500 font-medium bg-yellow-100 dark:bg-yellow-900/30 px-1.5 py-0.5 rounded">
+                      PRO
+                    </span>
+                  )}
                   {showBadge && (
                     <span className="ml-auto bg-primary text-primary-foreground text-xs font-medium px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
                       {unreadCount > 99 ? '99+' : unreadCount}

@@ -12,6 +12,7 @@ export interface UserProfile {
   birthDate?: string;
   age?: number;
   gender?: Gender;
+  sexualOrientation?: SexualOrientation;
   interestedIn?: Gender[];
   photos: string[];
   profilePhotoUrl?: string;
@@ -20,14 +21,24 @@ export interface UserProfile {
   prompts?: UserPrompt[];
   isVerified: boolean;
   isPremium: boolean;
+  premiumPlan?: 'monthly' | 'quarterly' | 'yearly';
+  premiumExpiresAt?: string;
+  premiumAutoRenew?: boolean;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   createdAt: string;
   updatedAt: string;
   lastActive?: string;
   isOnline?: boolean;
   settings?: UserSettings;
+  notificationSettings?: NotificationSettings;
+  hasAcceptedTerms: boolean;
+  termsAcceptedAt?: string;
   onboardingComplete: boolean;
   profileComplete: boolean;
 }
+
+export type SexualOrientation = 'straight' | 'gay' | 'lesbian' | 'bisexual' | 'pansexual' | 'asexual' | 'other' | 'prefer_not_to_say';
 
 export type Gender = 'male' | 'female' | 'non_binary' | 'other';
 
@@ -54,6 +65,33 @@ export interface UserSettings {
   ageRangeMin: number;
   ageRangeMax: number;
   theme: 'light' | 'dark' | 'system';
+  // Incognito Mode - browse without appearing in discovery
+  incognitoMode?: boolean;
+  // Show read receipts in messages
+  showReadReceipts?: boolean;
+  // Show typing indicators
+  showTypingIndicators?: boolean;
+}
+
+export interface NotificationSettings {
+  // Match & Messages
+  newMatches?: boolean;
+  newMessages?: boolean;
+  messageRequests?: boolean;
+
+  // Activity
+  likesReceived?: boolean;
+  superLikesReceived?: boolean;
+  profileViews?: boolean;
+
+  // Promotions
+  weeklyPicks?: boolean;
+  specialOffers?: boolean;
+  productUpdates?: boolean;
+
+  // Email
+  emailNotifications?: boolean;
+  emailMarketing?: boolean;
 }
 
 export interface UserStats {
