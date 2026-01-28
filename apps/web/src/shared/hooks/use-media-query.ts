@@ -4,14 +4,23 @@ import { useState, useEffect } from 'react';
 
 /**
  * Hook to detect media query matches
+ * Returns undefined during SSR/hydration to prevent mismatch
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+  // Start with a function that checks if we're on client and can get the initial value
+  const getInitialValue = () => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(getInitialValue);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const media = window.matchMedia(query);
 
-    // Set initial value
+    // Set initial value on mount
     setMatches(media.matches);
 
     // Create listener
@@ -27,6 +36,9 @@ export function useMediaQuery(query: string): boolean {
       media.removeEventListener('change', listener);
     };
   }, [query]);
+
+  // Return false during SSR to have a consistent initial render
+  if (!mounted) return false;
 
   return matches;
 }
