@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { DiscoveryProfile } from '@crush/core';
+import { DiscoveryProfile, useAuthStore } from '@crush/core';
 import { cn, Badge } from '@crush/ui';
 import {
   MapPin,
@@ -23,6 +23,10 @@ export function SwipeCard({ profile, onSwipe, isTop }: SwipeCardProps) {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuthStore();
+
+  // Get current user's username for watermark
+  const watermarkUsername = user?.displayName || user?.email?.split('@')[0] || 'User';
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -94,6 +98,7 @@ export function SwipeCard({ profile, onSwipe, isTop }: SwipeCardProps) {
             alt={profile.displayName}
             className="w-full h-full object-cover"
             showWatermark={true}
+            watermarkUsername={watermarkUsername}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary to-secondary">

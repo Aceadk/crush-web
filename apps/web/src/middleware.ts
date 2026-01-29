@@ -9,10 +9,22 @@ const protectedRoutes = [
   '/profile',
   '/settings',
   '/onboarding',
+  '/likes',
+  '/weekly-picks',
+  '/safety',
+  '/date-ideas',
+  '/compatibility-quiz',
+  '/insights',
+  '/premium',
 ];
 
 // Routes that should redirect to app if authenticated
-const authRoutes = ['/auth/login', '/auth/signup', '/auth/phone'];
+const authRoutes = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/phone',
+  '/auth/forgot-password',
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -23,11 +35,13 @@ export function middleware(request: NextRequest) {
 
   // Check if the route is protected
   const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
+    pathname === route || pathname.startsWith(`${route}/`)
   );
 
   // Check if the route is an auth route
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
+  const isAuthRoute = authRoutes.some((route) =>
+    pathname === route || pathname.startsWith(`${route}/`)
+  );
 
   // Redirect unauthenticated users from protected routes
   if (isProtectedRoute && !authToken) {

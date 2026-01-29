@@ -756,6 +756,7 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
             alt="Zoomed image"
             className="max-w-[90vw] max-h-[90vh] object-contain"
             showWatermark={true}
+            watermarkUsername={user?.displayName || user?.email?.split('@')[0] || 'User'}
           />
         </div>
       )}
