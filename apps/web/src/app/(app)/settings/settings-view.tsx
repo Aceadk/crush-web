@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useLocation } from '@/shared/hooks';
+import { PromoCodeInput } from '@/features/premium';
 
 interface SettingItemProps {
   icon: React.ReactNode;
@@ -261,25 +262,57 @@ export default function SettingsView() {
           </div>
         </Card>
 
-        {/* Premium section */}
-        <Card className="overflow-hidden bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
-          <Link href="/premium">
-            <div className="p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-white" />
+        {/* Premium section - show upgrade if not premium */}
+        {!profile?.isPremium && (
+          <Card className="overflow-hidden bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
+            <Link href="/premium">
+              <div className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 dark:text-white">
+                    Upgrade to Premium
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Unlimited likes, see who likes you, and more
+                  </p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-primary" />
               </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900 dark:text-white">
-                  Upgrade to Premium
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Unlimited likes, see who likes you, and more
-                </p>
+            </Link>
+          </Card>
+        )}
+
+        {/* Premium status - show if already premium */}
+        {profile?.isPremium && (
+          <Card className="overflow-hidden bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
+            <Link href="/premium">
+              <div className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900 dark:text-white">
+                    Premium Member
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Enjoy all premium features
+                  </p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-primary" />
               </div>
-              <ChevronRight className="w-5 h-5 text-primary" />
-            </div>
-          </Link>
-        </Card>
+            </Link>
+          </Card>
+        )}
+
+        {/* Promo Code section - only show if not premium */}
+        {!profile?.isPremium && (
+          <PromoCodeInput
+            collapsible={true}
+            defaultExpanded={false}
+          />
+        )}
 
         {/* Location section - NEW */}
         <Card className="overflow-hidden">

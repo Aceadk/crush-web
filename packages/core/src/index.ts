@@ -62,6 +62,13 @@ export {
   DEFAULT_STREAK_DATA,
 } from './types/streak';
 
+export type {
+  PromoCode,
+  PromoCodeRedemption,
+  PromoCodeValidationResult,
+  ApplyPromoResult,
+} from './types/promo';
+
 // Services
 export { authService } from './services/auth';
 export type { AuthState } from './services/auth';
@@ -81,6 +88,7 @@ export type {
 } from './services/location';
 
 export { streakService } from './services/streak';
+export { promoCodeService } from './services/promo';
 
 // Stores
 export { useAuthStore } from './stores/auth';
@@ -88,3 +96,4 @@ export { useMatchStore } from './stores/match';
 export { useMessageStore } from './stores/message';
 export { useUIStore } from './stores/ui';
 export { useStreakStore } from './stores/streak';
+export { usePromoCodeStore } from './stores/promo';

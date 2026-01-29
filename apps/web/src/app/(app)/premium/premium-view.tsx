@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuthStore, useUIStore } from '@crush/core';
+import { useAuthStore, useUIStore, usePromoCodeStore } from '@crush/core';
 import { Button, Card, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
 import { loadStripe } from '@stripe/stripe-js';
@@ -20,6 +20,8 @@ import {
   Crown,
   Check,
   X,
+  Tag,
+  Loader2,
 } from 'lucide-react';
 
 const PREMIUM_FEATURES = [
@@ -113,8 +115,50 @@ export default function PremiumView() {
   const searchParams = useSearchParams();
   const { user, profile } = useAuthStore();
   const { addToast } = useUIStore();
+  const {
+    validatePromoCode,
+    clearPromoCode,
+  } = usePromoCodeStore();
+
   const [selectedPlan, setSelectedPlan] = useState('quarterly');
   const [loading, setLoading] = useState(false);
+  const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [validatingPromo, setValidatingPromo] = useState(false);
+
+  // Handle promo code from URL params (redirected from settings)
+  useEffect(() => {
+    const promoFromUrl = searchParams.get('promo');
+    const planFromUrl = searchParams.get('plan');
+
+    if (promoFromUrl) {
+      setAppliedPromoCode(promoFromUrl);
+      setPromoCodeInput(promoFromUrl);
+
+      // Validate the promo code
+      if (user) {
+        validatePromoCode(promoFromUrl, user.uid, planFromUrl || selectedPlan).then((result) => {
+          if (result.isValid && result.discountPercent) {
+            setAppliedDiscount(result.discountPercent);
+            addToast({
+              type: 'success',
+              title: 'Promo Code Applied!',
+              description: `${result.discountPercent}% discount will be applied at checkout.`,
+            });
+          }
+        });
+      }
+
+      // Set plan from URL if provided
+      if (planFromUrl && ['monthly', 'quarterly', 'yearly'].includes(planFromUrl)) {
+        setSelectedPlan(planFromUrl);
+      }
+
+      // Clear URL params
+      router.replace('/premium');
+    }
+  }, [searchParams, user, selectedPlan, validatePromoCode, addToast, router]);
 
   // Handle canceled payment redirect
   useEffect(() => {
@@ -128,6 +172,49 @@ export default function PremiumView() {
       router.replace('/premium');
     }
   }, [searchParams, addToast, router]);
+
+  // Handle promo code validation
+  const handleValidatePromo = useCallback(async () => {
+    if (!user || !promoCodeInput) return;
+
+    setValidatingPromo(true);
+    try {
+      const result = await validatePromoCode(promoCodeInput, user.uid, selectedPlan);
+      if (result.isValid && result.discountPercent) {
+        setAppliedPromoCode(promoCodeInput);
+        setAppliedDiscount(result.discountPercent);
+        addToast({
+          type: 'success',
+          title: 'Valid Promo Code!',
+          description: `${result.discountPercent}% discount will be applied.`,
+        });
+      } else {
+        addToast({
+          type: 'error',
+          title: 'Invalid Code',
+          description: result.error || 'This promo code is not valid.',
+        });
+      }
+    } finally {
+      setValidatingPromo(false);
+    }
+  }, [user, promoCodeInput, selectedPlan, validatePromoCode, addToast]);
+
+  // Clear promo code
+  const handleClearPromo = useCallback(() => {
+    setAppliedPromoCode(null);
+    setAppliedDiscount(0);
+    setPromoCodeInput('');
+    clearPromoCode();
+  }, [clearPromoCode]);
+
+  // Calculate discounted price
+  const getDiscountedPrice = (originalPrice: number) => {
+    if (appliedDiscount > 0) {
+      return (originalPrice * (100 - appliedDiscount) / 100).toFixed(2);
+    }
+    return originalPrice.toFixed(2);
+  };
 
   const handleSubscribe = async () => {
     if (!user) {
@@ -150,6 +237,8 @@ export default function PremiumView() {
           planId: selectedPlan,
           userId: user.uid,
           userEmail: user.email,
+          promoCode: appliedPromoCode || undefined,
+          discountPercent: appliedDiscount || undefined,
         }),
       });
 
@@ -466,9 +555,20 @@ export default function PremiumView() {
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      ${plan.price}
-                    </p>
+                    {appliedDiscount > 0 ? (
+                      <>
+                        <p className="text-lg text-gray-400 line-through">
+                          ${plan.price}
+                        </p>
+                        <p className="text-2xl font-bold text-green-600">
+                          ${getDiscountedPrice(plan.price)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        ${plan.price}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500">
                       /{plan.period}
                     </p>
@@ -485,6 +585,66 @@ export default function PremiumView() {
             ))}
           </div>
         </div>
+
+        {/* Promo Code Section */}
+        <Card className="overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-primary" />
+              <span className="font-semibold text-gray-900 dark:text-white text-sm">
+                Have a Promo Code?
+              </span>
+            </div>
+          </div>
+          <div className="p-4">
+            {appliedPromoCode ? (
+              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-2">
+                  <Check className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="font-medium text-green-700 dark:text-green-400">
+                      {appliedPromoCode}
+                    </p>
+                    <p className="text-sm text-green-600 dark:text-green-500">
+                      {appliedDiscount}% discount applied
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleClearPromo}
+                  className="p-1.5 rounded-full hover:bg-green-100 dark:hover:bg-green-800 transition-colors"
+                >
+                  <X className="w-4 h-4 text-green-600" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={promoCodeInput}
+                    onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Enter code"
+                    maxLength={20}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-medium tracking-wider uppercase focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+                <Button
+                  onClick={handleValidatePromo}
+                  disabled={!promoCodeInput || validatingPromo}
+                  variant="outline"
+                >
+                  {validatingPromo ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Apply'
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* Trust badges */}
         <div className="flex justify-center gap-6 text-center text-sm text-gray-500">
@@ -506,6 +666,13 @@ export default function PremiumView() {
       {/* Bottom CTA */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-t border-gray-200/50 dark:border-gray-800/50 p-4">
         <div className="max-w-2xl mx-auto">
+          {appliedDiscount > 0 && (
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Badge variant="secondary" className="bg-green-100 text-green-700">
+                {appliedDiscount}% OFF with {appliedPromoCode}
+              </Badge>
+            </div>
+          )}
           <Button
             onClick={handleSubscribe}
             disabled={loading}
@@ -513,16 +680,29 @@ export default function PremiumView() {
             size="lg"
           >
             {loading ? (
-              'Processing...'
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Processing...
+              </>
             ) : (
               <>
                 <Sparkles className="w-5 h-5" />
-                Get Premium for ${PLANS.find(p => p.id === selectedPlan)?.price}/month
+                {appliedDiscount > 0 ? (
+                  <>
+                    Get Premium for ${getDiscountedPrice(PLANS.find(p => p.id === selectedPlan)?.price || 0)}/month
+                  </>
+                ) : (
+                  <>
+                    Get Premium for ${PLANS.find(p => p.id === selectedPlan)?.price}/month
+                  </>
+                )}
               </>
             )}
           </Button>
           <p className="text-center text-xs text-gray-500 mt-2">
-            Recurring billing. Cancel anytime in settings.
+            {appliedDiscount > 0
+              ? `Discount applied. Recurring billing after first period. Cancel anytime.`
+              : 'Recurring billing. Cancel anytime in settings.'}
           </p>
         </div>
       </div>
