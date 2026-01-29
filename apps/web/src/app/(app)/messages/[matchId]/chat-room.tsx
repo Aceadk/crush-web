@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { VoiceNoteRecorder, VoiceNotePlayer } from '@/features/messages/components';
 import { format, isToday, isYesterday } from 'date-fns';
+import { ContentProtectionProvider, ProtectedImage } from '@/shared/components/content-protection';
 
 interface ChatRoomProps {
   matchId: string;
@@ -323,7 +324,12 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+    <ContentProtectionProvider
+      enabled={true}
+      showWarningOnScreenshot={true}
+      blurIntensity="heavy"
+    >
+      <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <button
@@ -745,15 +751,16 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
           >
             <X className="w-6 h-6 text-white" />
           </button>
-          <img
+          <ProtectedImage
             src={zoomedImage}
             alt="Zoomed image"
             className="max-w-[90vw] max-h-[90vh] object-contain"
-            onClick={(e) => e.stopPropagation()}
+            showWatermark={true}
           />
         </div>
       )}
-    </div>
+      </div>
+    </ContentProtectionProvider>
   );
 }
 

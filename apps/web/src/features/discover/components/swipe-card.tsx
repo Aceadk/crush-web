@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Info,
 } from 'lucide-react';
+import { ProtectedImage } from '@/shared/components/content-protection';
 
 interface SwipeCardProps {
   profile: DiscoveryProfile;
@@ -88,11 +89,11 @@ export function SwipeCard({ profile, onSwipe, isTop }: SwipeCardProps) {
       {/* Photo */}
       <div className="relative w-full h-full bg-muted">
         {profile.photos.length > 0 ? (
-          <img
+          <ProtectedImage
             src={profile.photos[currentPhotoIndex]}
             alt={profile.displayName}
             className="w-full h-full object-cover"
-            draggable={false}
+            showWatermark={true}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary to-secondary">
