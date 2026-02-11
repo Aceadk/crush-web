@@ -11,7 +11,7 @@ const protectedRoutes = [
   '/onboarding',
   '/likes',
   '/weekly-picks',
-  '/safety',
+  '/date-safety',
   '/date-ideas',
   '/compatibility-quiz',
   '/insights',
