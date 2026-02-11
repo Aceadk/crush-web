@@ -64,6 +64,7 @@ export default function OnboardingFlow() {
   const router = useRouter();
   const { user, profile, refreshProfile } = useAuthStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const needsEmailVerification = Boolean(user?.email && !user.emailVerified);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -93,10 +94,16 @@ export default function OnboardingFlow() {
   const stepId = STEPS[currentStep].id;
 
   useEffect(() => {
-    if (profile?.onboardingComplete) {
+    if (profile?.onboardingComplete && !needsEmailVerification) {
       router.replace('/discover');
     }
-  }, [profile, router]);
+  }, [profile, needsEmailVerification, router]);
+
+  useEffect(() => {
+    if (needsEmailVerification) {
+      router.replace('/auth/verify-email');
+    }
+  }, [needsEmailVerification, router]);
 
   // Auto-detect location when reaching location step
   useEffect(() => {
@@ -276,6 +283,17 @@ export default function OnboardingFlow() {
   };
 
   const progressPercentage = ((currentStep + 1) / STEPS.length) * 100;
+
+  if (needsEmailVerification) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Redirecting to email verification...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">

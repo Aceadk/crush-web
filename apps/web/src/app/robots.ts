@@ -11,6 +11,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           '/api/',
           '/auth/verify/',
+          '/auth/verify-email/',
           '/onboarding/',
           '/discover/',
           '/matches/',
@@ -28,6 +29,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           '/api/',
           '/auth/verify/',
+          '/auth/verify-email/',
           '/onboarding/',
           '/discover/',
           '/matches/',

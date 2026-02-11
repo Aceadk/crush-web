@@ -184,6 +184,25 @@ class AuthService {
     }
     await firebaseSendEmailVerification(user);
   }
+
+  /**
+   * Reload current user and return latest email verification status.
+   */
+  async checkEmailVerification(): Promise<boolean> {
+    const user = this.getCurrentUser();
+    if (!user) {
+      throw new Error('No authenticated user');
+    }
+
+    // Phone-only users do not require email verification.
+    if (!user.email) {
+      return true;
+    }
+
+    await user.reload();
+    const refreshedUser = this.getCurrentUser();
+    return Boolean(refreshedUser?.emailVerified);
+  }
 }
 
 export const authService = new AuthService();

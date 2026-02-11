@@ -42,7 +42,9 @@ import {
   RefreshCw,
   AlertCircle,
 } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { toast } from 'sonner';
+import { useTheme } from '@/shared/components/theme';
+import { type Theme } from '@/shared/lib/theme';
 import { useLocation } from '@/shared/hooks';
 import { PromoCodeInput } from '@/features/premium';
 
@@ -105,6 +107,12 @@ interface ToggleProps {
   disabled?: boolean;
 }
 
+const themeOptions: { value: Theme; icon: typeof Sun; label: string }[] = [
+  { value: 'light', icon: Sun, label: 'Light' },
+  { value: 'dark', icon: Moon, label: 'Dark' },
+  { value: 'system', icon: Globe, label: 'System' },
+];
+
 function Toggle({ enabled, onChange, loading, disabled }: ToggleProps) {
   return (
     <button
@@ -163,9 +171,32 @@ export default function SettingsView() {
   });
 
   const handleSignOut = useCallback(async () => {
-    await signOut();
-    router.replace('/');
+    try {
+      await signOut();
+      router.replace('/');
+    } catch (error) {
+      console.error('Failed to sign out:', error);
+    }
   }, [signOut, router]);
+
+  const requestSignOutConfirmation = useCallback(() => {
+    toast('Sign out now?', {
+      description: 'You can stay logged in by selecting Cancel.',
+      duration: 10000,
+      action: {
+        label: 'Sign out',
+        onClick: () => {
+          void handleSignOut();
+        },
+      },
+      cancel: {
+        label: 'Cancel',
+        onClick: () => {
+          // Intentionally no-op; user stays signed in.
+        },
+      },
+    });
+  }, [handleSignOut]);
 
   const handleDeleteAccount = useCallback(async () => {
     if (!user) return;
@@ -530,11 +561,7 @@ export default function SettingsView() {
               Theme
             </label>
             <div className="grid grid-cols-3 gap-2">
-              {[
-                { value: 'light', icon: Sun, label: 'Light' },
-                { value: 'dark', icon: Moon, label: 'Dark' },
-                { value: 'system', icon: Globe, label: 'System' },
-              ].map((option) => (
+              {themeOptions.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setTheme(option.value)}
@@ -585,7 +612,7 @@ export default function SettingsView() {
             <SettingItem
               icon={<LogOut className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
               title="Sign Out"
-              onClick={handleSignOut}
+              onClick={requestSignOutConfirmation}
             />
             <SettingItem
               icon={<Trash2 className="w-5 h-5" />}

@@ -23,6 +23,12 @@ export default function LoginForm() {
   // Redirect when user is authenticated
   useEffect(() => {
     if (initialized && user && !loading) {
+      // Email/password users must verify email before entering app flow.
+      if (user.email && !user.emailVerified) {
+        router.push('/auth/verify-email');
+        return;
+      }
+
       // Check if user needs onboarding
       if (profile && !profile.onboardingComplete) {
         router.push('/onboarding');

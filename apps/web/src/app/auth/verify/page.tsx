@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Heart, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Suspense } from 'react';
 
 function VerifyContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -28,11 +29,27 @@ function VerifyContent() {
         setStatus('success');
       } catch (err: any) {
         setStatus('error');
-        setErrorMessage(err?.message || 'Verification failed. The link may have expired.');
+        if (err?.code === 'auth/invalid-action-code') {
+          setErrorMessage('This verification link is invalid or already used.');
+        } else if (err?.code === 'auth/expired-action-code') {
+          setErrorMessage('This verification link has expired. Please request a new one.');
+        } else {
+          setErrorMessage(err?.message || 'Verification failed. The link may have expired.');
+        }
       }
     }
     verifyEmail();
   }, [searchParams]);
+
+  useEffect(() => {
+    if (status !== 'success') return;
+
+    const timeoutId = window.setTimeout(() => {
+      router.replace('/auth/verify-email?verified=1');
+    }, 1200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [status, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
@@ -54,13 +71,13 @@ function VerifyContent() {
             <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
             <h1 className="text-2xl font-bold mb-2">Email Verified!</h1>
             <p className="text-muted-foreground mb-6">
-              Your email has been successfully verified. You can now sign in to your account.
+              Your email has been successfully verified. We are taking you to the next step.
             </p>
             <Link
-              href="/auth/login"
+              href="/auth/verify-email?verified=1"
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
             >
-              Sign In
+              Continue
             </Link>
           </>
         )}

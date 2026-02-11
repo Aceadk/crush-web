@@ -13,6 +13,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { setIsMobile } = useUIStore();
   const { subscribeToMatches, cleanup } = useMatchStore();
   const isMobile = useIsMobile();
+  const needsEmailVerification = Boolean(user?.email && !user.emailVerified);
 
   // Note: Auth is initialized globally in AuthInitializer provider
 
@@ -22,14 +23,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Subscribe to matches when authenticated
   useEffect(() => {
-    if (user) {
+    if (user && !needsEmailVerification) {
       subscribeToMatches(user.uid);
     }
 
     return () => {
       cleanup();
     };
-  }, [user, subscribeToMatches, cleanup]);
+  }, [user, needsEmailVerification, subscribeToMatches, cleanup]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -41,12 +42,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, initialized]);
 
+  // Enforce email verification for email/password users before app access.
+  useEffect(() => {
+    if (initialized && !loading && user && needsEmailVerification) {
+      router.replace('/auth/verify-email');
+    }
+  }, [initialized, loading, user, needsEmailVerification, router]);
+
   // Redirect to onboarding if not completed
   useEffect(() => {
-    if (profile && !profile.onboardingComplete) {
+    if (profile && !profile.onboardingComplete && !needsEmailVerification) {
       router.push('/onboarding');
     }
-  }, [profile, router]);
+  }, [profile, needsEmailVerification, router]);
 
   // Loading state
   if (!initialized || loading) {
@@ -55,6 +63,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Not authenticated - show loading while redirecting
   if (!user) {
+    return <AuthRedirectingShell />;
+  }
+
+  // Authenticated but still verifying email - hold render while redirecting.
+  if (needsEmailVerification) {
     return <AuthRedirectingShell />;
   }
 

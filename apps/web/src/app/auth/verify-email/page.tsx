@@ -1,0 +1,257 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { authService, useAuthStore } from '@crush/core';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@crush/ui';
+import { CheckCircle2, Loader2, LogOut, Mail, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+
+const RESEND_COOLDOWN_SECONDS = 60;
+const VERIFICATION_POLL_INTERVAL_MS = 5000;
+
+export default function VerifyEmailRequiredPage() {
+  const router = useRouter();
+  const { user, profile, loading, initialized, signOut } = useAuthStore();
+  const checkInFlightRef = useRef(false);
+  const [cameFromVerificationLink, setCameFromVerificationLink] = useState(false);
+
+  const [checking, setChecking] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
+  const getPostVerificationRoute = useCallback(() => {
+    if (profile && !profile.onboardingComplete) {
+      return '/onboarding';
+    }
+    return '/discover';
+  }, [profile]);
+
+  const checkVerification = useCallback(
+    async (silent = false) => {
+      if (!user?.email || checkInFlightRef.current) return;
+
+      checkInFlightRef.current = true;
+      setChecking(true);
+      if (!silent) {
+        setErrorMessage(null);
+      }
+
+      try {
+        const verified = await authService.checkEmailVerification();
+
+        if (verified) {
+          setInfoMessage('Email verified. Redirecting...');
+          router.replace(getPostVerificationRoute());
+          return;
+        }
+
+        if (!silent) {
+          setInfoMessage('Email not verified yet. Please click the link in your inbox, then try again.');
+        }
+      } catch (error) {
+        if (!silent) {
+          setErrorMessage(error instanceof Error ? error.message : 'Could not verify email status.');
+        }
+      } finally {
+        checkInFlightRef.current = false;
+        setChecking(false);
+      }
+    },
+    [user?.email, router, getPostVerificationRoute]
+  );
+
+  const handleResend = useCallback(async () => {
+    if (!user?.email || resending || cooldown > 0) return;
+
+    setResending(true);
+    setErrorMessage(null);
+
+    try {
+      await authService.sendEmailVerification();
+      setInfoMessage(`Verification email sent to ${user.email}.`);
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to send verification email.');
+    } finally {
+      setResending(false);
+    }
+  }, [user?.email, resending, cooldown]);
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await signOut();
+      router.replace('/auth/login');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to sign out.');
+    }
+  }, [signOut, router]);
+
+  const requestSignOutConfirmation = useCallback(() => {
+    toast('Sign out of this account?', {
+      description: 'You will need to sign in again to continue verification.',
+      duration: 10000,
+      action: {
+        label: 'Sign out',
+        onClick: () => {
+          void handleSignOut();
+        },
+      },
+      cancel: {
+        label: 'Cancel',
+        onClick: () => {
+          setInfoMessage('Stayed signed in.');
+        },
+      },
+    });
+  }, [handleSignOut]);
+
+  useEffect(() => {
+    if (!initialized || loading) return;
+
+    if (!user) {
+      router.replace('/auth/login');
+      return;
+    }
+
+    // Phone-only users do not require email verification.
+    if (!user.email || user.emailVerified) {
+      router.replace(getPostVerificationRoute());
+    }
+  }, [initialized, loading, user, router, getPostVerificationRoute]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timeoutId = window.setTimeout(() => {
+      setCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [cooldown]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setCameFromVerificationLink(params.get('verified') === '1');
+  }, []);
+
+  useEffect(() => {
+    if (!initialized || loading) return;
+    if (!user?.email || user.emailVerified) return;
+
+    // When coming from verification link, immediately re-check and auto-advance.
+    if (cameFromVerificationLink) {
+      setInfoMessage('Verification link processed. Finalizing your account...');
+      void checkVerification(true);
+    }
+  }, [initialized, loading, user?.email, user?.emailVerified, cameFromVerificationLink, checkVerification]);
+
+  useEffect(() => {
+    if (!initialized || loading || !user?.email || user.emailVerified) return;
+
+    const intervalId = window.setInterval(() => {
+      void checkVerification(true);
+    }, VERIFICATION_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [initialized, loading, user?.email, user?.emailVerified, checkVerification]);
+
+  if (!initialized || loading || !user) {
+    return (
+      <Card className="border-0 shadow-lg">
+        <CardContent className="py-12">
+          <div className="flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Loading...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-0 shadow-lg">
+      <CardHeader className="text-center">
+        <div className="mx-auto mb-4 w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+          <Mail className="w-7 h-7 text-primary" />
+        </div>
+        <CardTitle className="text-2xl">Verify your email</CardTitle>
+        <CardDescription>
+          We sent a verification link to <span className="font-medium text-foreground">{user.email}</span>.
+          <br />
+          Verify your email before continuing.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {infoMessage && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>{infoMessage}</span>
+            </div>
+          </div>
+        )}
+
+        {errorMessage && (
+          <p className="text-sm text-destructive text-center">{errorMessage}</p>
+        )}
+
+        <Button
+          className="w-full h-12"
+          variant="outline"
+          onClick={() => void checkVerification(false)}
+          disabled={checking}
+        >
+          {checking ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Checking...
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+              I have verified my email
+            </>
+          )}
+        </Button>
+
+        <Button
+          className="w-full h-12"
+          variant="outline"
+          onClick={handleResend}
+          disabled={resending || cooldown > 0}
+        >
+          {resending ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend verification email'}
+            </>
+          )}
+        </Button>
+
+        <Button
+          className="w-full h-12"
+          variant="ghost"
+          onClick={requestSignOutConfirmation}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sign out
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}

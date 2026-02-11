@@ -149,6 +149,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         displayName: displayName || '',
       });
 
+      // Send verification email immediately after account creation.
+      try {
+        await authService.sendEmailVerification();
+      } catch (verificationError) {
+        console.error('Failed to send verification email after sign up:', verificationError);
+      }
+
       set({ profile, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sign up failed';
