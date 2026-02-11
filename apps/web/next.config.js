@@ -39,6 +39,20 @@ const nextConfig = {
 
   // Power PWA support with offline capabilities
   poweredByHeader: false,
+
+  // Redirects for common URL patterns
+  async redirects() {
+    return [
+      { source: '/login', destination: '/auth/login', permanent: true },
+      { source: '/signup', destination: '/auth/signup', permanent: true },
+      { source: '/register', destination: '/auth/signup', permanent: true },
+      { source: '/chat', destination: '/messages', permanent: true },
+      { source: '/chat/:matchId', destination: '/messages/:matchId', permanent: true },
+      { source: '/dashboard', destination: '/discover', permanent: true },
+      { source: '/download', destination: '/#download', permanent: false },
+    ];
+  },
+
   async headers() {
     return [
       {
