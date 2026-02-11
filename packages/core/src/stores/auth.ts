@@ -5,31 +5,39 @@ import { userService } from '../services/user';
 import { UserProfile } from '../types/user';
 import { isFirebaseConfigured } from '../firebase/config';
 
-// Helper to clear auth cookie
-const clearAuthCookie = () => {
-  if (typeof document === 'undefined') return;
-  document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+// Helper to clear auth cookie via server-side API (HttpOnly)
+const clearAuthCookie = async () => {
+  if (typeof window === 'undefined') return;
+  try {
+    await fetch('/api/auth/session', { method: 'DELETE' });
+  } catch {
+    // Fallback: clear via document.cookie (non-HttpOnly legacy)
+    document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  }
 };
 
-// Helper to set auth cookie for middleware
+// Helper to set auth cookie via server-side API (HttpOnly)
 const setAuthCookie = async (user: User | null) => {
-  if (typeof document === 'undefined') return;
+  if (typeof window === 'undefined') return;
 
   if (user) {
     try {
       const token = await user.getIdToken();
-      // Set cookie with 7 day expiry, secure in production
-      const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString();
-      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-      document.cookie = `auth-token=${token}; path=/; expires=${expires}; SameSite=Lax${secure}`;
+      const res = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      if (!res.ok) {
+        console.error('Failed to set auth cookie:', res.status);
+        await clearAuthCookie();
+      }
     } catch (error) {
       console.error('Failed to set auth cookie:', error);
-      // Clear potentially stale cookie on error
-      clearAuthCookie();
+      await clearAuthCookie();
     }
   } else {
-    // Remove cookie
-    clearAuthCookie();
+    await clearAuthCookie();
   }
 };
 

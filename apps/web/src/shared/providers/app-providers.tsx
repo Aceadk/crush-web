@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'sonner';
 import { useState, type ReactNode } from 'react';
 import { ThemeProvider } from '@/shared/components/theme';
+import { CookieConsent } from '@/shared/components/cookie-consent';
 import { AuthInitializer } from './auth-initializer';
 
 interface ProvidersProps {
@@ -38,6 +39,7 @@ export function Providers({ children }: ProvidersProps) {
             className: 'bg-card text-card-foreground border border-border shadow-lg',
           }}
         />
+        <CookieConsent />
       </ThemeProvider>
       {process.env.NODE_ENV === 'development' && (
         <ReactQueryDevtools initialIsOpen={false} />

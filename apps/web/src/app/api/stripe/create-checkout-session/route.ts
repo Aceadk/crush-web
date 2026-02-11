@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { verifyCsrf } from '@/shared/lib/csrf';
+import { checkRateLimit, getRateLimitKey } from '@/shared/lib/rate-limit';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
@@ -13,6 +15,30 @@ const PRICE_IDS: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
+    // CSRF protection — verify request origin
+    const csrfError = verifyCsrf(request);
+    if (csrfError) {
+      return NextResponse.json(
+        { error: csrfError },
+        { status: 403 }
+      );
+    }
+
+    // Rate limiting — 10 checkout attempts per 15 minutes per IP
+    const rateLimitKey = getRateLimitKey(request, 'checkout');
+    const rateResult = checkRateLimit(rateLimitKey, { limit: 10, windowSeconds: 900 });
+    if (!rateResult.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateResult.resetAt - Date.now()) / 1000)),
+          },
+        }
+      );
+    }
+
     // Verify auth token exists (middleware guards the route, but double-check here)
     const authToken = request.cookies.get('auth-token')?.value;
     if (!authToken) {
