@@ -50,6 +50,10 @@ const nextConfig = {
       { source: '/chat/:matchId', destination: '/messages/:matchId', permanent: true },
       { source: '/dashboard', destination: '/discover', permanent: true },
       { source: '/download', destination: '/#download', permanent: false },
+      { source: '/likes-you', destination: '/likes', permanent: true },
+      { source: '/reset-password', destination: '/auth/forgot-password', permanent: true },
+      { source: '/auth/reset-password', destination: '/auth/forgot-password', permanent: true },
+      { source: '/verify', destination: '/auth/verify', permanent: true },
     ];
   },
 
