@@ -113,14 +113,14 @@ check_redirect() {
   local location
   location=$(echo "$response" | grep -i '^location:' | sed 's/^[Ll]ocation:[[:space:]]*//' | tr -d '\r') || location=""
 
-  if [[ "$status" == "301" || "$status" == "302" ]]; then
+  if [[ "$status" == "301" || "$status" == "302" || "$status" == "307" || "$status" == "308" ]]; then
     if echo "$location" | grep -q "$expected_dest"; then
       pass "$label  (HTTP $status, Location: $location)"
     else
       fail "$label  (HTTP $status, but Location '$location' does not contain '$expected_dest')"
     fi
   else
-    fail "$label  (expected 301/302, got $status)"
+    fail "$label  (expected redirect, got $status)"
   fi
 }
 
