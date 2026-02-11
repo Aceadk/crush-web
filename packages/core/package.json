@@ -20,7 +20,9 @@
     "react": "^18.0.0"
   },
   "devDependencies": {
+    "@crush/config": "workspace:*",
     "@types/react": "^18.2.48",
+    "eslint-config-prettier": "^9.1.0",
     "typescript": "^5.3.3"
   }
 }

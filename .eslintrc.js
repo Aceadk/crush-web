@@ -1,4 +1,4 @@
 module.exports = {
   root: true,
-  extends: ['@crush/config/eslint'],
+  extends: [require.resolve('@crush/config/eslint')],
 };
