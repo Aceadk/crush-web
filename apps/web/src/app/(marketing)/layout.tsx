@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: '/og-image.png',
+        url: '/og-image.svg',
         width: 1200,
         height: 630,
         alt: 'Crush - Modern Dating App',
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     title: 'Crush - Find Your Perfect Match',
     description:
       'Join millions finding love on Crush. Smart matching, meaningful conversations, and a safe community.',
-    images: ['/og-image.png'],
+    images: ['/og-image.svg'],
   },
   alternates: {
     canonical: '/',

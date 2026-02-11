@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app';
+const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app').trim();
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const currentDate = new Date().toISOString();
@@ -70,6 +70,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: currentDate,
       changeFrequency: 'monthly' as const,
       priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/guidelines`,
+      lastModified: currentDate,
+      changeFrequency: 'monthly' as const,
+      priority: 0.6,
     },
   ];
 

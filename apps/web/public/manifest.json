@@ -1,0 +1,19 @@
+{
+  "name": "Crush",
+  "short_name": "Crush",
+  "description": "Find your perfect match",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#E11D48",
+  "background_color": "#FFFFFF",
+  "orientation": "portrait",
+  "categories": ["social", "lifestyle"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

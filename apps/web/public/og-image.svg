@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E11D48;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#BE185D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="heartGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.95" />
+      <stop offset="100%" style="stop-color:#FECDD3;stop-opacity:0.85" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background gradient -->
+  <rect width="1200" height="630" fill="url(#bg)" />
+
+  <!-- Subtle pattern overlay -->
+  <circle cx="200" cy="100" r="300" fill="#FFFFFF" opacity="0.03" />
+  <circle cx="1000" cy="530" r="250" fill="#FFFFFF" opacity="0.03" />
+  <circle cx="600" cy="315" r="400" fill="#FFFFFF" opacity="0.02" />
+
+  <!-- Heart icon -->
+  <g transform="translate(600, 220) scale(3.5)">
+    <path d="M0 20l-1.8-1.65C-7.2 12.6-12 8.55-12 3.6 12-1.2-9.6-4.8-6.6-4.8c2.7 0 5.25 1.2 6.6 3.15C1.35-2.85 3.9-4.8 6.6-4.8c3 0 6 2.4 6 7.2 0 4.95-4.8 9-10.2 16.05L0 20z"
+          fill="url(#heartGlow)" />
+  </g>
+
+  <!-- App name -->
+  <text x="600" y="360" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="72" font-weight="800" fill="#FFFFFF" letter-spacing="2">
+    Crush
+  </text>
+
+  <!-- Tagline -->
+  <text x="600" y="420" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="400" fill="#FFFFFF" opacity="0.85" letter-spacing="1">
+    Find Your Perfect Match
+  </text>
+
+  <!-- Subtle bottom border -->
+  <rect x="500" y="460" width="200" height="3" rx="1.5" fill="#FFFFFF" opacity="0.3" />
+</svg>

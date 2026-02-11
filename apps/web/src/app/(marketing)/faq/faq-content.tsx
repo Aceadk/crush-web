@@ -466,7 +466,7 @@ export function FAQContent() {
               <ul className="space-y-2 text-xs text-muted-foreground">
                 <li><Link href="/features" className="hover:text-foreground transition-colors">Features</Link></li>
                 <li><Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
-                <li><Link href="/download" className="hover:text-foreground transition-colors">Download</Link></li>
+                <li><Link href="/#download" className="hover:text-foreground transition-colors">Download</Link></li>
               </ul>
             </div>
 

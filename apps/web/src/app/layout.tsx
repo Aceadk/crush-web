@@ -17,6 +17,8 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
+const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app').trim();
+
 export const metadata: Metadata = {
   title: {
     default: 'Crush - Find Your Match',
@@ -36,7 +38,7 @@ export const metadata: Metadata = {
   authors: [{ name: 'Crush Team' }],
   creator: 'Crush',
   publisher: 'Crush',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app'),
+  metadataBase: new URL(appUrl),
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -47,7 +49,7 @@ export const metadata: Metadata = {
       'Crush is a modern dating app designed to help you find meaningful connections.',
     images: [
       {
-        url: '/og-image.png',
+        url: '/og-image.svg',
         width: 1200,
         height: 630,
         alt: 'Crush Dating App',
@@ -59,7 +61,7 @@ export const metadata: Metadata = {
     title: 'Crush - Find Your Match',
     description:
       'Crush is a modern dating app designed to help you find meaningful connections.',
-    images: ['/og-image.png'],
+    images: ['/og-image.svg'],
     creator: '@crushapp',
   },
   robots: {
@@ -74,9 +76,9 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon-16x16.png',
-    apple: '/apple-touch-icon.png',
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
   },
   manifest: '/manifest.json',
 };
@@ -97,8 +99,8 @@ const organizationSchema = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Crush',
-  url: process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app',
-  logo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app'}/logo.png`,
+  url: appUrl,
+  logo: `${appUrl}/logo.png`,
   sameAs: [
     'https://twitter.com/crushapp',
     'https://instagram.com/crushapp',
@@ -139,12 +141,12 @@ const websiteSchema = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'Crush',
-  url: process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app',
+  url: appUrl,
   potentialAction: {
     '@type': 'SearchAction',
     target: {
       '@type': 'EntryPoint',
-      urlTemplate: `${process.env.NEXT_PUBLIC_APP_URL || 'https://crush.app'}/search?q={search_term_string}`,
+      urlTemplate: `${appUrl}/search?q={search_term_string}`,
     },
     'query-input': 'required name=search_term_string',
   },

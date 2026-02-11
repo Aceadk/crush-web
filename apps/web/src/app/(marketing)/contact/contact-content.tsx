@@ -351,7 +351,10 @@ export function ContactContent() {
                 <h3 className="font-semibold mb-4">Follow Us</h3>
                 <div className="flex items-center gap-3">
                   <a
-                    href="#"
+                    href="https://twitter.com/crushapp"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Twitter"
                     className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -359,7 +362,10 @@ export function ContactContent() {
                     </svg>
                   </a>
                   <a
-                    href="#"
+                    href="https://instagram.com/crushapp"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Instagram"
                     className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -367,7 +373,10 @@ export function ContactContent() {
                     </svg>
                   </a>
                   <a
-                    href="#"
+                    href="https://youtube.com/@crushapp"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="YouTube"
                     className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -375,7 +384,10 @@ export function ContactContent() {
                     </svg>
                   </a>
                   <a
-                    href="#"
+                    href="https://tiktok.com/@crushapp"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="TikTok"
                     className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
