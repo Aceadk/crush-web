@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { useAuthStore, userService, storageService, locationService } from '@crush/core';
+import { useAuthStore, userService, storageService, locationService, calculateAge } from '@crush/core';
 import { Button, Card, Badge, Avatar, AvatarImage, AvatarFallback } from '@crush/ui';
 import { cn } from '@crush/ui';
 import {
@@ -143,7 +143,7 @@ export default function ProfileView() {
           {/* Name and badges */}
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
             {profile.displayName}
-            {profile.age && <span className="font-normal text-gray-600 dark:text-gray-300">, {profile.age}</span>}
+            {(calculateAge(profile.birthDate) || profile.age) && <span className="font-normal text-gray-600 dark:text-gray-300">, {calculateAge(profile.birthDate) ?? profile.age}</span>}
           </h1>
 
           <div className="flex items-center justify-center gap-2 mb-4">
@@ -313,7 +313,7 @@ export default function ProfileView() {
             {profile.birthDate && (
               <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
                 <Calendar className="w-5 h-5 text-gray-400" />
-                <span>{profile.age} years old</span>
+                <span>{calculateAge(profile.birthDate) ?? profile.age} years old</span>
               </div>
             )}
           </div>

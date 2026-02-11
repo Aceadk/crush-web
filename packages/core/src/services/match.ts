@@ -215,6 +215,7 @@ class MatchService {
       profiles.push({
         id: userDoc.id,
         displayName: data.displayName as string || '',
+        birthDate: data.birthDate as string | undefined,
         age,
         bio: data.bio as string | undefined,
         photos: (data.photos as string[]) || [],

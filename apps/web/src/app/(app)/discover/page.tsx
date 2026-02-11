@@ -148,8 +148,13 @@ export default function DiscoverPage() {
         </div>
         <h2 className="text-2xl font-bold mb-2">No more profiles</h2>
         <p className="text-muted-foreground mb-6 max-w-sm">
-          You've seen everyone in your area. Check back later or adjust your filters.
+          {error
+            ? 'Something went wrong loading profiles. Please try again.'
+            : "You've seen everyone in your area. Check back later or adjust your filters."}
         </p>
+        {error && (
+          <p className="text-sm text-destructive mb-4 max-w-sm">{error}</p>
+        )}
         <div className="flex gap-3">
           <Button onClick={handleRefresh} loading={loading}>
             <RefreshCw className="w-4 h-4 mr-2" />

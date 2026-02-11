@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { DiscoveryProfile, useAuthStore } from '@crush/core';
+import { DiscoveryProfile, useAuthStore, calculateAge } from '@crush/core';
 import { cn, Badge } from '@crush/ui';
 import {
   MapPin,
@@ -167,7 +167,7 @@ export function SwipeCard({ profile, onSwipe, isTop }: SwipeCardProps) {
           <div className="flex items-center gap-2 mb-2">
             <h2 className="text-3xl font-bold">
               {profile.displayName}
-              {profile.age && <span>, {profile.age}</span>}
+              {(calculateAge(profile.birthDate) || profile.age) ? <span>, {calculateAge(profile.birthDate) ?? profile.age}</span> : null}
             </h2>
             {profile.isVerified && (
               <Verified className="w-6 h-6 text-blue-400 fill-blue-400" />
@@ -221,7 +221,7 @@ export function SwipeCard({ profile, onSwipe, isTop }: SwipeCardProps) {
             <div className="max-w-md mx-auto pt-8 text-white">
               <h2 className="text-3xl font-bold mb-4">
                 {profile.displayName}
-                {profile.age && <span>, {profile.age}</span>}
+                {(calculateAge(profile.birthDate) || profile.age) ? <span>, {calculateAge(profile.birthDate) ?? profile.age}</span> : null}
               </h2>
 
               {profile.bio && (

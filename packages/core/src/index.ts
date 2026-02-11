@@ -17,7 +17,7 @@ export type {
   NotificationSettings,
   UserStats,
 } from './types/user';
-export { DEFAULT_USER_SETTINGS } from './types/user';
+export { DEFAULT_USER_SETTINGS, calculateAge } from './types/user';
 
 export type {
   Match,

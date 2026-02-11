@@ -32,6 +32,7 @@ export interface SwipeAction {
 export interface DiscoveryProfile {
   id: string;
   displayName: string;
+  birthDate?: string;
   age?: number;
   bio?: string;
   photos: string[];

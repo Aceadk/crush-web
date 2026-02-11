@@ -102,6 +102,19 @@ export interface UserStats {
   boostsRemaining: number;
 }
 
+/**
+ * Calculate age from a birth date string. Always use this instead of stored age
+ * to ensure accuracy (stored age becomes stale after each birthday).
+ */
+export function calculateAge(birthDate: string | undefined | null): number | undefined {
+  if (!birthDate) return undefined;
+  const birth = new Date(birthDate);
+  if (isNaN(birth.getTime())) return undefined;
+  const ageDiffMs = Date.now() - birth.getTime();
+  const ageDate = new Date(ageDiffMs);
+  return Math.abs(ageDate.getUTCFullYear() - 1970);
+}
+
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   showAge: true,
   showDistance: true,
