@@ -47,21 +47,12 @@ export const metadata: Metadata = {
     title: 'Crush - Find Your Match',
     description:
       'Crush is a modern dating app designed to help you find meaningful connections.',
-    images: [
-      {
-        url: '/og-image.svg',
-        width: 1200,
-        height: 630,
-        alt: 'Crush Dating App',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Crush - Find Your Match',
     description:
       'Crush is a modern dating app designed to help you find meaningful connections.',
-    images: ['/og-image.svg'],
     creator: '@crushapp',
   },
   robots: {
@@ -76,9 +67,9 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: '/favicon.svg',
-    shortcut: '/favicon.svg',
-    apple: '/favicon.svg',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
   },
   manifest: '/manifest.json',
 };
@@ -86,8 +77,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#FFFFFF' },
     { media: '(prefers-color-scheme: dark)', color: '#0F0F10' },
@@ -100,7 +89,7 @@ const organizationSchema = {
   '@type': 'Organization',
   name: 'Crush',
   url: appUrl,
-  logo: `${appUrl}/logo.png`,
+  logo: `${appUrl}/favicon.svg`,
   sameAs: [
     'https://twitter.com/crushapp',
     'https://instagram.com/crushapp',
@@ -126,13 +115,6 @@ const softwareAppSchema = {
     price: '0',
     priceCurrency: 'USD',
   },
-  aggregateRating: {
-    '@type': 'AggregateRating',
-    ratingValue: '4.8',
-    ratingCount: '150000',
-    bestRating: '5',
-    worstRating: '1',
-  },
   description: 'Crush is a modern dating app designed to help you find meaningful connections.',
 };
 
@@ -142,14 +124,6 @@ const websiteSchema = {
   '@type': 'WebSite',
   name: 'Crush',
   url: appUrl,
-  potentialAction: {
-    '@type': 'SearchAction',
-    target: {
-      '@type': 'EntryPoint',
-      urlTemplate: `${appUrl}/search?q={search_term_string}`,
-    },
-    'query-input': 'required name=search_term_string',
-  },
 };
 
 export default function RootLayout({

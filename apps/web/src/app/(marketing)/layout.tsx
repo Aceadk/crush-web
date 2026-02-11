@@ -19,21 +19,12 @@ export const metadata: Metadata = {
     description:
       'Join millions finding love on Crush. Smart matching, meaningful conversations, and a safe community. Start for free!',
     type: 'website',
-    images: [
-      {
-        url: '/og-image.svg',
-        width: 1200,
-        height: 630,
-        alt: 'Crush - Modern Dating App',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Crush - Find Your Perfect Match',
     description:
       'Join millions finding love on Crush. Smart matching, meaningful conversations, and a safe community.',
-    images: ['/og-image.svg'],
   },
   alternates: {
     canonical: '/',

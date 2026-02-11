@@ -13,6 +13,15 @@ const PRICE_IDS: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify auth token exists (middleware guards the route, but double-check here)
+    const authToken = request.cookies.get('auth-token')?.value;
+    if (!authToken) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { planId, userId, userEmail, promoCode, discountPercent } = body;
 
@@ -36,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Handle promo code discount
     let couponId: string | undefined;
 
-    if (promoCode && discountPercent && discountPercent > 0 && discountPercent < 100) {
+    if (promoCode && typeof discountPercent === 'number' && Number.isFinite(discountPercent) && discountPercent > 0 && discountPercent < 100) {
       try {
         // Create a one-time use coupon in Stripe for this promo code
         const coupon = await stripe.coupons.create({
