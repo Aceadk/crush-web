@@ -90,7 +90,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.stripe.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebase.google.com https://api.stripe.com https://firebasestorage.googleapis.com wss://*.firebaseio.com",
+              "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebase.google.com https://api.stripe.com https://firebasestorage.googleapis.com https://nominatim.openstreetmap.org wss://*.firebaseio.com",
               "frame-src 'self' https://*.firebaseapp.com https://js.stripe.com https://hooks.stripe.com",
               "object-src 'none'",
               "base-uri 'self'",

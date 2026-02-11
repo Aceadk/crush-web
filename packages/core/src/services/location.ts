@@ -60,25 +60,60 @@ class LocationService {
   }
 
   /**
-   * Request location permission and get current coordinates
+   * Request location permission and get current coordinates.
+   * Uses low accuracy first (faster, works on desktops without GPS),
+   * then retries with high accuracy if the first attempt fails.
    */
   async requestLocation(options?: PositionOptions): Promise<LocationCoordinates> {
-    return new Promise((resolve, reject) => {
-      if (!this.isGeolocationSupported()) {
-        reject({
-          code: 'NOT_SUPPORTED',
-          message: 'Geolocation is not supported by your browser',
-        } as LocationError);
-        return;
-      }
+    if (!this.isGeolocationSupported()) {
+      throw {
+        code: 'NOT_SUPPORTED',
+        message: 'Geolocation is not supported by your browser',
+      } as LocationError;
+    }
 
-      const defaultOptions: PositionOptions = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000, // Accept cached position up to 1 minute old
+    // First attempt: low accuracy with generous timeout (works on all devices)
+    try {
+      return await this.getPosition({
+        enableHighAccuracy: false,
+        timeout: 30000,
+        maximumAge: 300000, // Accept cached position up to 5 minutes old
         ...options,
-      };
+      });
+    } catch (firstError) {
+      const err = firstError as LocationError;
+      // Don't retry if permission was denied — user action required
+      if (err.code === 'PERMISSION_DENIED') {
+        throw err;
+      }
+    }
 
+    // Second attempt: try with high accuracy and a longer timeout
+    try {
+      return await this.getPosition({
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 300000,
+        ...options,
+      });
+    } catch (secondError) {
+      const err = secondError as LocationError;
+      if (err.code === 'PERMISSION_DENIED') {
+        throw err;
+      }
+      // Both attempts failed — throw a user-friendly error
+      throw {
+        code: 'POSITION_UNAVAILABLE',
+        message: 'Unable to determine your location. Please enter it manually or check your browser location settings.',
+      } as LocationError;
+    }
+  }
+
+  /**
+   * Low-level wrapper around navigator.geolocation.getCurrentPosition
+   */
+  private getPosition(options: PositionOptions): Promise<LocationCoordinates> {
+    return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           resolve({
@@ -116,7 +151,7 @@ class LocationService {
           }
           reject(locationError);
         },
-        defaultOptions
+        options
       );
     });
   }
