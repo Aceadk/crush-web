@@ -3,7 +3,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuthStore, useMessageStore, useMatchStore, storageService, userService, Message, MessageReactionType } from '@crush/core';
+import {
+  useAuthStore,
+  useMessageStore,
+  useMatchStore,
+  useUIStore,
+  storageService,
+  userService,
+  Message,
+  MessageReactionType,
+} from '@crush/core';
 import {
   Avatar,
   AvatarImage,
@@ -48,12 +57,14 @@ interface ChatRoomProps {
 export default function ChatRoom({ matchId }: ChatRoomProps) {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { matches, unmatch } = useMatchStore();
+  const { matches, unmatch, loadMatches } = useMatchStore();
+  const { addToast } = useUIStore();
   const {
     currentConversation,
     messages,
     typingIndicator,
     loading,
+    error,
     loadingMore,
     hasMore,
     openConversation,
@@ -68,6 +79,7 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
     loadMoreMessages,
     closeConversation,
     blockConversation,
+    clearError,
   } = useMessageStore();
 
   const [inputValue, setInputValue] = useState('');
@@ -82,13 +94,68 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [initializing, setInitializing] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasRequestedMatchesRef = useRef(false);
+  const lastMatchesUserRef = useRef<string | null>(null);
+  const previousMessageCountRef = useRef(0);
+  const previousScrollTopRef = useRef(0);
+  const previousScrollHeightRef = useRef(0);
+  const shouldRestoreScrollRef = useRef(false);
 
   // Get match info
-  const match = matches.find((m) => m.id === matchId);
+  const match =
+    matches.find((m) => m.id === matchId) ??
+    (user ? matches.find((m) => `${m.otherUserId}_${user.uid}` === matchId) : undefined);
+
+  // Ensure matches are loaded for direct chat routes.
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!user) {
+      hasRequestedMatchesRef.current = false;
+      lastMatchesUserRef.current = null;
+      setInitializing(false);
+      return;
+    }
+
+    if (lastMatchesUserRef.current !== user.uid) {
+      lastMatchesUserRef.current = user.uid;
+      hasRequestedMatchesRef.current = false;
+      setInitializing(true);
+    }
+
+    if (matches.length > 0) {
+      setInitializing(false);
+      return;
+    }
+
+    if (hasRequestedMatchesRef.current) {
+      return;
+    }
+
+    hasRequestedMatchesRef.current = true;
+
+    void (async () => {
+      try {
+        await loadMatches(user.uid);
+      } finally {
+        if (!cancelled) {
+          setInitializing(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, matches.length, loadMatches]);
+
+  const conversationMatchId = match?.id;
+  const conversationOtherUserId = match?.otherUserId;
 
   // Handle report
   const handleReport = async () => {
@@ -99,10 +166,18 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
       await userService.reportUser(user.uid, match.otherUserId, reportReason);
       setShowReportDialog(false);
       setReportReason('');
-      alert('Report submitted. Our team will review it.');
+      addToast({
+        type: 'success',
+        title: 'Report submitted',
+        description: 'Our team will review it shortly.',
+      });
     } catch (error) {
       console.error('Failed to submit report:', error);
-      alert('Failed to submit report. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Report failed',
+        description: 'Please try again.',
+      });
     } finally {
       setActionLoading(false);
     }
@@ -118,6 +193,11 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
       router.push('/messages');
     } catch (error) {
       console.error('Failed to unmatch:', error);
+      addToast({
+        type: 'error',
+        title: 'Could not unmatch',
+        description: 'Please try again.',
+      });
     } finally {
       setActionLoading(false);
     }
@@ -133,6 +213,11 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
       router.push('/messages');
     } catch (error) {
       console.error('Failed to delete chat:', error);
+      addToast({
+        type: 'error',
+        title: 'Could not delete chat',
+        description: 'Please try again.',
+      });
     } finally {
       setActionLoading(false);
     }
@@ -140,19 +225,60 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
 
   // Initialize conversation
   useEffect(() => {
-    if (user && match) {
-      openConversation(matchId, [user.uid, match.otherUserId], user.uid);
+    if (user && conversationMatchId && conversationOtherUserId && !initializing) {
+      openConversation(conversationMatchId, [user.uid, conversationOtherUserId], user.uid);
     }
 
     return () => {
       closeConversation();
     };
-  }, [user, match, matchId, openConversation, closeConversation]);
+  }, [user, conversationMatchId, conversationOtherUserId, initializing, openConversation, closeConversation]);
 
-  // Scroll to bottom on new messages
+  // Scroll behavior:
+  // - jump to bottom on initial load
+  // - stay pinned near bottom for new realtime messages
+  // - avoid jumping while loading older messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const messageCount = messages.length;
+    const previousCount = previousMessageCountRef.current;
+    const isInitialLoad = previousCount === 0 && messageCount > 0;
+    const hasNewMessages = messageCount > previousCount;
+
+    if (isInitialLoad) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    } else if (hasNewMessages && !loadingMore) {
+      const distanceFromBottom =
+        container.scrollHeight - (container.scrollTop + container.clientHeight);
+      const latestMessage = messages[messageCount - 1];
+      const isOwnLatestMessage = latestMessage?.senderId === user?.uid;
+
+      if (distanceFromBottom < 160 || isOwnLatestMessage) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    previousMessageCountRef.current = messageCount;
+  }, [messages, loadingMore, user?.uid]);
+
+  // Preserve scroll position after loading older messages.
+  useEffect(() => {
+    if (loadingMore || !shouldRestoreScrollRef.current) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) {
+      shouldRestoreScrollRef.current = false;
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const heightDiff = container.scrollHeight - previousScrollHeightRef.current;
+      container.scrollTop = Math.max(0, previousScrollTopRef.current + heightDiff);
+      shouldRestoreScrollRef.current = false;
+    });
+  }, [messages, loadingMore]);
 
   // Mark messages as read
   useEffect(() => {
@@ -189,6 +315,30 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
     }, 2000);
   };
 
+  // Ensure typing indicator is cleared when leaving chat
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (user) {
+        void setTyping(user.uid, false);
+      }
+    };
+  }, [setTyping, user]);
+
+  // Surface chat store errors through toasts
+  useEffect(() => {
+    if (!error) return;
+
+    addToast({
+      type: 'error',
+      title: 'Chat error',
+      description: error,
+    });
+    clearError();
+  }, [error, addToast, clearError]);
+
   // Send message
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || !user) return;
@@ -207,7 +357,10 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
     const container = messagesContainerRef.current;
     if (!container || loadingMore || !hasMore || !currentConversation) return;
 
-    if (container.scrollTop === 0) {
+    if (container.scrollTop <= 20) {
+      previousScrollTopRef.current = container.scrollTop;
+      previousScrollHeightRef.current = container.scrollHeight;
+      shouldRestoreScrollRef.current = true;
       loadMoreMessages(currentConversation.id);
     }
   }, [loadingMore, hasMore, currentConversation, loadMoreMessages]);
@@ -219,19 +372,27 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+      addToast({
+        type: 'error',
+        title: 'Invalid file',
+        description: 'Please select an image.',
+      });
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image must be less than 5MB');
+      addToast({
+        type: 'error',
+        title: 'Image too large',
+        description: 'Image must be less than 5MB.',
+      });
       return;
     }
 
     setSelectedFile(file);
     setImagePreview(URL.createObjectURL(file));
-  }, []);
+  }, [addToast]);
 
   // Cancel image selection
   const cancelImageSelection = useCallback(() => {
@@ -243,6 +404,15 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  }, [imagePreview]);
+
+  // Clean up object URL if component unmounts while preview is open.
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
   }, [imagePreview]);
 
   // Send image message
@@ -266,11 +436,15 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
       cancelImageSelection();
     } catch (error) {
       console.error('Failed to send image:', error);
-      alert('Failed to send image. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Image failed',
+        description: 'Failed to send image. Please try again.',
+      });
     } finally {
       setUploadingImage(false);
     }
-  }, [selectedFile, user, uploadingImage, currentConversation, sendImageMessage, cancelImageSelection]);
+  }, [selectedFile, user, uploadingImage, currentConversation, sendImageMessage, cancelImageSelection, addToast]);
 
   // Send voice message
   const handleSendVoice = useCallback(async (audioBlob: Blob, duration: number) => {
@@ -288,10 +462,14 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
       await sendVoiceMessage(audioUrl, duration, user.uid);
     } catch (error) {
       console.error('Failed to send voice note:', error);
-      alert('Failed to send voice note. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Voice note failed',
+        description: 'Failed to send voice note. Please try again.',
+      });
       throw error;
     }
-  }, [user, currentConversation, sendVoiceMessage]);
+  }, [user, currentConversation, sendVoiceMessage, addToast]);
 
   // Group messages by date
   const groupedMessages = messages.reduce((groups, message) => {
@@ -311,6 +489,15 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
     if (isYesterday(date)) return 'Yesterday';
     return format(date, 'MMMM d, yyyy');
   };
+
+  if (initializing) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <p className="text-sm text-gray-500">Loading conversation...</p>
+      </div>
+    );
+  }
 
   if (!match) {
     return (

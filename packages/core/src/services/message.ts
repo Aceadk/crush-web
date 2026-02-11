@@ -45,11 +45,17 @@ class MessageService {
     participants: string[]
   ): Promise<Conversation> {
     const db = getFirebaseDb();
+    const normalizedParticipants = [...new Set(participants)];
+    const reverseMatchId =
+      normalizedParticipants.length === 2
+        ? `${normalizedParticipants[1]}_${normalizedParticipants[0]}`
+        : matchId;
 
-    // Check if conversation exists
+    // Check if conversation exists for either direction of match id.
+    // This avoids split chats where each user can have opposite directional match ids.
     const q = query(
       collection(db, CONVERSATIONS_COLLECTION),
-      where('matchId', '==', matchId)
+      where('matchId', 'in', Array.from(new Set([matchId, reverseMatchId])))
     );
     const snapshot = await getDocs(q);
 
@@ -62,7 +68,7 @@ class MessageService {
     const now = serverTimestamp();
     const conversationData = {
       matchId,
-      participants,
+      participants: normalizedParticipants,
       unreadCount: 0,
       createdAt: now,
       updatedAt: now,
@@ -77,7 +83,7 @@ class MessageService {
     return {
       id: conversationRef.id,
       matchId,
-      participants,
+      participants: normalizedParticipants,
       unreadCount: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -557,9 +563,9 @@ class MessageService {
       content: data.content as string,
       type: data.type as MessageType,
       status: data.status as MessageStatus,
-      timestamp: this.timestampToString(data.timestamp),
-      readAt: this.timestampToString(data.readAt),
-      deliveredAt: this.timestampToString(data.deliveredAt),
+      timestamp: this.timestampToString(data.timestamp, new Date().toISOString()),
+      readAt: data.readAt ? this.timestampToString(data.readAt, new Date().toISOString()) : undefined,
+      deliveredAt: data.deliveredAt ? this.timestampToString(data.deliveredAt, new Date().toISOString()) : undefined,
       replyToId: data.replyToId as string | undefined,
       metadata: data.metadata as Message['metadata'],
       reactions: data.reactions as MessageReaction[] | undefined,
@@ -577,34 +583,42 @@ class MessageService {
     data: Record<string, unknown>
   ): Conversation {
     const lastMessageData = data.lastMessage as Record<string, unknown> | undefined;
+    const lastMessageTimestamp = lastMessageData?.timestamp ?? data.lastMessageAt;
 
     return {
       id,
       matchId: data.matchId as string,
       participants: data.participants as string[],
       lastMessage: lastMessageData
-        ? this.mapDocToMessage(
-            lastMessageData.id as string,
-            id,
-            lastMessageData
-          )
+        ? {
+            id: (lastMessageData.id as string) || '',
+            conversationId: id,
+            senderId: (lastMessageData.senderId as string) || '',
+            content: (lastMessageData.content as string) || '',
+            type: 'text',
+            status: 'sent',
+            timestamp: this.timestampToString(lastMessageTimestamp, new Date().toISOString()),
+          }
         : undefined,
-      lastMessageAt: this.timestampToString(data.lastMessageAt),
+      lastMessageAt: data.lastMessageAt
+        ? this.timestampToString(data.lastMessageAt, new Date().toISOString())
+        : undefined,
       unreadCount: data.unreadCount as number || 0,
-      createdAt: this.timestampToString(data.createdAt),
-      updatedAt: this.timestampToString(data.updatedAt),
+      createdAt: this.timestampToString(data.createdAt, new Date().toISOString()),
+      updatedAt: this.timestampToString(data.updatedAt, new Date().toISOString()),
       isBlocked: data.isBlocked as boolean || false,
       blockedBy: data.blockedBy as string | undefined,
     };
   }
 
-  private timestampToString(timestamp: unknown): string {
-    if (!timestamp) return new Date().toISOString();
+  private timestampToString(timestamp: unknown, fallback: string = ''): string {
+    if (!timestamp) return fallback;
     if (timestamp instanceof Timestamp) {
       return timestamp.toDate().toISOString();
     }
     if (typeof timestamp === 'string') return timestamp;
-    return new Date().toISOString();
+    if (typeof timestamp === 'number') return new Date(timestamp).toISOString();
+    return fallback;
   }
 }
 

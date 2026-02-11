@@ -11,25 +11,43 @@ import { formatDistanceToNow } from 'date-fns';
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const { conversations, loading, loadConversations } = useMessageStore();
-  const { matches } = useMatchStore();
+  const { matches, loadMatches } = useMatchStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (user) {
       loadConversations(user.uid);
+      loadMatches(user.uid);
     }
-  }, [user, loadConversations]);
+  }, [user, loadConversations, loadMatches]);
 
-  // Get match info for conversations
-  const getMatchInfo = (conversation: Conversation) => {
-    const match = matches.find((m) => m.id === conversation.matchId);
-    return match;
+  // Resolve match info for a conversation.
+  // Conversations can carry either directional match id; use participant fallback.
+  const resolveConversationMatch = (conversation: Conversation) => {
+    const byId = matches.find((m) => m.id === conversation.matchId);
+    if (byId) {
+      return byId;
+    }
+
+    if (!user) {
+      return undefined;
+    }
+
+    const otherParticipantId = conversation.participants.find(
+      (participantId) => participantId !== user.uid
+    );
+
+    if (!otherParticipantId) {
+      return undefined;
+    }
+
+    return matches.find((m) => m.otherUserId === otherParticipantId);
   };
 
   // Filter conversations
   const filteredConversations = conversations.filter((conv) => {
     if (!searchQuery) return true;
-    const match = getMatchInfo(conv);
+    const match = resolveConversationMatch(conv);
     return match?.otherUserName?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
@@ -118,11 +136,13 @@ export default function MessagesPage() {
       {/* Conversations list */}
       <div className="space-y-3">
         {sortedConversations.map((conversation) => {
-          const match = getMatchInfo(conversation);
+          const match = resolveConversationMatch(conversation);
+          const hrefMatchId = match?.id || conversation.matchId;
           return (
             <ConversationCard
               key={conversation.id}
               conversation={conversation}
+              hrefMatchId={hrefMatchId}
               matchName={match?.otherUserName}
               matchPhoto={match?.otherUserPhotoUrl}
               currentUserId={user?.uid || ''}
@@ -136,6 +156,7 @@ export default function MessagesPage() {
 
 interface ConversationCardProps {
   conversation: Conversation;
+  hrefMatchId: string;
   matchName?: string;
   matchPhoto?: string;
   currentUserId: string;
@@ -143,6 +164,7 @@ interface ConversationCardProps {
 
 function ConversationCard({
   conversation,
+  hrefMatchId,
   matchName,
   matchPhoto,
   currentUserId,
@@ -151,7 +173,7 @@ function ConversationCard({
   const isOwnMessage = lastMessage?.senderId === currentUserId;
 
   return (
-    <Link href={`/messages/${conversation.matchId}`}>
+    <Link href={`/messages/${hrefMatchId}`}>
       <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer group">
         <div className="flex items-center gap-4">
           {/* Avatar */}

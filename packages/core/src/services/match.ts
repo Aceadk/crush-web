@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
 import { Match, MatchStatus, SwipeAction, DiscoveryProfile, DiscoveryFilters, ReceivedLike, MessageRequest, WeeklyPick } from '../types/match';
+import { calculateAge } from '../types/user';
 
 const MATCHES_COLLECTION = 'matches';
 const SWIPES_COLLECTION = 'swipes';
@@ -187,11 +188,11 @@ class MatchService {
     swipedUserIds.add(userId); // Exclude self
 
     // Query users
-    let usersQuery = query(
+    const usersQuery = query(
       collection(db, USERS_COLLECTION),
       where('onboardingComplete', '==', true),
       where('profileComplete', '==', true),
-      limit(pageSize * 2) // Get extra to filter
+      limit(pageSize * 5) // Get extra to account for local filters
     );
 
     const usersSnapshot = await getDocs(usersQuery);
@@ -202,15 +203,32 @@ class MatchService {
       if (swipedUserIds.has(userDoc.id)) continue;
 
       const data = userDoc.data();
-      const age = data.age as number | undefined;
+      const photos = ((data.photos as string[] | undefined) ?? []).filter(Boolean);
+      const isVerified = Boolean(data.isVerified);
+      const distance =
+        typeof data.distance === 'number' && Number.isFinite(data.distance)
+          ? data.distance
+          : undefined;
+      const age =
+        calculateAge(data.birthDate as string | undefined) ??
+        (typeof data.age === 'number' ? data.age : undefined);
 
       // Apply age filter
-      if (age && (age < filters.minAge || age > filters.maxAge)) continue;
+      if (age !== undefined && (age < filters.minAge || age > filters.maxAge)) continue;
 
       // Apply gender filter
       if (filters.genders && filters.genders.length > 0) {
         if (!filters.genders.includes(data.gender as string)) continue;
       }
+
+      // Apply photo filter
+      if (filters.hasPhotos && photos.length === 0) continue;
+
+      // Apply verification filter
+      if (filters.isVerified && !isVerified) continue;
+
+      // Apply distance filter when distance is available on profile
+      if (distance !== undefined && distance > filters.maxDistance) continue;
 
       profiles.push({
         id: userDoc.id,
@@ -218,10 +236,11 @@ class MatchService {
         birthDate: data.birthDate as string | undefined,
         age,
         bio: data.bio as string | undefined,
-        photos: (data.photos as string[]) || [],
+        photos,
+        distance,
         interests: data.interests as string[] | undefined,
         prompts: data.prompts as DiscoveryProfile['prompts'],
-        isVerified: data.isVerified as boolean || false,
+        isVerified,
         lastActive: this.timestampToString(data.lastActive),
       });
 
