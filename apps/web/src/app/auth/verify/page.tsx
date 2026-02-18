@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Heart, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Suspense } from 'react';
+import { userService } from '@crush/core';
 
 function VerifyContent() {
   const router = useRouter();
@@ -26,15 +27,28 @@ function VerifyContent() {
         }
 
         await applyActionCode(auth, oobCode);
+
+        // Sync verification status to Firestore for cross-platform consistency
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          try {
+            await userService.updateUserProfile(currentUser.uid, { isEmailVerified: true });
+          } catch {
+            // Non-blocking — Firebase Auth is the source of truth
+            console.error('Failed to sync isEmailVerified to Firestore');
+          }
+        }
+
         setStatus('success');
-      } catch (err: any) {
+      } catch (err: unknown) {
         setStatus('error');
-        if (err?.code === 'auth/invalid-action-code') {
+        const firebaseError = err as { code?: string; message?: string };
+        if (firebaseError?.code === 'auth/invalid-action-code') {
           setErrorMessage('This verification link is invalid or already used.');
-        } else if (err?.code === 'auth/expired-action-code') {
+        } else if (firebaseError?.code === 'auth/expired-action-code') {
           setErrorMessage('This verification link has expired. Please request a new one.');
         } else {
-          setErrorMessage(err?.message || 'Verification failed. The link may have expired.');
+          setErrorMessage(err instanceof Error ? err.message : 'Verification failed. The link may have expired.');
         }
       }
     }

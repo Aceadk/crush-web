@@ -36,6 +36,8 @@ export interface UserProfile {
   termsAcceptedAt?: string;
   onboardingComplete: boolean;
   profileComplete: boolean;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
 }
 
 export type SexualOrientation = 'straight' | 'gay' | 'lesbian' | 'bisexual' | 'pansexual' | 'asexual' | 'other' | 'prefer_not_to_say';

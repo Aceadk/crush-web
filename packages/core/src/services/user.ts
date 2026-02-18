@@ -49,6 +49,8 @@ class UserService {
       hasAcceptedTerms: false,
       onboardingComplete: false,
       profileComplete: false,
+      isEmailVerified: false,
+      isPhoneVerified: Boolean(data.phoneNumber),
       settings: DEFAULT_USER_SETTINGS,
       ...data,
     };
@@ -170,11 +172,39 @@ class UserService {
   }
 
   /**
-   * Delete user account
+   * Request account deletion (14-day grace period via Cloud Function).
+   * The Cloud Function handles cascading deletion of all user data
+   * across Firestore, RTDB, Storage, and Auth after the grace period.
    */
-  async deleteAccount(userId: string): Promise<void> {
-    const db = getFirebaseDb();
-    await deleteDoc(doc(db, USERS_COLLECTION, userId));
+  async deleteAccount(userId: string, reason?: string): Promise<{
+    scheduledAt: string;
+    gracePeriodDays: number;
+    message: string;
+  }> {
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const functions = getFunctions();
+    const requestDeletion = httpsCallable<
+      { reason?: string },
+      { success: boolean; scheduledAt: string; gracePeriodDays: number; message: string }
+    >(functions, 'requestAccountDeletion');
+
+    const result = await requestDeletion({ reason: reason || 'User requested deletion from web app' });
+    return result.data;
+  }
+
+  /**
+   * Cancel a pending account deletion (within 14-day grace period).
+   */
+  async cancelAccountDeletion(): Promise<{ message: string }> {
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const functions = getFunctions();
+    const cancelDeletion = httpsCallable<
+      Record<string, never>,
+      { success: boolean; message: string }
+    >(functions, 'cancelAccountDeletion');
+
+    const result = await cancelDeletion({});
+    return result.data;
   }
 
   /**
@@ -393,6 +423,8 @@ class UserService {
       termsAcceptedAt: data.termsAcceptedAt as string | undefined,
       onboardingComplete: data.onboardingComplete as boolean || false,
       profileComplete: data.profileComplete as boolean || false,
+      isEmailVerified: data.isEmailVerified as boolean || false,
+      isPhoneVerified: data.isPhoneVerified as boolean || false,
     };
   }
 

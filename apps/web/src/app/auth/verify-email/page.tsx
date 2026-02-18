@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authService, useAuthStore } from '@crush/core';
+import { authService, useAuthStore, userService } from '@crush/core';
 import {
   Button,
   Card,
@@ -50,6 +50,15 @@ export default function VerifyEmailRequiredPage() {
         const verified = await authService.checkEmailVerification();
 
         if (verified) {
+          // Sync verification status to Firestore for cross-platform consistency
+          if (user.uid) {
+            try {
+              await userService.updateUserProfile(user.uid, { isEmailVerified: true });
+            } catch {
+              // Non-blocking — Firebase Auth is the source of truth
+              console.error('Failed to sync isEmailVerified to Firestore');
+            }
+          }
           setInfoMessage('Email verified. Redirecting...');
           router.replace(getPostVerificationRoute());
           return;
