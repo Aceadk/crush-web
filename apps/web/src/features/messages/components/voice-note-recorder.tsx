@@ -94,7 +94,7 @@ export function VoiceNoteRecorder({
       }, 1000);
     } catch (error) {
       console.error('Failed to start recording:', error);
-      alert('Unable to access microphone. Please check your permissions.');
+      console.error('Microphone access denied:', error);
     }
   }, [maxDuration]);
 
@@ -264,7 +264,7 @@ export function VoiceNoteRecorder({
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Tap to record a voice message
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-500">
               Max {maxDuration} seconds
             </p>
           </div>

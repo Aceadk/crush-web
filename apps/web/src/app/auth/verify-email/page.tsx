@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { authService, useAuthStore, userService } from '@crush/core';
 import {
   Button,
@@ -13,15 +13,18 @@ import {
 } from '@crush/ui';
 import { CheckCircle2, Loader2, LogOut, Mail, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 const VERIFICATION_POLL_INTERVAL_MS = 5000;
 
-export default function VerifyEmailRequiredPage() {
+function VerifyEmailRequiredPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, profile, loading, initialized, signOut } = useAuthStore();
   const checkInFlightRef = useRef(false);
   const [cameFromVerificationLink, setCameFromVerificationLink] = useState(false);
+  const redirectAfterAuth = sanitizeRedirectPath(searchParams.get('redirect'));
 
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
@@ -31,10 +34,10 @@ export default function VerifyEmailRequiredPage() {
 
   const getPostVerificationRoute = useCallback(() => {
     if (profile && !profile.onboardingComplete) {
-      return '/onboarding';
+      return appendRedirectParam('/onboarding', redirectAfterAuth);
     }
-    return '/discover';
-  }, [profile]);
+    return redirectAfterAuth;
+  }, [profile, redirectAfterAuth]);
 
   const checkVerification = useCallback(
     async (silent = false) => {
@@ -262,5 +265,24 @@ export default function VerifyEmailRequiredPage() {
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+export default function VerifyEmailRequiredPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card className="border-0 shadow-lg">
+          <CardContent className="py-12">
+            <div className="flex items-center justify-center gap-3 text-muted-foreground">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Loading verification status...</span>
+            </div>
+          </CardContent>
+        </Card>
+      }
+    >
+      <VerifyEmailRequiredPageContent />
+    </Suspense>
   );
 }

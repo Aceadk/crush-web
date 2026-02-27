@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuthStore } from '@crush/core';
-import { Card, Button, Badge } from '@crush/ui';
+import { Card, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
+import { PlusFeatureGate } from '@/features/premium';
 import {
   ArrowLeft,
   TrendingUp,
@@ -15,10 +15,7 @@ import {
   Star,
   Users,
   Clock,
-  Calendar,
-  ChevronRight,
   Crown,
-  Sparkles,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
@@ -146,30 +143,21 @@ export default function ProfileInsightsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Premium Gate */}
-        {!isPremium && (
-          <Card className="overflow-hidden">
-            <div className="p-6 bg-gradient-to-br from-purple-500 to-indigo-600 text-white">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                  <Crown className="w-6 h-6" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-bold mb-2">Unlock Full Insights</h2>
-                  <p className="text-white/80 mb-4">
-                    Get detailed analytics about who's viewing your profile, when you get the most likes, and how to improve your matches.
-                  </p>
-                  <Link href="/premium">
-                    <Button className="bg-white text-purple-600 hover:bg-white/90">
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Upgrade to Premium
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
+        <PlusFeatureGate
+          isPremium={isPremium}
+          featureKey="profile_insights"
+          title="Unlock Full Insights"
+          description="Get detailed analytics about who is viewing your profile, when you get the most likes, and how to improve your matches."
+          ctaLabel="Upgrade to Premium"
+          variant="purple"
+          modalTitle="Profile Insights is a Premium feature"
+          modalDescription="Upgrade to unlock complete profile analytics, trend breakdowns, and personalized optimization tips."
+          modalBenefits={[
+            'See full profile-view trends and engagement peaks',
+            'Get deeper match and message performance insights',
+            'Use personalized recommendations to improve results',
+          ]}
+        />
 
         {/* Key Metrics */}
         <div className="grid grid-cols-2 gap-4">
@@ -270,7 +258,7 @@ export default function ProfileInsightsPage() {
                       'w-5 h-5',
                       time.activity === 'high' && 'text-green-600',
                       time.activity === 'medium' && 'text-amber-600',
-                      time.activity === 'low' && 'text-gray-400'
+                      time.activity === 'low' && 'text-gray-500'
                     )} />
                   </div>
                   <span className="font-medium text-gray-900 dark:text-white">

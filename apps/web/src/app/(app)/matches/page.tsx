@@ -1,12 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useAuthStore, useMatchStore, Match } from '@crush/core';
-import { Card, Avatar, AvatarImage, AvatarFallback, Badge, Button, Input, SkeletonProfile } from '@crush/ui';
-import { cn } from '@crush/ui';
-import { Search, Heart, MessageCircle, Pin, MoreVertical, Sparkles } from 'lucide-react';
+import { Match, useAuthStore, useMatchStore } from '@crush/core';
+import {
+    Avatar,
+    AvatarFallback,
+    AvatarImage,
+    Badge,
+    Button,
+    Card,
+    cn,
+    Input,
+    SkeletonProfile,
+} from '@crush/ui';
 import { formatDistanceToNow } from 'date-fns';
+import { Heart, MessageCircle, Pin, Search, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 export default function MatchesPage() {
   const { user } = useAuthStore();
@@ -55,10 +64,10 @@ export default function MatchesPage() {
   }).length;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl p-6">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Matches</h1>
+        <h1 className="mb-2 text-3xl font-bold">Matches</h1>
         <p className="text-muted-foreground">
           {matches.length} {matches.length === 1 ? 'match' : 'matches'}
         </p>
@@ -67,7 +76,7 @@ export default function MatchesPage() {
       {/* Search and filters */}
       <div className="mb-6 space-y-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search matches..."
             value={searchQuery}
@@ -89,7 +98,7 @@ export default function MatchesPage() {
             size="sm"
             onClick={() => setFilter('pinned')}
           >
-            <Pin className="w-4 h-4 mr-1" />
+            <Pin className="mr-1 h-4 w-4" />
             Pinned ({pinnedCount})
           </Button>
           <Button
@@ -97,7 +106,7 @@ export default function MatchesPage() {
             size="sm"
             onClick={() => setFilter('new')}
           >
-            <Sparkles className="w-4 h-4 mr-1" />
+            <Sparkles className="mr-1 h-4 w-4" />
             New ({newCount})
           </Button>
         </div>
@@ -116,14 +125,14 @@ export default function MatchesPage() {
 
       {/* Empty state */}
       {!loading && matches.length === 0 && (
-        <div className="text-center py-16">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
-            <Heart className="w-10 h-10 text-muted-foreground" />
+        <div className="py-16 text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+            <Heart className="h-10 w-10 text-muted-foreground" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">No matches yet</h2>
-          <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-            Keep swiping to find your perfect match. When you both like each other,
-            you'll see them here.
+          <h2 className="mb-2 text-xl font-semibold">No matches yet</h2>
+          <p className="mx-auto mb-6 max-w-sm text-muted-foreground">
+            Keep swiping to find your perfect match. When you both like each other, you'll see them
+            here.
           </p>
           <Link href="/discover">
             <Button>Start Swiping</Button>
@@ -133,7 +142,7 @@ export default function MatchesPage() {
 
       {/* No results */}
       {!loading && matches.length > 0 && filteredMatches.length === 0 && (
-        <div className="text-center py-16">
+        <div className="py-16 text-center">
           <p className="text-muted-foreground">No matches found matching your search.</p>
         </div>
       )}
@@ -165,7 +174,7 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
   };
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow">
+    <Card className="p-4 transition-shadow hover:shadow-md">
       <div className="flex items-center gap-4">
         {/* Avatar */}
         <Link href={`/profile/${match.otherUserId}`}>
@@ -173,44 +182,36 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
             {match.otherUserPhotoUrl ? (
               <AvatarImage src={match.otherUserPhotoUrl} alt={match.otherUserName || ''} />
             ) : (
-              <AvatarFallback>
-                {match.otherUserName?.charAt(0) || '?'}
-              </AvatarFallback>
+              <AvatarFallback>{match.otherUserName?.charAt(0) || '?'}</AvatarFallback>
             )}
           </Avatar>
         </Link>
 
         {/* Info */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <Link href={`/profile/${match.otherUserId}`}>
-              <h3 className="font-semibold hover:text-primary transition-colors">
+              <h3 className="font-semibold transition-colors hover:text-primary">
                 {match.otherUserName || 'Unknown'}
               </h3>
             </Link>
-            {match.pinnedForUser && (
-              <Pin className="w-4 h-4 text-primary fill-primary" />
-            )}
-            {isNew() && (
-              <Badge variant="new">New</Badge>
-            )}
-            {match.isSuperLike && (
-              <Badge variant="premium">Super Like</Badge>
-            )}
+            {match.pinnedForUser && <Pin className="h-4 w-4 fill-primary text-primary" />}
+            {isNew() && <Badge variant="new">New</Badge>}
+            {match.isSuperLike && <Badge variant="premium">Super Like</Badge>}
           </div>
 
-          <p className="text-sm text-muted-foreground truncate">
+          <p className="truncate text-sm text-muted-foreground">
             {match.lastMessage || 'Start a conversation!'}
           </p>
 
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="mt-1 text-xs text-muted-foreground">
             Matched {formatDistanceToNow(new Date(match.createdAt), { addSuffix: true })}
           </p>
         </div>
 
         {/* Unread badge */}
         {match.unreadCount > 0 && (
-          <div className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
             {match.unreadCount > 9 ? '9+' : match.unreadCount}
           </div>
         )}
@@ -218,8 +219,12 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
         {/* Actions */}
         <div className="flex items-center gap-2">
           <Link href={`/messages/${match.id}`}>
-            <Button variant="ghost" size="icon">
-              <MessageCircle className="w-5 h-5" />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Message ${match.otherUserName || 'user'}`}
+            >
+              <MessageCircle className="h-5 w-5" />
             </Button>
           </Link>
 
@@ -228,8 +233,13 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
             size="icon"
             onClick={onTogglePin}
             className={cn(match.pinnedForUser && 'text-primary')}
+            aria-label={
+              match.pinnedForUser
+                ? `Unpin ${match.otherUserName || 'user'}`
+                : `Pin ${match.otherUserName || 'user'}`
+            }
           >
-            <Pin className={cn('w-5 h-5', match.pinnedForUser && 'fill-primary')} />
+            <Pin className={cn('h-5 w-5', match.pinnedForUser && 'fill-primary')} />
           </Button>
         </div>
       </div>

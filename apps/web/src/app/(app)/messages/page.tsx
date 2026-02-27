@@ -1,18 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAuthStore, useMessageStore, useMatchStore, Conversation } from '@crush/core';
+import { useAuthStore, useMessageStore, useMatchStore, useUIStore, Conversation } from '@crush/core';
 import { Card, Avatar, AvatarImage, AvatarFallback, Input, SkeletonProfile, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
-import { Search, MessageCircle, ChevronRight, Inbox } from 'lucide-react';
+import { Search, MessageCircle, ChevronRight, Inbox, Pin, WifiOff, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { analytics } from '@/lib/analytics';
+import { PinnedConversations } from '@/components/messages/pinned-conversations';
+import { useNetworkStatus } from '@/shared/hooks';
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
   const { conversations, loading, loadConversations } = useMessageStore();
-  const { matches, loadMatches } = useMatchStore();
+  const { matches, loadMatches, togglePin } = useMatchStore();
+  const { addToast } = useUIStore();
+  const { isOnline, reconnectCount } = useNetworkStatus();
   const [searchQuery, setSearchQuery] = useState('');
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -20,6 +26,61 @@ export default function MessagesPage() {
       loadMatches(user.uid);
     }
   }, [user, loadConversations, loadMatches]);
+
+  const refreshConversations = useCallback(async (showToast: boolean) => {
+    if (!user) return;
+    if (!isOnline) {
+      addToast({
+        type: 'error',
+        title: 'You are offline',
+        description: 'Reconnect to refresh conversations.',
+      });
+      return;
+    }
+
+    setReconnecting(true);
+    try {
+      await Promise.all([
+        loadConversations(user.uid),
+        loadMatches(user.uid),
+      ]);
+      if (showToast) {
+        addToast({
+          type: 'success',
+          title: 'Reconnected',
+          description: 'Conversations are back online.',
+        });
+      }
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Reconnect failed',
+        description: 'Could not refresh conversations. Please try again.',
+      });
+    } finally {
+      setReconnecting(false);
+    }
+  }, [user, isOnline, loadConversations, loadMatches, addToast]);
+
+  useEffect(() => {
+    if (!isOnline || reconnectCount === 0) return;
+    void refreshConversations(true);
+  }, [isOnline, reconnectCount, refreshConversations]);
+
+  const handleTogglePin = useCallback(async (matchId: string, pinned: boolean) => {
+    await togglePin(matchId, pinned);
+    analytics.track({
+      name: pinned ? 'conversation_pinned' : 'conversation_unpinned',
+      properties: { matchId },
+    });
+  }, [togglePin]);
+
+  const handleOpenConversation = useCallback((matchId: string) => {
+    analytics.track({
+      name: 'conversation_started',
+      properties: { matchId },
+    });
+  }, []);
 
   // Resolve match info for a conversation.
   // Conversations can carry either directional match id; use participant fallback.
@@ -68,6 +129,33 @@ export default function MessagesPage() {
         </p>
       </div>
 
+      {!isOnline && (
+        <Card className="mb-6 border-amber-300/70 bg-amber-50 dark:bg-amber-900/15">
+          <div className="flex items-center justify-between gap-3 p-3">
+            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+              <WifiOff className="h-4 w-4" />
+              <p className="text-sm font-medium">You are offline. Messages will sync when connection returns.</p>
+            </div>
+            <button
+              onClick={() => void refreshConversations(false)}
+              className="rounded-md p-1.5 text-amber-800 transition-colors hover:bg-amber-200/70 dark:text-amber-200 dark:hover:bg-amber-800/40"
+              aria-label="Retry refresh"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {isOnline && reconnecting && (
+        <Card className="mb-6 border-primary/30 bg-primary/5">
+          <div className="flex items-center gap-2 p-3 text-sm text-primary">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            Reconnecting conversations...
+          </div>
+        </Card>
+      )}
+
       {/* Message Requests Link */}
       <Link href="/messages/requests">
         <Card className="p-4 mb-6 hover:shadow-md transition-shadow cursor-pointer group">
@@ -87,6 +175,8 @@ export default function MessagesPage() {
       </Link>
 
       {/* Search */}
+      <PinnedConversations matches={matches} className="mb-6" />
+
       <div className="mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -145,7 +235,11 @@ export default function MessagesPage() {
               hrefMatchId={hrefMatchId}
               matchName={match?.otherUserName}
               matchPhoto={match?.otherUserPhotoUrl}
+              matchId={match?.id}
+              isPinned={Boolean(match?.pinnedForUser)}
               currentUserId={user?.uid || ''}
+              onTogglePin={handleTogglePin}
+              onOpenConversation={handleOpenConversation}
             />
           );
         })}
@@ -159,7 +253,11 @@ interface ConversationCardProps {
   hrefMatchId: string;
   matchName?: string;
   matchPhoto?: string;
+  matchId?: string;
+  isPinned?: boolean;
   currentUserId: string;
+  onTogglePin?: (matchId: string, pinned: boolean) => Promise<void>;
+  onOpenConversation?: (matchId: string) => void;
 }
 
 function ConversationCard({
@@ -167,13 +265,20 @@ function ConversationCard({
   hrefMatchId,
   matchName,
   matchPhoto,
+  matchId,
+  isPinned = false,
   currentUserId,
+  onTogglePin,
+  onOpenConversation,
 }: ConversationCardProps) {
   const lastMessage = conversation.lastMessage;
   const isOwnMessage = lastMessage?.senderId === currentUserId;
 
   return (
-    <Link href={`/messages/${hrefMatchId}`}>
+    <Link
+      href={`/messages/${hrefMatchId}`}
+      onClick={() => onOpenConversation?.(hrefMatchId)}
+    >
       <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer group">
         <div className="flex items-center gap-4">
           {/* Avatar */}
@@ -225,6 +330,26 @@ function ConversationCard({
           )}
 
           {/* Arrow */}
+          {matchId && onTogglePin && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void onTogglePin(matchId, !isPinned);
+              }}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                isPinned
+                  ? 'text-primary bg-primary/10 hover:bg-primary/20'
+                  : 'text-muted-foreground hover:bg-muted'
+              )}
+              aria-label={isPinned ? 'Unpin conversation' : 'Pin conversation'}
+              title={isPinned ? 'Unpin conversation' : 'Pin conversation'}
+            >
+              <Pin className={cn('w-4 h-4', isPinned && 'fill-current')} />
+            </button>
+          )}
+
           <ChevronRight className="w-5 h-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </Card>

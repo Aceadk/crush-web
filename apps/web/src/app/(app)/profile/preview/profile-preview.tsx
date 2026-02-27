@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuthStore, locationService } from '@crush/core';
 import { Button, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
@@ -74,10 +75,13 @@ export default function ProfilePreview() {
         <div className="w-full max-w-md aspect-[3/4] relative rounded-3xl overflow-hidden shadow-2xl">
           {/* Photo */}
           {photos.length > 0 ? (
-            <img
+            <Image
               src={photos[currentPhotoIndex]}
               alt={profile.displayName}
-              className="absolute inset-0 w-full h-full object-cover"
+              fill
+              className="object-cover"
+              sizes="(max-width: 448px) 100vw, 448px"
+              priority
             />
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
@@ -237,7 +241,7 @@ export default function ProfilePreview() {
       )}
 
       {/* Bottom hint */}
-      <div className="text-center pb-6 text-gray-400 text-sm">
+      <div className="text-center pb-6 text-gray-500 text-sm">
         This is how others see your profile
       </div>
     </div>

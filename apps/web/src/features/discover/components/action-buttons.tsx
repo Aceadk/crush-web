@@ -10,6 +10,7 @@ interface ActionButtonsProps {
   onSuperLike: () => void;
   onUndo?: () => void;
   disabled?: boolean;
+  disableLikeActions?: boolean;
   canUndo?: boolean;
 }
 
@@ -19,6 +20,7 @@ export function ActionButtons({
   onSuperLike,
   onUndo,
   disabled,
+  disableLikeActions,
   canUndo,
 }: ActionButtonsProps) {
   return (
@@ -30,6 +32,7 @@ export function ActionButtons({
           whileTap={{ scale: 0.9 }}
           onClick={onUndo}
           disabled={disabled || !canUndo}
+          aria-label="Undo last swipe"
           className={cn(
             'w-12 h-12 rounded-full bg-background border-2 border-yellow-500 flex items-center justify-center shadow-lg transition-colors',
             disabled || !canUndo
@@ -47,6 +50,7 @@ export function ActionButtons({
         whileTap={{ scale: 0.9 }}
         onClick={onPass}
         disabled={disabled}
+        aria-label="Pass"
         className={cn(
           'w-16 h-16 rounded-full bg-background border-2 border-action-pass flex items-center justify-center shadow-lg transition-colors',
           disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'
@@ -60,10 +64,13 @@ export function ActionButtons({
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={onSuperLike}
-        disabled={disabled}
+        disabled={disabled || disableLikeActions}
+        aria-label="Super Like"
         className={cn(
           'w-14 h-14 rounded-full bg-background border-2 border-action-superlike flex items-center justify-center shadow-lg transition-colors',
-          disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-50'
+          disabled || disableLikeActions
+            ? 'opacity-50 cursor-not-allowed'
+            : 'hover:bg-purple-50'
         )}
       >
         <Star className="w-7 h-7 text-action-superlike fill-action-superlike" />
@@ -74,10 +81,13 @@ export function ActionButtons({
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={onLike}
-        disabled={disabled}
+        disabled={disabled || disableLikeActions}
+        aria-label="Like"
         className={cn(
           'w-16 h-16 rounded-full bg-background border-2 border-action-like flex items-center justify-center shadow-lg transition-colors',
-          disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-50'
+          disabled || disableLikeActions
+            ? 'opacity-50 cursor-not-allowed'
+            : 'hover:bg-red-50'
         )}
       >
         <Heart className="w-8 h-8 text-action-like fill-action-like" />

@@ -88,7 +88,7 @@ function SettingItem({ icon, title, description, onClick, href, rightElement, da
         )}
       </div>
       {rightElement || (onClick || href) && (
-        <ChevronRight className="w-5 h-5 text-gray-400" />
+        <ChevronRight className="w-5 h-5 text-gray-500" />
       )}
     </div>
   );
@@ -203,11 +203,15 @@ export default function SettingsView() {
 
     setDeleting(true);
     try {
-      await userService.deleteAccount(user.uid);
+      const result = await userService.deleteAccount(user.uid);
+      // Account is now scheduled for deletion, not immediately deleted
       await signOut();
-      router.replace('/');
+      // Redirect with message about grace period
+      router.replace(`/auth/login?deleted=scheduled&days=${result.gracePeriodDays}`);
     } catch (error) {
-      console.error('Failed to delete account:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to delete account:', error);
+      }
     } finally {
       setDeleting(false);
     }
@@ -250,6 +254,7 @@ export default function SettingsView() {
           <button
             onClick={() => router.back()}
             className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            aria-label="Go back"
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
@@ -625,7 +630,7 @@ export default function SettingsView() {
         </Card>
 
         {/* App version */}
-        <div className="text-center text-sm text-gray-400">
+        <div className="text-center text-sm text-gray-500">
           Crush v1.0.0
         </div>
       </div>
@@ -643,12 +648,12 @@ export default function SettingsView() {
                   Delete Account?
                 </h3>
                 <p className="text-sm text-gray-500">
-                  This action cannot be undone
+                  You have 14 days to change your mind
                 </p>
               </div>
             </div>
             <p className="text-gray-600 dark:text-gray-300 mb-6">
-              All your data, matches, and messages will be permanently deleted. Are you sure you want to continue?
+              Your account will be scheduled for deletion. After 14 days, all your data, matches, and messages will be permanently removed. You can cancel by signing back in within the grace period.
             </p>
             <div className="flex gap-3">
               <Button

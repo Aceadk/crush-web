@@ -294,7 +294,7 @@ export default function PrivacySettingsPage() {
                   Manage blocked profiles
                 </p>
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
+              <ChevronRight className="w-5 h-5 text-gray-500" />
             </div>
           </Link>
         </Card>

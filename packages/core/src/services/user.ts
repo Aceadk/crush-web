@@ -417,7 +417,10 @@ class UserService {
       updatedAt: this.timestampToString(data.updatedAt),
       lastActive: this.timestampToString(data.lastActive),
       isOnline: data.isOnline as boolean | undefined,
-      settings: data.settings as UserSettings | undefined,
+      settings: {
+        ...DEFAULT_USER_SETTINGS,
+        ...((data.settings as UserSettings | undefined) ?? {}),
+      },
       notificationSettings: data.notificationSettings as UserProfile['notificationSettings'],
       hasAcceptedTerms: data.hasAcceptedTerms as boolean || false,
       termsAcceptedAt: data.termsAcceptedAt as string | undefined,
@@ -425,6 +428,20 @@ class UserService {
       profileComplete: data.profileComplete as boolean || false,
       isEmailVerified: data.isEmailVerified as boolean || false,
       isPhoneVerified: data.isPhoneVerified as boolean || false,
+      boost: {
+        expiresAt: this.timestampToOptionalString(
+          (data.boost as Record<string, unknown> | undefined)?.expiresAt
+        ),
+        activatedAt: this.timestampToOptionalString(
+          (data.boost as Record<string, unknown> | undefined)?.activatedAt
+        ),
+        lastActivatedAt: this.timestampToOptionalString(
+          (data.boost as Record<string, unknown> | undefined)?.lastActivatedAt
+        ),
+        totalActivations:
+          ((data.boost as Record<string, unknown> | undefined)
+            ?.totalActivations as number | undefined) ?? 0,
+      },
     };
   }
 
@@ -434,7 +451,35 @@ class UserService {
       return timestamp.toDate().toISOString();
     }
     if (typeof timestamp === 'string') return timestamp;
+    if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
+      return new Date(timestamp).toISOString();
+    }
     return new Date().toISOString();
+  }
+
+  private timestampToOptionalString(timestamp: unknown): string | undefined {
+    if (!timestamp) return undefined;
+    if (timestamp instanceof Timestamp) {
+      return timestamp.toDate().toISOString();
+    }
+    if (typeof timestamp === 'string') {
+      const parsed = Date.parse(timestamp);
+      return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString();
+    }
+    if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
+      return new Date(timestamp).toISOString();
+    }
+    if (
+      typeof timestamp === 'object' &&
+      timestamp !== null &&
+      'toDate' in timestamp &&
+      typeof (timestamp as { toDate?: unknown }).toDate === 'function'
+    ) {
+      const asDate = (timestamp as { toDate: () => Date }).toDate();
+      if (Number.isNaN(asDate.getTime())) return undefined;
+      return asDate.toISOString();
+    }
+    return undefined;
   }
 }
 

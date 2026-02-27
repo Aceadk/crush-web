@@ -47,3 +47,4 @@ coverage
 # Vercel
 .vercel
 .env*.local
+.env.crush-web-*

@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { PlusFeatureGate } from '@/features/premium';
+import { matchService, ReceivedLike, useAuthStore } from '@crush/core';
+import { Badge, Button, Card, SkeletonProfile } from '@crush/ui';
+import { formatDistanceToNow } from 'date-fns';
+import { Eye, Heart, Loader2, Lock, Sparkles, X } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuthStore, matchService, ReceivedLike } from '@crush/core';
-import { Card, Avatar, AvatarImage, AvatarFallback, Badge, Button, SkeletonProfile } from '@crush/ui';
-import { cn } from '@crush/ui';
-import { Heart, Sparkles, Crown, Lock, X, Check, Eye, Loader2 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { useCallback, useEffect, useState } from 'react';
 
 export default function LikesPage() {
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function LikesPage() {
       const result = await matchService.swipe(user.uid, like.likerUserId, 'like');
       if (result.isMatch) {
         // Remove from likes list and show match notification
-        setLikes(prev => prev.filter(l => l.id !== like.id));
+        setLikes((prev) => prev.filter((l) => l.id !== like.id));
         // Could show a match modal here
         router.push(`/messages/${result.matchId}`);
       }
@@ -67,7 +68,7 @@ export default function LikesPage() {
 
     try {
       await matchService.swipe(user.uid, like.likerUserId, 'pass');
-      setLikes(prev => prev.filter(l => l.id !== like.id));
+      setLikes((prev) => prev.filter((l) => l.id !== like.id));
     } catch (err) {
       console.error('Failed to pass:', err);
     } finally {
@@ -75,53 +76,44 @@ export default function LikesPage() {
     }
   };
 
-  const superLikesCount = likes.filter(l => l.isSuperLike).length;
+  const superLikesCount = likes.filter((l) => l.isSuperLike).length;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl p-6">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <Heart className="w-8 h-8 text-primary fill-primary" />
+        <div className="mb-2 flex items-center gap-3">
+          <Heart className="h-8 w-8 fill-primary text-primary" />
           <h1 className="text-3xl font-bold">Likes You</h1>
         </div>
         <p className="text-muted-foreground">
           {likes.length} {likes.length === 1 ? 'person likes' : 'people like'} you
           {superLikesCount > 0 && (
             <span className="ml-2">
-              <Sparkles className="w-4 h-4 inline text-yellow-500" /> {superLikesCount} Super {superLikesCount === 1 ? 'Like' : 'Likes'}
+              <Sparkles className="inline h-4 w-4 text-yellow-500" /> {superLikesCount} Super{' '}
+              {superLikesCount === 1 ? 'Like' : 'Likes'}
             </span>
           )}
         </p>
       </div>
 
       {/* Premium upsell for non-premium users */}
-      {!isPremium && (
-        <Card className="mb-6 overflow-hidden">
-          <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
-                <Crown className="w-7 h-7 text-white" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-xl font-semibold mb-1">Unlock who likes you</h2>
-                <p className="text-muted-foreground mb-4">
-                  Upgrade to Premium to see everyone who likes you and match instantly.
-                  Stop waiting - start connecting!
-                </p>
-                <div className="flex gap-3">
-                  <Link href="/premium">
-                    <Button className="bg-gradient-to-r from-primary to-secondary">
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Get Premium
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
+      <PlusFeatureGate
+        isPremium={isPremium}
+        featureKey="likes_you"
+        title="Unlock who likes you"
+        description="Upgrade to Premium to see everyone who likes you and match instantly."
+        ctaLabel="Get Premium"
+        className="mb-6"
+        variant="amber"
+        modalTitle="Likes You is a Premium feature"
+        modalDescription="Unlock full access to everyone who already likes your profile."
+        modalBenefits={[
+          'See all incoming likes without blur',
+          'Match instantly by liking back',
+          'Prioritize Super Likes and top prospects',
+        ]}
+      />
 
       {/* Loading state */}
       {loading && (
@@ -136,24 +128,24 @@ export default function LikesPage() {
 
       {/* Error state */}
       {error && !loading && (
-        <div className="text-center py-16">
-          <p className="text-red-500 mb-4">{error}</p>
+        <div className="py-16 text-center">
+          <p className="mb-4 text-red-500">{error}</p>
           <Button onClick={loadLikes}>Try Again</Button>
         </div>
       )}
 
       {/* Empty state */}
       {!loading && !error && likes.length === 0 && (
-        <div className="text-center py-16">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
-            <Heart className="w-10 h-10 text-muted-foreground" />
+        <div className="py-16 text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+            <Heart className="h-10 w-10 text-muted-foreground" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">No likes yet</h2>
-          <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-            When someone likes your profile, they'll appear here. Make sure your
-            profile is complete to get more likes!
+          <h2 className="mb-2 text-xl font-semibold">No likes yet</h2>
+          <p className="mx-auto mb-6 max-w-sm text-muted-foreground">
+            When someone likes your profile, they'll appear here. Make sure your profile is complete
+            to get more likes!
           </p>
-          <div className="flex gap-3 justify-center">
+          <div className="flex justify-center gap-3">
             <Link href="/discover">
               <Button>Start Swiping</Button>
             </Link>
@@ -166,7 +158,7 @@ export default function LikesPage() {
 
       {/* Likes grid */}
       {!loading && !error && likes.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {likes.map((like) => (
             <LikeCard
               key={like.id}
@@ -193,20 +185,22 @@ interface LikeCardProps {
 
 function LikeCard({ like, isPremium, loading, onLikeBack, onPass }: LikeCardProps) {
   return (
-    <Card className="overflow-hidden group">
+    <Card className="group overflow-hidden">
       {/* Photo area */}
       <div className="relative aspect-[3/4] bg-muted">
         {isPremium ? (
           // Show actual photo for premium users
           <>
             {like.likerPhotoUrl ? (
-              <img
+              <Image
                 src={like.likerPhotoUrl}
                 alt={like.likerName}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-secondary/20">
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 to-secondary/20">
                 <span className="text-6xl font-bold text-primary/30">
                   {like.likerName.charAt(0)}
                 </span>
@@ -218,13 +212,14 @@ function LikeCard({ like, isPremium, loading, onLikeBack, onPass }: LikeCardProp
 
             {/* User info */}
             <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold text-lg">
-                  {like.likerName}{like.likerAge ? `, ${like.likerAge}` : ''}
+              <div className="mb-1 flex items-center gap-2">
+                <h3 className="text-lg font-semibold">
+                  {like.likerName}
+                  {like.likerAge ? `, ${like.likerAge}` : ''}
                 </h3>
                 {like.isSuperLike && (
                   <Badge variant="premium" className="bg-yellow-500">
-                    <Sparkles className="w-3 h-3 mr-1" />
+                    <Sparkles className="mr-1 h-3 w-3" />
                     Super Like
                   </Badge>
                 )}
@@ -235,30 +230,32 @@ function LikeCard({ like, isPremium, loading, onLikeBack, onPass }: LikeCardProp
             </div>
 
             {/* Action buttons */}
-            <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
               <Button
                 size="icon"
                 variant="secondary"
-                className="rounded-full w-12 h-12 bg-white/90 hover:bg-white"
+                className="h-12 w-12 rounded-full bg-white/90 hover:bg-white"
                 onClick={onPass}
                 disabled={loading}
+                aria-label={`Pass on ${like.likerName}`}
               >
                 {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-gray-600" />
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
                 ) : (
-                  <X className="w-6 h-6 text-gray-600" />
+                  <X className="h-6 w-6 text-gray-600" />
                 )}
               </Button>
               <Button
                 size="icon"
-                className="rounded-full w-12 h-12 bg-primary hover:bg-primary/90"
+                className="h-12 w-12 rounded-full bg-primary hover:bg-primary/90"
                 onClick={onLikeBack}
                 disabled={loading}
+                aria-label={`Like ${like.likerName} back`}
               >
                 {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-white" />
+                  <Loader2 className="h-6 w-6 animate-spin text-white" />
                 ) : (
-                  <Heart className="w-6 h-6 text-white fill-white" />
+                  <Heart className="h-6 w-6 fill-white text-white" />
                 )}
               </Button>
             </div>
@@ -266,10 +263,10 @@ function LikeCard({ like, isPremium, loading, onLikeBack, onPass }: LikeCardProp
             {/* View profile link */}
             <Link
               href={`/profile/${like.likerUserId}`}
-              className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute right-4 top-4 opacity-0 transition-opacity group-hover:opacity-100"
             >
               <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white">
-                <Eye className="w-4 h-4 mr-1" />
+                <Eye className="mr-1 h-4 w-4" />
                 View
               </Button>
             </Link>
@@ -278,26 +275,28 @@ function LikeCard({ like, isPremium, loading, onLikeBack, onPass }: LikeCardProp
           // Blurred view for non-premium users
           <>
             {like.likerPhotoUrl ? (
-              <img
+              <Image
                 src={like.likerPhotoUrl}
                 alt="Blurred profile"
-                className="w-full h-full object-cover blur-xl scale-110"
+                fill
+                className="scale-110 object-cover blur-xl"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-primary/30 to-secondary/30 blur-xl" />
+              <div className="h-full w-full bg-gradient-to-br from-primary/30 to-secondary/30 blur-xl" />
             )}
 
             {/* Lock overlay */}
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30">
-              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-3">
-                <Lock className="w-8 h-8 text-white" />
+              <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
+                <Lock className="h-8 w-8 text-white" />
               </div>
-              <p className="text-white font-medium text-center px-4">
+              <p className="px-4 text-center font-medium text-white">
                 Upgrade to see who likes you
               </p>
               {like.isSuperLike && (
                 <Badge variant="premium" className="mt-2 bg-yellow-500">
-                  <Sparkles className="w-3 h-3 mr-1" />
+                  <Sparkles className="mr-1 h-3 w-3" />
                   Super Like
                 </Badge>
               )}

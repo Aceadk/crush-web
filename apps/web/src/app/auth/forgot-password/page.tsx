@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@crush/ui';
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordPageContent() {
+  const searchParams = useSearchParams();
+  const redirect = sanitizeRedirectPath(searchParams.get('redirect'));
+  const loginHref = appendRedirectParam('/auth/login', redirect);
   const { sendPasswordReset, loading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
@@ -53,7 +58,7 @@ export default function ForgotPasswordPage() {
               try again
             </button>
           </p>
-          <Link href="/auth/login">
+          <Link href={loginHref}>
             <Button variant="outline" className="w-full mt-4">
               Back to Sign In
             </Button>
@@ -99,7 +104,7 @@ export default function ForgotPasswordPage() {
         </form>
 
         <Link
-          href="/auth/login"
+          href={loginHref}
           className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -107,5 +112,24 @@ export default function ForgotPasswordPage() {
         </Link>
       </CardContent>
     </Card>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card className="border-0 shadow-lg">
+          <CardContent className="py-12">
+            <div className="flex items-center justify-center gap-3 text-muted-foreground">
+              <Mail className="w-5 h-5 animate-pulse" />
+              <span>Loading reset form...</span>
+            </div>
+          </CardContent>
+        </Card>
+      }
+    >
+      <ForgotPasswordPageContent />
+    </Suspense>
   );
 }

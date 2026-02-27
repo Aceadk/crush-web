@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuthStore, useUIStore, useMatchStore } from '@crush/core';
 import { cn } from '@crush/ui';
@@ -81,12 +82,14 @@ export function Sidebar() {
             <div className="p-3 border-b border-sidebar-border">
               <div className="flex items-center gap-3">
                 <div className="relative flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary overflow-hidden">
+                  <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary overflow-hidden">
                     {profile.profilePhotoUrl ? (
-                      <img
+                      <Image
                         src={profile.profilePhotoUrl}
                         alt={profile.displayName}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        sizes="40px"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white text-sm font-medium">

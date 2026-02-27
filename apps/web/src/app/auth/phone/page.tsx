@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@crush/ui';
 import { Phone, ArrowLeft, ChevronRight, ChevronDown, Timer } from 'lucide-react';
+import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
 type Step = 'phone' | 'code';
 
@@ -48,8 +49,13 @@ const COUNTRY_CODES = [
 
 const RESEND_COOLDOWN = 30; // seconds
 
-export default function PhoneAuthPage() {
+function PhoneAuthPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = sanitizeRedirectPath(searchParams.get('redirect'));
+  const loginHref = appendRedirectParam('/auth/login', redirect);
+  const signupHref = appendRedirectParam('/auth/signup', redirect);
+  const onboardingHref = appendRedirectParam('/onboarding', redirect);
   const { user, profile, startPhoneVerification, verifyPhoneCode, loading, error, clearError, initialized } = useAuthStore();
 
   const [step, setStep] = useState<Step>('phone');
@@ -89,12 +95,12 @@ export default function PhoneAuthPage() {
     if (initialized && user && !loading) {
       // Check if user needs onboarding
       if (profile && profile.onboardingComplete) {
-        router.push('/discover');
+        router.push(redirect);
       } else {
-        router.push('/onboarding');
+        router.push(onboardingHref);
       }
     }
-  }, [user, profile, initialized, loading, router]);
+  }, [user, profile, initialized, loading, redirect, onboardingHref, router]);
 
   useEffect(() => {
     // Focus first code input when on code step
@@ -364,12 +370,12 @@ export default function PhoneAuthPage() {
         </div>
 
         <div className="flex gap-4">
-          <Link href="/auth/login" className="flex-1">
+          <Link href={loginHref} className="flex-1">
             <Button variant="outline" className="w-full">
               Email
             </Button>
           </Link>
-          <Link href="/auth/signup" className="flex-1">
+          <Link href={signupHref} className="flex-1">
             <Button variant="outline" className="w-full">
               Sign up
             </Button>
@@ -377,5 +383,24 @@ export default function PhoneAuthPage() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+export default function PhoneAuthPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card className="border-0 shadow-lg">
+          <CardContent className="py-12">
+            <div className="flex items-center justify-center gap-3 text-muted-foreground">
+              <Phone className="w-5 h-5 animate-pulse" />
+              <span>Loading phone sign in...</span>
+            </div>
+          </CardContent>
+        </Card>
+      }
+    >
+      <PhoneAuthPageContent />
+    </Suspense>
   );
 }

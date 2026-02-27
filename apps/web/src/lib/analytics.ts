@@ -4,6 +4,16 @@
  * (Google Analytics, Mixpanel, Amplitude, PostHog, etc.)
  */
 
+declare global {
+  interface Window {
+    dataLayer?: Array<Record<string, unknown>>;
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+export type FunnelName = 'auth' | 'onboarding' | 'subscription' | 'messaging';
+export type FunnelStepStatus = 'started' | 'completed' | 'failed' | 'abandoned';
+
 // Event types for type safety
 export type AnalyticsEvent =
   // Authentication
@@ -56,7 +66,18 @@ export type AnalyticsEvent =
   // General
   | { name: 'page_view'; properties: { path: string; title?: string } }
   | { name: 'error'; properties: { message: string; stack?: string } }
-  | { name: 'feature_used'; properties: { feature: string } };
+  | { name: 'feature_used'; properties: { feature: string } }
+  | {
+      name: 'funnel_step';
+      properties: {
+        funnel: FunnelName;
+        step: string;
+        status: FunnelStepStatus;
+        method?: string;
+        reason?: string;
+        value?: number;
+      };
+    };
 
 // User properties for identification
 export interface UserProperties {
@@ -99,6 +120,21 @@ class Analytics {
     this.initialized = true;
   }
 
+  private emitEvent(eventName: string, properties: Record<string, unknown>) {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', eventName, properties);
+      return;
+    }
+
+    if (Array.isArray(window.dataLayer)) {
+      window.dataLayer.push({ event: eventName, ...properties });
+    }
+  }
+
   /**
    * Identify a user
    */
@@ -108,9 +144,10 @@ class Analytics {
 
     this.log('User identified:', userId, properties);
 
-    // Send to analytics providers
-    // GA4: gtag('set', 'user_properties', properties);
-    // PostHog: posthog.identify(userId, properties);
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      window.gtag('set', 'user_id', userId);
+      window.gtag('set', 'user_properties', properties ?? {});
+    }
   }
 
   /**
@@ -121,10 +158,12 @@ class Analytics {
       this.init();
     }
 
+    const properties = (event.properties ?? {}) as Record<string, unknown>;
+
     const eventData = {
       ...event,
       properties: {
-        ...event.properties,
+        ...properties,
         userId: this.userId,
         timestamp: new Date().toISOString(),
       },
@@ -132,10 +171,7 @@ class Analytics {
 
     this.log('Event tracked:', eventData);
 
-    // Send to analytics providers
-    // GA4: gtag('event', event.name, event.properties);
-    // PostHog: posthog.capture(event.name, event.properties);
-    // Mixpanel: mixpanel.track(event.name, event.properties);
+    this.emitEvent(event.name, eventData.properties as Record<string, unknown>);
   }
 
   /**
@@ -146,8 +182,6 @@ class Analytics {
       name: 'page_view',
       properties: { path, title },
     });
-
-    // GA4: gtag('event', 'page_view', { page_path: path });
   }
 
   /**
@@ -173,9 +207,10 @@ class Analytics {
     this.userProperties = {};
     this.log('Analytics reset');
 
-    // Reset analytics providers
-    // GA4: gtag('set', 'user_id', null);
-    // PostHog: posthog.reset();
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      window.gtag('set', 'user_id', null);
+      window.gtag('set', 'user_properties', {});
+    }
   }
 
   /**
@@ -194,6 +229,28 @@ class Analytics {
       console.log('[Analytics]', ...args);
     }
   }
+
+  /**
+   * Funnel step tracking helper to standardize conversion events.
+   */
+  funnelStep(
+    funnel: FunnelName,
+    step: string,
+    status: FunnelStepStatus,
+    extras?: { method?: string; reason?: string; value?: number }
+  ) {
+    this.track({
+      name: 'funnel_step',
+      properties: {
+        funnel,
+        step,
+        status,
+        method: extras?.method,
+        reason: extras?.reason,
+        value: extras?.value,
+      },
+    });
+  }
 }
 
 // Singleton instance
@@ -205,6 +262,7 @@ export function useAnalytics() {
     track: analytics.track.bind(analytics),
     identify: analytics.identify.bind(analytics),
     pageView: analytics.pageView.bind(analytics),
+    funnelStep: analytics.funnelStep.bind(analytics),
     reset: analytics.reset.bind(analytics),
   };
 }

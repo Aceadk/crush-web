@@ -260,7 +260,7 @@ I'll check in when I'm home safe!`;
                     </div>
                     <button
                       onClick={() => removeTrustedContact(contact)}
-                      className="text-gray-400 hover:text-red-500"
+                      className="text-gray-500 hover:text-red-500"
                     >
                       Remove
                     </button>

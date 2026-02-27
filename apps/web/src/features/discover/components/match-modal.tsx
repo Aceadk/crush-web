@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@crush/ui';
 import { Heart, MessageCircle, X } from 'lucide-react';
 import Confetti from 'react-confetti';
@@ -48,6 +49,9 @@ export function MatchModal({
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
           onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-label="It's a match!"
         >
           {/* Confetti */}
           <Confetti
@@ -70,6 +74,7 @@ export function MatchModal({
             <button
               onClick={onClose}
               className="absolute top-0 right-0 p-2 text-white/70 hover:text-white transition-colors"
+              aria-label="Close match notification"
             >
               <X className="w-6 h-6" />
             </button>
@@ -98,12 +103,14 @@ export function MatchModal({
                 transition={{ delay: 0.3, type: 'spring' }}
                 className="relative"
               >
-                <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-primary shadow-lg">
+                <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-primary shadow-lg">
                   {currentUserPhoto ? (
-                    <img
+                    <Image
                       src={currentUserPhoto}
                       alt="You"
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
+                      sizes="128px"
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-4xl font-bold">
@@ -129,11 +136,13 @@ export function MatchModal({
                 transition={{ delay: 0.3, type: 'spring' }}
                 className="relative"
               >
-                <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-secondary shadow-lg">
-                  <img
+                <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-secondary shadow-lg">
+                  <Image
                     src={matchedUser.photo}
                     alt={matchedUser.name}
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
+                    sizes="128px"
                   />
                 </div>
               </motion.div>

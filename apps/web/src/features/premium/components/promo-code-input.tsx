@@ -138,7 +138,7 @@ export function PromoCodeInput({
               Enter your code to get a discount
             </p>
           </div>
-          <ChevronDown className="w-5 h-5 text-gray-400" />
+          <ChevronDown className="w-5 h-5 text-gray-500" />
         </button>
       </Card>
     );
@@ -157,7 +157,7 @@ export function PromoCodeInput({
               Promo Code
             </span>
           </div>
-          <ChevronUp className="w-5 h-5 text-gray-400" />
+          <ChevronUp className="w-5 h-5 text-gray-500" />
         </button>
       )}
 
@@ -165,7 +165,7 @@ export function PromoCodeInput({
         {/* Input and buttons */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               type="text"
               value={localCode}
@@ -189,7 +189,7 @@ export function PromoCodeInput({
                 onClick={handleClear}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
               >
-                <X className="w-4 h-4 text-gray-400" />
+                <X className="w-4 h-4 text-gray-500" />
               </button>
             )}
           </div>

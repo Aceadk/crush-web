@@ -1,33 +1,38 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import Link from 'next/link';
-import { useAuthStore, userService, storageService, locationService, calculateAge } from '@crush/core';
-import { Button, Card, Badge, Avatar, AvatarImage, AvatarFallback } from '@crush/ui';
-import { cn } from '@crush/ui';
 import {
-  Camera,
-  Edit2,
-  Plus,
-  X,
-  MapPin,
-  Calendar,
-  Briefcase,
-  GraduationCap,
-  Settings,
-  Share2,
-  Eye,
-  ChevronRight,
-  Sparkles,
-  Heart,
-  MessageCircle,
-  Shield,
+    calculateAge,
+    locationService,
+    storageService,
+    useAuthStore,
+    userService,
+} from '@crush/core';
+import { Badge, Button, Card, cn } from '@crush/ui';
+import {
+    Calendar,
+    Camera,
+    Cigarette,
+    Dumbbell,
+    Eye,
+    GraduationCap,
+    Heart,
+    MapPin,
+    Plus,
+    Ruler,
+    Settings,
+    Share2,
+    Shield,
+    Sparkles,
+    Wine,
+    X,
 } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRef, useState } from 'react';
 
 export default function ProfileView() {
   const { user, profile, refreshProfile } = useAuthStore();
   const [uploading, setUploading] = useState(false);
-  const [draggedPhoto, setDraggedPhoto] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,9 +86,9 @@ export default function ProfileView() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-muted-foreground">Loading profile...</p>
         </div>
       </div>
@@ -93,43 +98,45 @@ export default function ProfileView() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header with gradient */}
-      <div className="relative h-48 bg-gradient-to-br from-primary via-primary-dark to-secondary">
+      <div className="via-primary-dark relative h-48 bg-gradient-to-br from-primary to-secondary">
         <div className="absolute inset-0 bg-black/20" />
-        <div className="absolute top-4 right-4 flex gap-2">
+        <div className="absolute right-4 top-4 flex gap-2">
           <Link href="/settings">
             <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-              <Settings className="w-5 h-5" />
+              <Settings className="h-5 w-5" />
             </Button>
           </Link>
           <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-            <Share2 className="w-5 h-5" />
+            <Share2 className="h-5 w-5" />
           </Button>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 -mt-24 relative z-10 pb-20">
+      <div className="relative z-10 mx-auto -mt-24 max-w-2xl px-4 pb-20">
         {/* Profile header */}
-        <div className="text-center mb-6">
+        <div className="mb-6 text-center">
           {/* Main photo */}
-          <div className="relative inline-block mb-4">
-            <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-xl">
+          <div className="relative mb-4 inline-block">
+            <div className="relative h-32 w-32 overflow-hidden rounded-full border-4 border-white shadow-xl">
               {profile.profilePhotoUrl ? (
-                <img
+                <Image
                   src={profile.profilePhotoUrl}
                   alt={profile.displayName}
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
+                  sizes="128px"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white text-4xl font-bold">
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-secondary text-4xl font-bold text-white">
                   {profile.displayName?.charAt(0) || '?'}
                 </div>
               )}
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-0 right-0 w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shadow-lg hover:bg-primary-dark transition-colors"
+              className="hover:bg-primary-dark absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-colors"
             >
-              <Camera className="w-5 h-5" />
+              <Camera className="h-5 w-5" />
             </button>
             <input
               ref={fileInputRef}
@@ -141,20 +148,24 @@ export default function ProfileView() {
           </div>
 
           {/* Name and badges */}
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          <h1 className="mb-1 text-2xl font-bold text-gray-900 dark:text-white">
             {profile.displayName}
-            {(calculateAge(profile.birthDate) || profile.age) && <span className="font-normal text-gray-600 dark:text-gray-300">, {calculateAge(profile.birthDate) ?? profile.age}</span>}
+            {(calculateAge(profile.birthDate) || profile.age) && (
+              <span className="font-normal text-gray-600 dark:text-gray-300">
+                , {calculateAge(profile.birthDate) ?? profile.age}
+              </span>
+            )}
           </h1>
 
-          <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="mb-4 flex items-center justify-center gap-2">
             {profile.isVerified && (
               <Badge variant="verified" className="gap-1">
-                <Shield className="w-3 h-3" /> Verified
+                <Shield className="h-3 w-3" /> Verified
               </Badge>
             )}
             {profile.isPremium && (
               <Badge variant="premium" className="gap-1">
-                <Sparkles className="w-3 h-3" /> Premium
+                <Sparkles className="h-3 w-3" /> Premium
               </Badge>
             )}
           </div>
@@ -178,17 +189,21 @@ export default function ProfileView() {
 
         {/* Profile completion card */}
         {completeness < 100 && (
-          <Card className="p-4 mb-6 border-primary/20 bg-primary/5">
+          <Card className="mb-6 border-primary/20 bg-primary/5 p-4">
             <div className="flex items-center gap-4">
               <div className="flex-shrink-0">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-primary" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                  <Sparkles className="h-6 w-6 text-primary" />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 dark:text-white">Complete your profile</h3>
-                <p className="text-sm text-gray-500">Get up to 3x more matches with a complete profile</p>
-                <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  Complete your profile
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Get up to 3x more matches with a complete profile
+                </p>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                   <div
                     className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
                     style={{ width: `${completeness}%` }}
@@ -203,8 +218,8 @@ export default function ProfileView() {
         )}
 
         {/* Photo grid */}
-        <Card className="p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="mb-6 p-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white">Photos</h2>
             <Link href="/profile/edit" className="text-sm text-primary hover:underline">
               Edit
@@ -216,35 +231,45 @@ export default function ProfileView() {
               <div
                 key={index}
                 className={cn(
-                  'relative aspect-[3/4] rounded-xl overflow-hidden group',
+                  'group relative aspect-[3/4] overflow-hidden rounded-xl',
                   index === 0 && 'col-span-2 row-span-2'
                 )}
               >
-                <img src={photo} alt="" className="w-full h-full object-cover" />
+                <Image
+                  src={photo}
+                  alt={`Profile photo ${index + 1}`}
+                  fill
+                  className="object-cover"
+                  sizes={
+                    index === 0
+                      ? '(max-width: 640px) 66vw, 400px'
+                      : '(max-width: 640px) 33vw, 200px'
+                  }
+                />
 
                 {/* Hover overlay */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                   {index !== 0 && (
                     <button
                       onClick={() => handleSetMainPhoto(index)}
-                      className="p-2 bg-white rounded-full text-gray-800 hover:bg-gray-100"
+                      className="rounded-full bg-white p-2 text-gray-800 hover:bg-gray-100"
                       title="Set as main photo"
                     >
-                      <Heart className="w-4 h-4" />
+                      <Heart className="h-4 w-4" />
                     </button>
                   )}
                   <button
                     onClick={() => handleRemovePhoto(index)}
-                    className="p-2 bg-white rounded-full text-red-500 hover:bg-gray-100"
+                    className="rounded-full bg-white p-2 text-red-500 hover:bg-gray-100"
                     title="Remove photo"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
 
                 {/* Main photo badge */}
                 {index === 0 && (
-                  <div className="absolute top-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded-full">
+                  <div className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-1 text-xs text-white">
                     Main photo
                   </div>
                 )}
@@ -258,16 +283,16 @@ export default function ProfileView() {
                 disabled={uploading}
                 className={cn(
                   'aspect-[3/4] rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600',
-                  'flex flex-col items-center justify-center gap-2 text-gray-400',
-                  'hover:border-primary hover:text-primary transition-colors',
-                  uploading && 'opacity-50 cursor-not-allowed'
+                  'flex flex-col items-center justify-center gap-2 text-gray-500',
+                  'transition-colors hover:border-primary hover:text-primary',
+                  uploading && 'cursor-not-allowed opacity-50'
                 )}
               >
                 {uploading ? (
-                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 ) : (
                   <>
-                    <Plus className="w-8 h-8" />
+                    <Plus className="h-8 w-8" />
                     <span className="text-xs">Add Photo</span>
                   </>
                 )}
@@ -277,8 +302,8 @@ export default function ProfileView() {
         </Card>
 
         {/* About section */}
-        <Card className="p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="mb-6 p-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white">About</h2>
             <Link href="/profile/edit" className="text-sm text-primary hover:underline">
               Edit
@@ -286,17 +311,17 @@ export default function ProfileView() {
           </div>
 
           {profile.bio ? (
-            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{profile.bio}</p>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{profile.bio}</p>
           ) : (
-            <Link href="/profile/edit" className="text-gray-400 hover:text-primary">
+            <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
               + Add a bio to tell others about yourself
             </Link>
           )}
         </Card>
 
         {/* Details section */}
-        <Card className="p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="mb-6 p-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white">Details</h2>
             <Link href="/profile/edit" className="text-sm text-primary hover:underline">
               Edit
@@ -306,22 +331,52 @@ export default function ProfileView() {
           <div className="space-y-3">
             {profile.location && (profile.location.city || profile.location.country) && (
               <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <MapPin className="w-5 h-5 text-gray-400" />
+                <MapPin className="h-5 w-5 text-gray-500" />
                 <span>{locationService.formatLocationForDisplay(profile.location)}</span>
               </div>
             )}
             {profile.birthDate && (
               <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <Calendar className="w-5 h-5 text-gray-400" />
+                <Calendar className="h-5 w-5 text-gray-500" />
                 <span>{calculateAge(profile.birthDate) ?? profile.age} years old</span>
+              </div>
+            )}
+            {profile.lifestyle?.height && (
+              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                <Ruler className="h-5 w-5 text-gray-500" />
+                <span>{profile.lifestyle.height}</span>
+              </div>
+            )}
+            {profile.lifestyle?.education && (
+              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                <GraduationCap className="h-5 w-5 text-gray-500" />
+                <span>{profile.lifestyle.education}</span>
+              </div>
+            )}
+            {profile.lifestyle?.drinking && (
+              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                <Wine className="h-5 w-5 text-gray-500" />
+                <span className="capitalize">{profile.lifestyle.drinking}</span>
+              </div>
+            )}
+            {profile.lifestyle?.smoking && (
+              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                <Cigarette className="h-5 w-5 text-gray-500" />
+                <span className="capitalize">{profile.lifestyle.smoking}</span>
+              </div>
+            )}
+            {profile.lifestyle?.workout && (
+              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                <Dumbbell className="h-5 w-5 text-gray-500" />
+                <span className="capitalize">{profile.lifestyle.workout}</span>
               </div>
             )}
           </div>
         </Card>
 
         {/* Interests section */}
-        <Card className="p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="mb-6 p-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white">Interests</h2>
             <Link href="/profile/edit" className="text-sm text-primary hover:underline">
               Edit
@@ -337,15 +392,15 @@ export default function ProfileView() {
               ))}
             </div>
           ) : (
-            <Link href="/profile/edit" className="text-gray-400 hover:text-primary">
+            <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
               + Add interests to find better matches
             </Link>
           )}
         </Card>
 
         {/* Prompts section */}
-        <Card className="p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="mb-6 p-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white">Prompts</h2>
             <Link href="/profile/edit" className="text-sm text-primary hover:underline">
               Edit
@@ -355,14 +410,14 @@ export default function ProfileView() {
           {profile.prompts && profile.prompts.length > 0 ? (
             <div className="space-y-4">
               {profile.prompts.map((prompt, index) => (
-                <div key={index} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{prompt.question}</p>
+                <div key={index} className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+                  <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">{prompt.question}</p>
                   <p className="text-gray-900 dark:text-white">{prompt.answer}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <Link href="/profile/edit" className="text-gray-400 hover:text-primary">
+            <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
               + Add prompts to show your personality
             </Link>
           )}
@@ -372,7 +427,7 @@ export default function ProfileView() {
         <div className="flex justify-center">
           <Link href="/profile/preview">
             <Button variant="outline" className="gap-2">
-              <Eye className="w-4 h-4" />
+              <Eye className="h-4 w-4" />
               Preview Profile
             </Button>
           </Link>

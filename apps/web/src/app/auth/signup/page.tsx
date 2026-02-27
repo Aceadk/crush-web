@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@crush/ui';
 import { Mail, Lock, Eye, EyeOff, User, Chrome, Phone, Check, X } from 'lucide-react';
+import { useAnalytics } from '@/components/analytics';
+import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
 // Password strength calculation
 interface PasswordStrength {
@@ -57,8 +59,13 @@ function calculatePasswordStrength(password: string): PasswordStrength {
   return { score, label, color, requirements };
 }
 
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = sanitizeRedirectPath(searchParams.get('redirect'));
+  const loginHref = appendRedirectParam('/auth/login', redirect);
+  const phoneHref = appendRedirectParam('/auth/phone', redirect);
+  const onboardingHref = appendRedirectParam('/onboarding', redirect);
   const { user, profile, signUpWithEmail, signInWithGoogle, loading, error, clearError, initialized } = useAuthStore();
 
   const [name, setName] = useState('');
@@ -69,6 +76,7 @@ export default function SignupPage() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [showRequirements, setShowRequirements] = useState(false);
+  const { track, funnelStep } = useAnalytics();
 
   const passwordStrength = useMemo(() => calculatePasswordStrength(password), [password]);
 
@@ -77,19 +85,19 @@ export default function SignupPage() {
     if (initialized && user && !loading) {
       // Email/password users must verify email before entering app flow.
       if (user.email && !user.emailVerified) {
-        router.push('/auth/verify-email');
+        router.push(appendRedirectParam('/auth/verify-email', redirect));
         return;
       }
 
       // New users always go to onboarding
       // Existing users go to discover or onboarding based on profile
       if (profile && profile.onboardingComplete) {
-        router.push('/discover');
+        router.push(redirect);
       } else {
-        router.push('/onboarding');
+        router.push(onboardingHref);
       }
     }
-  }, [user, profile, initialized, loading, router]);
+  }, [user, profile, initialized, loading, redirect, onboardingHref, router]);
 
   const validateForm = () => {
     if (!name || !email || !password || !confirmPassword) {
@@ -115,13 +123,29 @@ export default function SignupPage() {
     setValidationError(null);
     clearError();
 
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      funnelStep('auth', 'signup_failed', 'failed', {
+        method: 'email_password',
+        reason: 'validation_error',
+      });
+      return;
+    }
 
     try {
       setIsSigningUp(true);
+      funnelStep('auth', 'signup_attempt', 'started', { method: 'email_password' });
       await signUpWithEmail(email, password, name);
+      track({
+        name: 'sign_up',
+        properties: { method: 'email_password' },
+      });
+      funnelStep('auth', 'signup_success', 'completed', { method: 'email_password' });
       // Redirect will happen via useEffect when user state updates
-    } catch {
+    } catch (error) {
+      funnelStep('auth', 'signup_failed', 'failed', {
+        method: 'email_password',
+        reason: error instanceof Error ? error.message : 'unknown_error',
+      });
       setIsSigningUp(false);
       // Error is handled by the store
     }
@@ -131,9 +155,19 @@ export default function SignupPage() {
     clearError();
     try {
       setIsSigningUp(true);
+      funnelStep('auth', 'signup_attempt', 'started', { method: 'google' });
       await signInWithGoogle();
+      track({
+        name: 'sign_up',
+        properties: { method: 'google' },
+      });
+      funnelStep('auth', 'signup_success', 'completed', { method: 'google' });
       // Redirect will happen via useEffect when user state updates
-    } catch {
+    } catch (error) {
+      funnelStep('auth', 'signup_failed', 'failed', {
+        method: 'google',
+        reason: error instanceof Error ? error.message : 'unknown_error',
+      });
       setIsSigningUp(false);
       // Error is handled by the store
     }
@@ -161,7 +195,7 @@ export default function SignupPage() {
             Continue with Google
           </Button>
 
-          <Link href="/auth/phone">
+          <Link href={phoneHref}>
             <Button variant="outline" className="w-full h-12" disabled={isLoading}>
               <Phone className="w-5 h-5 mr-2" />
               Continue with Phone
@@ -305,11 +339,30 @@ export default function SignupPage() {
         {/* Sign in link */}
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{' '}
-          <Link href="/auth/login" className="text-primary hover:underline font-medium">
+          <Link href={loginHref} className="text-primary hover:underline font-medium">
             Sign in
           </Link>
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card className="border-0 shadow-lg">
+          <CardContent className="py-12">
+            <div className="flex items-center justify-center gap-3 text-muted-foreground">
+              <User className="w-5 h-5 animate-pulse" />
+              <span>Loading sign up...</span>
+            </div>
+          </CardContent>
+        </Card>
+      }
+    >
+      <SignupPageContent />
+    </Suspense>
   );
 }

@@ -1,7 +1,5 @@
-'use client';
-
 import Link from 'next/link';
-import { Heart, MessageCircle, Shield, Sparkles, ArrowRight, Star, Check, Users, Zap, Globe, Eye, Rewind, UserCheck } from 'lucide-react';
+import { Heart, MessageCircle, Shield, Sparkles, ArrowRight, Star, Check, Globe, Eye, Rewind, UserCheck } from 'lucide-react';
 import { ThemeToggle } from '@/shared/components/theme';
 
 export default function HomePage() {
@@ -401,7 +399,7 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="text-sm font-medium mb-3">Product</h4>
+              <h3 className="text-sm font-medium mb-3">Product</h3>
               <ul className="space-y-2 text-xs text-muted-foreground">
                 <li><Link href="/features" className="hover:text-foreground transition-colors">Features</Link></li>
                 <li><Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
@@ -410,7 +408,7 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="text-sm font-medium mb-3">Company</h4>
+              <h3 className="text-sm font-medium mb-3">Company</h3>
               <ul className="space-y-2 text-xs text-muted-foreground">
                 <li><Link href="/about" className="hover:text-foreground transition-colors">About</Link></li>
                 <li><Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
@@ -419,7 +417,7 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="text-sm font-medium mb-3">Legal</h4>
+              <h3 className="text-sm font-medium mb-3">Legal</h3>
               <ul className="space-y-2 text-xs text-muted-foreground">
                 <li><Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>

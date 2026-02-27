@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
 import { cn } from '@crush/ui';
+import Image from 'next/image';
+import { useEffect, useRef, useState } from 'react';
 
 interface ProtectedImageProps {
   src: string;
@@ -108,10 +109,12 @@ export function ProtectedImage({
       onTouchCancel={handleTouchEnd}
     >
       {/* Actual image */}
-      <img
+      <Image
         src={src}
         alt={alt}
-        className="w-full h-full object-cover pointer-events-none"
+        fill
+        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        className="pointer-events-none object-cover"
         draggable={false}
         onDragStart={handleDragStart}
         onContextMenu={handleContextMenu}
@@ -137,7 +140,7 @@ export function ProtectedImage({
       {/* Username watermark pattern - becomes visible in screenshots */}
       {(showWatermark || watermarkUsername) && (
         <div
-          className="absolute inset-0 z-20 pointer-events-none overflow-hidden"
+          className="pointer-events-none absolute inset-0 z-20 overflow-hidden"
           style={{
             // Very subtle during normal viewing, more visible in screenshots
             opacity: 0.04,
@@ -145,7 +148,7 @@ export function ProtectedImage({
         >
           {/* Repeating diagonal watermark pattern */}
           <div
-            className="absolute w-[200%] h-[200%] -left-1/2 -top-1/2"
+            className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%]"
             style={{
               transform: 'rotate(-30deg)',
               display: 'flex',
@@ -158,7 +161,7 @@ export function ProtectedImage({
             {Array.from({ length: 50 }).map((_, i) => (
               <span
                 key={i}
-                className="text-white font-bold whitespace-nowrap select-none"
+                className="select-none whitespace-nowrap font-bold text-white"
                 style={{
                   fontSize: '14px',
                   letterSpacing: '2px',
@@ -177,14 +180,14 @@ export function ProtectedImage({
       {/* Secondary watermark layer - inverse colors for visibility on any background */}
       {(showWatermark || watermarkUsername) && (
         <div
-          className="absolute inset-0 z-21 pointer-events-none overflow-hidden"
+          className="z-21 pointer-events-none absolute inset-0 overflow-hidden"
           style={{
             opacity: 0.03,
             mixBlendMode: 'difference',
           }}
         >
           <div
-            className="absolute w-[200%] h-[200%] -left-1/4 -top-1/4"
+            className="absolute -left-1/4 -top-1/4 h-[200%] w-[200%]"
             style={{
               transform: 'rotate(-45deg)',
               display: 'flex',
@@ -196,7 +199,7 @@ export function ProtectedImage({
             {Array.from({ length: 30 }).map((_, i) => (
               <span
                 key={i}
-                className="text-white font-bold whitespace-nowrap select-none"
+                className="select-none whitespace-nowrap font-bold text-white"
                 style={{
                   fontSize: '12px',
                   letterSpacing: '3px',
@@ -212,7 +215,7 @@ export function ProtectedImage({
       {/* Timestamp watermark for tracing */}
       {watermarkUsername && (
         <div
-          className="absolute bottom-2 right-2 z-22 pointer-events-none"
+          className="z-22 pointer-events-none absolute bottom-2 right-2"
           style={{
             opacity: 0.02,
             fontSize: '8px',

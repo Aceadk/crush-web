@@ -7,6 +7,40 @@ import { checkRateLimit, getRateLimitKey } from '@/shared/lib/rate-limit';
  * DELETE /api/auth/session — Clear the auth cookie (called on sign-out)
  */
 
+const AUTH_COOKIE_NAME = 'auth-token';
+const LAST_ACTIVE_COOKIE_NAME = 'session-last-active';
+const REMEMBER_ME_COOKIE_NAME = 'session-remember-me';
+const PERSISTENT_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
+function createSessionCookieOptions(rememberMe: boolean) {
+  const baseOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+  };
+
+  if (rememberMe) {
+    return {
+      ...baseOptions,
+      maxAge: PERSISTENT_SESSION_MAX_AGE_SECONDS,
+    };
+  }
+
+  // Session cookie (cleared when browser session ends)
+  return baseOptions;
+}
+
+function clearCookie(response: NextResponse, name: string) {
+  response.cookies.set(name, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     // CSRF protection
@@ -17,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limiting — 20 session sets per 15 minutes per IP
     const rlKey = getRateLimitKey(request, 'session');
-    const rl = checkRateLimit(rlKey, { limit: 20, windowSeconds: 900 });
+    const rl = await checkRateLimit(rlKey, { limit: 20, windowSeconds: 900 });
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many requests' },
@@ -25,7 +59,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { token } = await request.json();
+    const { token, rememberMe } = await request.json();
 
     if (!token || typeof token !== 'string') {
       return NextResponse.json(
@@ -34,16 +68,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = NextResponse.json({ success: true });
+    const rememberSession = typeof rememberMe === 'boolean' ? rememberMe : true;
+    const sessionCookieOptions = createSessionCookieOptions(rememberSession);
+    const now = Date.now();
+    const response = NextResponse.json({ success: true, rememberMe: rememberSession });
 
-    // Set HttpOnly cookie — not accessible via document.cookie
-    response.cookies.set('auth-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
+    // Set HttpOnly cookies — not accessible via document.cookie
+    response.cookies.set(AUTH_COOKIE_NAME, token, sessionCookieOptions);
+    response.cookies.set(LAST_ACTIVE_COOKIE_NAME, String(now), sessionCookieOptions);
+    response.cookies.set(
+      REMEMBER_ME_COOKIE_NAME,
+      rememberSession ? '1' : '0',
+      sessionCookieOptions
+    );
 
     return response;
   } catch {
@@ -57,13 +94,9 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   const response = NextResponse.json({ success: true });
 
-  response.cookies.set('auth-token', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  });
+  clearCookie(response, AUTH_COOKIE_NAME);
+  clearCookie(response, LAST_ACTIVE_COOKIE_NAME);
+  clearCookie(response, REMEMBER_ME_COOKIE_NAME);
 
   return response;
 }

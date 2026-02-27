@@ -1,29 +1,29 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuthStore, useMatchStore, matchService, WeeklyPick } from '@crush/core';
-import { Card, Avatar, AvatarImage, AvatarFallback, Badge, Button } from '@crush/ui';
-import { cn } from '@crush/ui';
-import {
-  ArrowLeft,
-  Sparkles,
-  Heart,
-  X,
-  Star,
-  Clock,
-  ChevronRight,
-  MapPin,
-  Loader2,
-  RefreshCw,
-  Crown,
-  CheckCircle2,
-} from 'lucide-react';
+import { matchService, useAuthStore, useMatchStore, useUIStore, WeeklyPick } from '@crush/core';
+import { Avatar, AvatarFallback, AvatarImage, Badge, Button, Card, cn } from '@crush/ui';
 import { formatDistanceToNow } from 'date-fns';
+import {
+    ArrowLeft,
+    CheckCircle2,
+    Clock,
+    Crown,
+    Heart,
+    Loader2,
+    MapPin,
+    RefreshCw,
+    Sparkles,
+    Star,
+    X,
+} from 'lucide-react';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 
 export default function WeeklyPicksPage() {
   const router = useRouter();
   const { user, profile } = useAuthStore();
+  const { addToast } = useUIStore();
   const { swipe } = useMatchStore();
   const [picks, setPicks] = useState<WeeklyPick[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +62,20 @@ export default function WeeklyPicksPage() {
       // Remove from list
       setPicks((prev) => prev.filter((p) => p.id !== pick.id));
     } catch (error) {
-      console.error('Failed to like:', error);
+      if (error instanceof Error && error.message.toLowerCase().includes('daily like limit')) {
+        addToast({
+          type: 'info',
+          title: 'Daily like limit reached',
+          description: 'More likes unlock after reset, or upgrade to Crush+ for unlimited likes.',
+        });
+      } else {
+        console.error('Failed to like:', error);
+        addToast({
+          type: 'error',
+          title: 'Could not like this pick',
+          description: 'Please try again.',
+        });
+      }
     } finally {
       setActionLoading(null);
     }
@@ -96,7 +109,20 @@ export default function WeeklyPicksPage() {
       // Remove from list
       setPicks((prev) => prev.filter((p) => p.id !== pick.id));
     } catch (error) {
-      console.error('Failed to super like:', error);
+      if (error instanceof Error && error.message.toLowerCase().includes('daily like limit')) {
+        addToast({
+          type: 'info',
+          title: 'Daily like limit reached',
+          description: 'More likes unlock after reset, or upgrade to Crush+ for unlimited likes.',
+        });
+      } else {
+        console.error('Failed to super like:', error);
+        addToast({
+          type: 'error',
+          title: 'Could not super like this pick',
+          description: 'Please try again.',
+        });
+      }
     } finally {
       setActionLoading(null);
     }
@@ -112,40 +138,46 @@ export default function WeeklyPicksPage() {
   const isPremium = profile?.isPremium;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-20 dark:bg-gray-900">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
+      <div className="sticky top-0 z-20 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-4">
           <button
             onClick={() => router.back()}
-            className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            className="-ml-2 p-2 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="h-6 w-6" />
           </button>
           <div className="flex-1">
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-amber-500" />
+            <h1 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+              <Sparkles className="h-5 w-5 text-amber-500" />
               Weekly Picks
             </h1>
             {picks.length > 0 && (
-              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                <Clock className="w-3 h-3" />
+              <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
+                <Clock className="h-3 w-3" />
                 Refreshes in {getTimeUntilRefresh()}
               </p>
             )}
           </div>
-          <Button variant="ghost" size="icon" onClick={loadPicks} disabled={loading}>
-            <RefreshCw className={cn('w-5 h-5', loading && 'animate-spin')} />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={loadPicks}
+            disabled={loading}
+            aria-label="Refresh weekly picks"
+          >
+            <RefreshCw className={cn('h-5 w-5', loading && 'animate-spin')} />
           </Button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="mx-auto max-w-4xl px-4 py-6">
         {/* Premium banner */}
-        <Card className="overflow-hidden mb-6 bg-gradient-to-r from-amber-500 to-orange-500">
-          <div className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+        <Card className="mb-6 overflow-hidden bg-gradient-to-r from-amber-500 to-orange-500">
+          <div className="flex items-center gap-4 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
+              <Sparkles className="h-6 w-6 text-white" />
             </div>
             <div className="flex-1">
               <h2 className="font-semibold text-white">Your Top Picks This Week</h2>
@@ -154,8 +186,8 @@ export default function WeeklyPicksPage() {
               </p>
             </div>
             {!isPremium && (
-              <Badge className="bg-white/20 text-white border-0">
-                <Crown className="w-3 h-3 mr-1" />
+              <Badge className="border-0 bg-white/20 text-white">
+                <Crown className="mr-1 h-3 w-3" />
                 Premium
               </Badge>
             )}
@@ -164,13 +196,13 @@ export default function WeeklyPicksPage() {
 
         {/* Loading state */}
         {loading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {[...Array(4)].map((_, i) => (
               <Card key={i} className="overflow-hidden">
-                <div className="aspect-[4/5] bg-gray-200 dark:bg-gray-700 animate-pulse" />
-                <div className="p-4 space-y-2">
-                  <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse" />
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 animate-pulse" />
+                <div className="aspect-[4/5] animate-pulse bg-gray-200 dark:bg-gray-700" />
+                <div className="space-y-2 p-4">
+                  <div className="h-5 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
                 </div>
               </Card>
             ))}
@@ -179,25 +211,23 @@ export default function WeeklyPicksPage() {
 
         {/* Empty state */}
         {!loading && picks.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-              <Sparkles className="w-10 h-10 text-amber-500" />
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+              <Sparkles className="h-10 w-10 text-amber-500" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
               No picks available
             </h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-sm mx-auto">
+            <p className="mx-auto mb-6 max-w-sm text-gray-500 dark:text-gray-400">
               You've seen all your weekly picks! Check back next week for new curated matches.
             </p>
-            <Button onClick={() => router.push('/discover')}>
-              Continue Discovering
-            </Button>
+            <Button onClick={() => router.push('/discover')}>Continue Discovering</Button>
           </div>
         )}
 
         {/* Picks grid */}
         {!loading && picks.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {picks.map((pick, index) => (
               <PickCard
                 key={pick.id}
@@ -215,14 +245,12 @@ export default function WeeklyPicksPage() {
         )}
 
         {/* Info note */}
-        <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+        <div className="mt-8 rounded-xl bg-amber-50 p-4 dark:bg-amber-900/20">
           <div className="flex items-start gap-3">
-            <Sparkles className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <Sparkles className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" />
             <div>
-              <p className="font-medium text-amber-700 dark:text-amber-300">
-                About Weekly Picks
-              </p>
-              <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+              <p className="font-medium text-amber-700 dark:text-amber-300">About Weekly Picks</p>
+              <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">
                 Every week, we curate a selection of profiles based on your preferences, interests,
                 and compatibility. Your picks refresh every Sunday at midnight.
               </p>
@@ -233,21 +261,21 @@ export default function WeeklyPicksPage() {
 
       {/* Match Modal */}
       {showMatchModal && matchedPick && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-          <Card className="w-full max-w-sm overflow-hidden animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <Card className="animate-in zoom-in-95 w-full max-w-sm overflow-hidden">
             <div className="p-6 text-center">
-              <div className="flex items-center justify-center gap-4 mb-6">
-                <Avatar className="w-20 h-20 ring-4 ring-pink-500">
+              <div className="mb-6 flex items-center justify-center gap-4">
+                <Avatar className="h-20 w-20 ring-4 ring-pink-500">
                   {profile?.profilePhotoUrl ? (
                     <AvatarImage src={profile.profilePhotoUrl} />
                   ) : (
                     <AvatarFallback>{profile?.displayName?.charAt(0)}</AvatarFallback>
                   )}
                 </Avatar>
-                <div className="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center">
-                  <Heart className="w-5 h-5 text-white fill-white" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-500">
+                  <Heart className="h-5 w-5 fill-white text-white" />
                 </div>
-                <Avatar className="w-20 h-20 ring-4 ring-pink-500">
+                <Avatar className="h-20 w-20 ring-4 ring-pink-500">
                   {matchedPick.photos[0] ? (
                     <AvatarImage src={matchedPick.photos[0]} />
                   ) : (
@@ -255,10 +283,10 @@ export default function WeeklyPicksPage() {
                   )}
                 </Avatar>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">
                 It's a Match!
               </h2>
-              <p className="text-gray-500 dark:text-gray-400 mb-6">
+              <p className="mb-6 text-gray-500 dark:text-gray-400">
                 You and {matchedPick.displayName} liked each other
               </p>
               <div className="flex gap-3">
@@ -269,10 +297,7 @@ export default function WeeklyPicksPage() {
                 >
                   Keep Browsing
                 </Button>
-                <Button
-                  className="flex-1"
-                  onClick={() => router.push('/messages')}
-                >
+                <Button className="flex-1" onClick={() => router.push('/messages')}>
                   Send Message
                 </Button>
               </div>
@@ -298,40 +323,42 @@ interface PickCardProps {
 function PickCard({
   pick,
   index,
-  isPremium,
+  isPremium: _isPremium,
   isLoading,
   onLike,
   onPass,
   onSuperLike,
-  onViewProfile,
+  onViewProfile: _onViewProfile,
 }: PickCardProps) {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
   return (
-    <Card className="overflow-hidden group">
+    <Card className="group overflow-hidden">
       {/* Photo */}
       <div className="relative aspect-[4/5]">
         {pick.photos[currentPhotoIndex] ? (
-          <img
+          <Image
             src={pick.photos[currentPhotoIndex]}
             alt={pick.displayName}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
-          <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-            <span className="text-4xl text-gray-400">{pick.displayName.charAt(0)}</span>
+          <div className="flex h-full w-full items-center justify-center bg-gray-200 dark:bg-gray-700">
+            <span className="text-4xl text-gray-500">{pick.displayName.charAt(0)}</span>
           </div>
         )}
 
         {/* Photo navigation dots */}
         {pick.photos.length > 1 && (
-          <div className="absolute top-2 left-0 right-0 flex justify-center gap-1">
+          <div className="absolute left-0 right-0 top-2 flex justify-center gap-1">
             {pick.photos.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setCurrentPhotoIndex(i)}
                 className={cn(
-                  'w-8 h-1 rounded-full transition-colors',
+                  'h-1 w-8 rounded-full transition-colors',
                   i === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
                 )}
               />
@@ -340,18 +367,18 @@ function PickCard({
         )}
 
         {/* Pick badge */}
-        <div className="absolute top-3 left-3">
-          <Badge className="bg-amber-500 text-white border-0">
-            <Sparkles className="w-3 h-3 mr-1" />
+        <div className="absolute left-3 top-3">
+          <Badge className="border-0 bg-amber-500 text-white">
+            <Sparkles className="mr-1 h-3 w-3" />
             Pick #{index + 1}
           </Badge>
         </div>
 
         {/* Verified badge */}
         {pick.isVerified && (
-          <div className="absolute top-3 right-3">
-            <Badge className="bg-blue-500 text-white border-0">
-              <CheckCircle2 className="w-3 h-3 mr-1" />
+          <div className="absolute right-3 top-3">
+            <Badge className="border-0 bg-blue-500 text-white">
+              <CheckCircle2 className="mr-1 h-3 w-3" />
               Verified
             </Badge>
           </div>
@@ -365,11 +392,12 @@ function PickCard({
           <div className="flex items-end justify-between">
             <div>
               <h3 className="text-xl font-bold">
-                {pick.displayName}{pick.age && `, ${pick.age}`}
+                {pick.displayName}
+                {pick.age && `, ${pick.age}`}
               </h3>
               {pick.distance && (
-                <p className="text-sm text-white/80 flex items-center gap-1">
-                  <MapPin className="w-3 h-3" />
+                <p className="flex items-center gap-1 text-sm text-white/80">
+                  <MapPin className="h-3 w-3" />
                   {pick.distance} km away
                 </p>
               )}
@@ -388,22 +416,20 @@ function PickCard({
       <div className="p-4">
         {/* Pick reason */}
         {pick.pickReason && (
-          <div className="flex items-center gap-2 mb-3 text-sm text-amber-600 dark:text-amber-400">
-            <Sparkles className="w-4 h-4" />
+          <div className="mb-3 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+            <Sparkles className="h-4 w-4" />
             {pick.pickReason}
           </div>
         )}
 
         {/* Bio preview */}
         {pick.bio && (
-          <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
-            {pick.bio}
-          </p>
+          <p className="mb-3 line-clamp-2 text-sm text-gray-600 dark:text-gray-400">{pick.bio}</p>
         )}
 
         {/* Interests */}
         {pick.interests && pick.interests.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-4">
+          <div className="mb-4 flex flex-wrap gap-1">
             {pick.interests.slice(0, 4).map((interest) => (
               <Badge key={interest} variant="secondary" className="text-xs">
                 {interest}
@@ -423,43 +449,43 @@ function PickCard({
             onClick={onPass}
             disabled={isLoading}
             className={cn(
-              'flex-1 py-2.5 rounded-lg font-medium transition-colors',
-              'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300',
+              'flex-1 rounded-lg py-2.5 font-medium transition-colors',
+              'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
               'hover:bg-gray-200 dark:hover:bg-gray-700',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'disabled:cursor-not-allowed disabled:opacity-50',
               'flex items-center justify-center gap-1'
             )}
           >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <X className="w-5 h-5" />}
+            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <X className="h-5 w-5" />}
           </button>
           <button
             onClick={onSuperLike}
             disabled={isLoading}
             className={cn(
-              'py-2.5 px-4 rounded-lg font-medium transition-colors',
-              'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+              'rounded-lg px-4 py-2.5 font-medium transition-colors',
+              'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
               'hover:bg-blue-200 dark:hover:bg-blue-900/50',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'disabled:cursor-not-allowed disabled:opacity-50',
               'flex items-center justify-center gap-1'
             )}
           >
-            <Star className="w-5 h-5" />
+            <Star className="h-5 w-5" />
           </button>
           <button
             onClick={onLike}
             disabled={isLoading}
             className={cn(
-              'flex-1 py-2.5 rounded-lg font-medium transition-colors',
+              'flex-1 rounded-lg py-2.5 font-medium transition-colors',
               'bg-gradient-to-r from-pink-500 to-rose-500 text-white',
               'hover:from-pink-600 hover:to-rose-600',
-              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'disabled:cursor-not-allowed disabled:opacity-50',
               'flex items-center justify-center gap-1'
             )}
           >
             {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              <Heart className="w-5 h-5" />
+              <Heart className="h-5 w-5" />
             )}
           </button>
         </div>

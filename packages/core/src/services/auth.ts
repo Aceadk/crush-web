@@ -4,6 +4,7 @@ import {
   signInWithPhoneNumber,
   signOut,
   onAuthStateChanged,
+  onIdTokenChanged,
   User,
   ConfirmationResult,
   RecaptchaVerifier,
@@ -16,6 +17,9 @@ import {
   sendEmailVerification as firebaseSendEmailVerification,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
 } from 'firebase/auth';
 import { getFirebaseAuth } from '../firebase/config';
 
@@ -27,6 +31,19 @@ export interface AuthState {
 
 class AuthService {
   private confirmationResult: ConfirmationResult | null = null;
+
+  private sanitizeRedirectPath(redirectPath?: string): string {
+    if (!redirectPath) {
+      return '/discover';
+    }
+
+    const trimmed = redirectPath.trim();
+    if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
+      return '/discover';
+    }
+
+    return trimmed;
+  }
 
   /**
    * Sign in with email and password
@@ -61,6 +78,52 @@ class AuthService {
     provider.addScope('profile');
 
     const result = await signInWithPopup(auth, provider);
+    return result.user;
+  }
+
+  /**
+   * Send passwordless email sign-in link
+   */
+  async sendEmailSignInLink(
+    email: string,
+    options?: { redirectPath?: string }
+  ): Promise<void> {
+    if (typeof window === 'undefined') {
+      throw new Error('Email link sign-in is only supported in the browser');
+    }
+
+    const auth = getFirebaseAuth();
+    const redirectPath = this.sanitizeRedirectPath(options?.redirectPath);
+    const finishSignInUrl = new URL('/finishSignIn', window.location.origin);
+    finishSignInUrl.searchParams.set('redirect', redirectPath);
+
+    await sendSignInLinkToEmail(auth, email, {
+      url: finishSignInUrl.toString(),
+      handleCodeInApp: true,
+    });
+
+    window.localStorage.setItem('emailForSignIn', email);
+  }
+
+  /**
+   * Check whether the current URL is an email sign-in link
+   */
+  isEmailSignInLink(emailLink: string): boolean {
+    const auth = getFirebaseAuth();
+    return isSignInWithEmailLink(auth, emailLink);
+  }
+
+  /**
+   * Complete passwordless email sign-in with the link the user clicked
+   */
+  async completeEmailLinkSignIn(email: string, emailLink: string): Promise<User> {
+    const auth = getFirebaseAuth();
+    const result = await signInWithEmailLink(auth, email, emailLink);
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('emailForSignIn');
+    }
+
     return result.user;
   }
 
@@ -127,6 +190,15 @@ class AuthService {
   onAuthStateChange(callback: (user: User | null) => void): () => void {
     const auth = getFirebaseAuth();
     return onAuthStateChanged(auth, callback);
+  }
+
+  /**
+   * Subscribe to ID token changes.
+   * This fires on sign-in/sign-out and token refresh events.
+   */
+  onIdTokenChange(callback: (user: User | null) => void): () => void {
+    const auth = getFirebaseAuth();
+    return onIdTokenChanged(auth, callback);
   }
 
   /**

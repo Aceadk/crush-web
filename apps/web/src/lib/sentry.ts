@@ -1,14 +1,14 @@
+import * as Sentry from '@sentry/nextjs';
+
 /**
- * Sentry Monitoring Configuration
+ * Sentry monitoring wrapper.
  *
- * To enable Sentry, set the following environment variables:
- * - NEXT_PUBLIC_SENTRY_DSN: Your Sentry DSN
- * - SENTRY_AUTH_TOKEN: Auth token for source map uploads (build time)
- * - SENTRY_ORG: Your Sentry organization slug
- * - SENTRY_PROJECT: Your Sentry project slug
- *
- * For full Sentry integration, run:
- * npx @sentry/wizard@latest -i nextjs
+ * Environment variables:
+ * - NEXT_PUBLIC_SENTRY_DSN (required to enable client capture)
+ * - NEXT_PUBLIC_SENTRY_ENVIRONMENT (optional, defaults to NODE_ENV/VERCEL_ENV)
+ * - NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE (optional, defaults to 0.1 in production)
+ * - NEXT_PUBLIC_SENTRY_REPLAY_SESSION_SAMPLE_RATE (optional, defaults to 0.05)
+ * - NEXT_PUBLIC_SENTRY_REPLAY_ON_ERROR_SAMPLE_RATE (optional, defaults to 1)
  */
 
 interface ErrorContext {
@@ -27,147 +27,213 @@ interface BreadcrumbData {
   data?: Record<string, unknown>;
 }
 
+function parseSampleRate(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  if (parsed < 0 || parsed > 1) return fallback;
+  return parsed;
+}
+
 class MonitoringService {
   private initialized = false;
-  private dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+
+  private enabled = false;
+
+  private readonly dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+
+  private readonly environment =
+    process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ||
+    process.env.NEXT_PUBLIC_APP_ENV ||
+    process.env.VERCEL_ENV ||
+    process.env.NODE_ENV ||
+    'development';
+
+  private ensureInit() {
+    if (!this.initialized) {
+      this.init();
+    }
+  }
 
   /**
-   * Initialize Sentry
-   * This should be called in instrumentation.ts or _app.tsx
+   * Initialize Sentry once.
    */
-  async init() {
-    if (this.initialized || !this.dsn) {
-      if (!this.dsn) {
-        console.log('[Monitoring] Sentry DSN not configured, running in mock mode');
+  init() {
+    if (this.initialized) {
+      return;
+    }
+
+    this.initialized = true;
+
+    if (!this.dsn) {
+      this.enabled = false;
+      return;
+    }
+
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    Sentry.init({
+      dsn: this.dsn,
+      environment: this.environment,
+      enabled: true,
+      tracesSampleRate: parseSampleRate(
+        process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE,
+        isProduction ? 0.1 : 1
+      ),
+      replaysSessionSampleRate: parseSampleRate(
+        process.env.NEXT_PUBLIC_SENTRY_REPLAY_SESSION_SAMPLE_RATE,
+        isProduction ? 0.05 : 0
+      ),
+      replaysOnErrorSampleRate: parseSampleRate(
+        process.env.NEXT_PUBLIC_SENTRY_REPLAY_ON_ERROR_SAMPLE_RATE,
+        1
+      ),
+      sendDefaultPii: false,
+      beforeSend(event) {
+        // Keep this hook explicit for future redaction if additional PII fields are added.
+        return event;
+      },
+    });
+
+    this.enabled = true;
+  }
+
+  /**
+   * Capture an exception with optional request/user context.
+   */
+  captureException(error: Error, context?: ErrorContext) {
+    this.ensureInit();
+    if (!this.enabled) {
+      return;
+    }
+
+    Sentry.withScope((scope) => {
+      if (context?.userId || context?.email) {
+        scope.setUser({
+          id: context?.userId,
+          email: context?.email,
+        });
+      }
+
+      if (typeof context?.isPremium === 'boolean') {
+        scope.setTag('isPremium', String(context.isPremium));
+      }
+
+      if (context?.page) {
+        scope.setTag('page', context.page);
+      }
+
+      if (context?.componentStack) {
+        scope.setContext('react', { componentStack: context.componentStack });
+      }
+
+      if (context?.extra) {
+        scope.setContext('extra', context.extra);
+      }
+
+      Sentry.captureException(error);
+    });
+  }
+
+  /**
+   * Capture informational/warning/error message.
+   */
+  captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info') {
+    this.ensureInit();
+    if (!this.enabled) {
+      return;
+    }
+
+    Sentry.captureMessage(message, level);
+  }
+
+  /**
+   * Set monitoring user context after auth state changes.
+   */
+  setUser(user: { id: string; email?: string; isPremium?: boolean } | null) {
+    this.ensureInit();
+    if (!this.enabled) {
+      return;
+    }
+
+    if (user) {
+      Sentry.setUser({ id: user.id, email: user.email });
+      if (typeof user.isPremium === 'boolean') {
+        Sentry.setTag('isPremium', String(user.isPremium));
       }
       return;
     }
 
-    // In a real implementation, you would initialize Sentry here:
-    // import * as Sentry from '@sentry/nextjs';
-    // Sentry.init({
-    //   dsn: this.dsn,
-    //   environment: process.env.NODE_ENV,
-    //   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
-    //   replaysSessionSampleRate: 0.1,
-    //   replaysOnErrorSampleRate: 1.0,
-    //   integrations: [
-    //     new Sentry.Replay(),
-    //   ],
-    // });
-
-    this.initialized = true;
-    console.log('[Monitoring] Sentry initialized');
+    Sentry.setUser(null);
   }
 
   /**
-   * Capture an exception
-   */
-  captureException(error: Error, context?: ErrorContext) {
-    console.error('[Monitoring] Exception captured:', error.message);
-
-    if (context) {
-      console.error('[Monitoring] Context:', context);
-    }
-
-    // In a real implementation:
-    // Sentry.captureException(error, {
-    //   user: context?.userId ? { id: context.userId, email: context.email } : undefined,
-    //   extra: context?.extra,
-    //   tags: {
-    //     page: context?.page,
-    //     isPremium: String(context?.isPremium),
-    //   },
-    // });
-  }
-
-  /**
-   * Capture a message
-   */
-  captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info') {
-    console.log(`[Monitoring] Message (${level}):`, message);
-
-    // In a real implementation:
-    // Sentry.captureMessage(message, level);
-  }
-
-  /**
-   * Set user context
-   */
-  setUser(user: { id: string; email?: string; isPremium?: boolean } | null) {
-    console.log('[Monitoring] User set:', user?.id || 'anonymous');
-
-    // In a real implementation:
-    // if (user) {
-    //   Sentry.setUser({
-    //     id: user.id,
-    //     email: user.email,
-    //   });
-    //   Sentry.setTag('isPremium', String(user.isPremium));
-    // } else {
-    //   Sentry.setUser(null);
-    // }
-  }
-
-  /**
-   * Add a breadcrumb
+   * Add breadcrumb to improve issue triage.
    */
   addBreadcrumb(breadcrumb: BreadcrumbData) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Monitoring] Breadcrumb (${breadcrumb.category}):`, breadcrumb.message);
+    this.ensureInit();
+    if (!this.enabled) {
+      return;
     }
 
-    // In a real implementation:
-    // Sentry.addBreadcrumb({
-    //   category: breadcrumb.category,
-    //   message: breadcrumb.message,
-    //   level: breadcrumb.level,
-    //   data: breadcrumb.data,
-    // });
+    Sentry.addBreadcrumb({
+      category: breadcrumb.category,
+      message: breadcrumb.message,
+      level: breadcrumb.level,
+      data: breadcrumb.data,
+    });
   }
 
   /**
-   * Set a tag
+   * Set a Sentry tag.
    */
   setTag(key: string, value: string) {
-    console.log(`[Monitoring] Tag set: ${key}=${value}`);
+    this.ensureInit();
+    if (!this.enabled) {
+      return;
+    }
 
-    // In a real implementation:
-    // Sentry.setTag(key, value);
+    Sentry.setTag(key, value);
   }
 
   /**
-   * Set extra context
+   * Set additional context payload.
    */
   setExtra(key: string, value: unknown) {
-    console.log(`[Monitoring] Extra set: ${key}`, value);
+    this.ensureInit();
+    if (!this.enabled) {
+      return;
+    }
 
-    // In a real implementation:
-    // Sentry.setExtra(key, value);
+    Sentry.setContext(key, { value });
   }
 
   /**
-   * Start a transaction for performance monitoring
+   * Start a performance span.
    */
   startTransaction(name: string, op: string) {
-    console.log(`[Monitoring] Transaction started: ${name} (${op})`);
+    this.ensureInit();
+    if (!this.enabled) {
+      return {
+        finish: () => {},
+        setStatus: (_status: string) => {},
+      };
+    }
 
-    // In a real implementation:
-    // return Sentry.startTransaction({ name, op });
+    const span = Sentry.startInactiveSpan({ name, op });
 
-    // Mock transaction
     return {
       finish: () => {
-        console.log(`[Monitoring] Transaction finished: ${name}`);
+        span?.end();
       },
       setStatus: (status: string) => {
-        console.log(`[Monitoring] Transaction status: ${status}`);
+        span?.setStatus(status as unknown as Parameters<NonNullable<typeof span>['setStatus']>[0]);
       },
     };
   }
 
   /**
-   * Wrap a function with error boundary
+   * Wrap function execution and report uncaught exceptions.
    */
   wrapWithErrorBoundary<T extends (...args: unknown[]) => unknown>(
     fn: T,
@@ -177,7 +243,6 @@ class MonitoringService {
       try {
         const result = fn(...args);
 
-        // Handle async functions
         if (result instanceof Promise) {
           return result.catch((error: Error) => {
             this.captureException(error, { extra: context });

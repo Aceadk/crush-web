@@ -1,32 +1,205 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { getFirebaseDb } from '@crush/core';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getAdminDb } from '@/lib/firebase-admin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
+export const runtime = 'nodejs';
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+type PremiumPlan = 'monthly' | 'quarterly' | 'yearly';
 
-async function updateUserPremiumStatus(
-  userId: string,
-  isPremium: boolean,
-  subscriptionId?: string,
-  subscriptionEndDate?: Date
-) {
-  const db = getFirebaseDb();
+const PRICE_ID_TO_PLAN: Record<string, PremiumPlan> = {};
+const monthlyPriceId = process.env.STRIPE_MONTHLY_PRICE_ID?.trim();
+const quarterlyPriceId = process.env.STRIPE_QUARTERLY_PRICE_ID?.trim();
+const yearlyPriceId = process.env.STRIPE_YEARLY_PRICE_ID?.trim();
 
-  await updateDoc(doc(db, 'users', userId), {
+if (monthlyPriceId) {
+  PRICE_ID_TO_PLAN[monthlyPriceId] = 'monthly';
+}
+if (quarterlyPriceId) {
+  PRICE_ID_TO_PLAN[quarterlyPriceId] = 'quarterly';
+}
+if (yearlyPriceId) {
+  PRICE_ID_TO_PLAN[yearlyPriceId] = 'yearly';
+}
+
+function getStripeClient(): Stripe {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error('Missing STRIPE_SECRET_KEY');
+  }
+  return new Stripe(secretKey, {
+    apiVersion: '2023-10-16',
+  });
+}
+
+function getWebhookSecret(): string {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    throw new Error('Missing STRIPE_WEBHOOK_SECRET');
+  }
+  return secret;
+}
+
+function extractCustomerId(
+  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null | undefined
+): string | null {
+  if (!customer) {
+    return null;
+  }
+  if (typeof customer === 'string') {
+    return customer;
+  }
+  if ('id' in customer && typeof customer.id === 'string') {
+    return customer.id;
+  }
+  return null;
+}
+
+function extractSubscriptionId(
+  subscription:
+    | string
+    | Stripe.Subscription
+    | null
+    | undefined
+): string | null {
+  if (!subscription) {
+    return null;
+  }
+  if (typeof subscription === 'string') {
+    return subscription;
+  }
+  return subscription.id;
+}
+
+function isPremiumStatus(status: Stripe.Subscription.Status): boolean {
+  return (
+    status === 'active' ||
+    status === 'trialing' ||
+    status === 'past_due'
+  );
+}
+
+function resolvePremiumPlan(priceId?: string): PremiumPlan | undefined {
+  if (!priceId) {
+    return undefined;
+  }
+  return PRICE_ID_TO_PLAN[priceId];
+}
+
+async function resolveUserId(
+  userIdHint: string | null,
+  customerId: string | null
+): Promise<string | null> {
+  if (userIdHint) {
+    return userIdHint;
+  }
+  if (!customerId) {
+    return null;
+  }
+
+  const db = getAdminDb();
+  const snapshot = await db
+    .collection('users')
+    .where('stripeCustomerId', '==', customerId)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) {
+    return null;
+  }
+  return snapshot.docs[0].id;
+}
+
+async function updateSubscriptionState(params: {
+  userId: string;
+  customerId: string | null;
+  subscriptionId: string;
+  status: Stripe.Subscription.Status;
+  periodEndUnix: number | null;
+  cancelAtPeriodEnd: boolean;
+  plan: PremiumPlan | undefined;
+}) {
+  const db = getAdminDb();
+  const isPremium = isPremiumStatus(params.status);
+  const premiumExpiresAt =
+    params.periodEndUnix != null
+      ? new Date(params.periodEndUnix * 1000).toISOString()
+      : null;
+
+  const updates: Record<string, unknown> = {
     isPremium,
-    stripeSubscriptionId: subscriptionId || null,
-    premiumExpiresAt: subscriptionEndDate?.toISOString() || null,
-    updatedAt: serverTimestamp(),
+    stripeSubscriptionId: params.subscriptionId,
+    stripeCustomerId: params.customerId,
+    stripeSubscriptionStatus: params.status,
+    premiumAutoRenew: !params.cancelAtPeriodEnd,
+    premiumExpiresAt,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  if (params.plan) {
+    updates.premiumPlan = params.plan;
+  }
+
+  if (!isPremium) {
+    updates.premiumPlan = null;
+  }
+
+  await db.collection('users').doc(params.userId).set(updates, { merge: true });
+}
+
+async function updateSubscriptionDeleted(params: {
+  userId: string;
+  customerId: string | null;
+  subscriptionId: string;
+}) {
+  const db = getAdminDb();
+  await db
+    .collection('users')
+    .doc(params.userId)
+    .set(
+      {
+        isPremium: false,
+        premiumPlan: null,
+        premiumExpiresAt: null,
+        premiumAutoRenew: false,
+        stripeSubscriptionStatus: 'canceled',
+        stripeSubscriptionId: params.subscriptionId,
+        stripeCustomerId: params.customerId,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+}
+
+async function processSubscriptionEvent(
+  subscription: Stripe.Subscription,
+  userIdHint?: string | null
+) {
+  const customerId = extractCustomerId(subscription.customer);
+  const userId = await resolveUserId(userIdHint ?? null, customerId);
+  if (!userId) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(
+        '[stripe-webhook] Could not resolve user for subscription',
+        subscription.id
+      );
+    }
+    return;
+  }
+
+  const plan = resolvePremiumPlan(subscription.items.data[0]?.price?.id);
+  await updateSubscriptionState({
+    userId,
+    customerId,
+    subscriptionId: subscription.id,
+    status: subscription.status,
+    periodEndUnix: subscription.current_period_end ?? null,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+    plan,
   });
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.text();
   const signature = request.headers.get('stripe-signature');
 
   if (!signature) {
@@ -36,91 +209,141 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const body = await request.text();
   let event: Stripe.Event;
+  const db = getAdminDb();
+  const stripe = getStripeClient();
 
   try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      getWebhookSecret()
+    );
   } catch (err) {
-    console.error('Webhook signature verification failed:', err);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Webhook signature verification failed:', err);
+    }
     return NextResponse.json(
       { error: 'Webhook signature verification failed' },
       { status: 400 }
     );
   }
 
+  const eventRef = db.collection('stripe_webhook_events').doc(event.id);
+  try {
+    await eventRef.create({
+      eventType: event.type,
+      status: 'processing',
+      createdAt: FieldValue.serverTimestamp(),
+      stripeCreatedAt: event.created,
+      livemode: event.livemode,
+    });
+  } catch (error) {
+    const code = (error as { code?: number | string }).code;
+    if (code === 6 || String(code) === 'already-exists') {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+    throw error;
+  }
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        const userId = session.metadata?.userId || session.client_reference_id;
+        const userIdHint = session.metadata?.userId || session.client_reference_id;
+        const subscriptionId = extractSubscriptionId(session.subscription);
 
-        if (userId && session.subscription) {
-          const subscription = await stripe.subscriptions.retrieve(
-            session.subscription as string
-          );
-          const endDate = new Date(subscription.current_period_end * 1000);
-
-          await updateUserPremiumStatus(
-            userId,
-            true,
-            subscription.id,
-            endDate
+        if (subscriptionId) {
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          await processSubscriptionEvent(subscription, userIdHint);
+        } else if (userIdHint) {
+          const customerId = extractCustomerId(session.customer);
+          await db.collection('users').doc(userIdHint).set(
+            {
+              stripeCustomerId: customerId,
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
           );
         }
         break;
       }
 
+      case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.userId;
-
-        if (userId) {
-          const isActive = subscription.status === 'active';
-          const endDate = new Date(subscription.current_period_end * 1000);
-
-          await updateUserPremiumStatus(
-            userId,
-            isActive,
-            subscription.id,
-            endDate
-          );
-        }
+        await processSubscriptionEvent(
+          subscription,
+          subscription.metadata?.userId ?? null
+        );
         break;
       }
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.userId;
-
+        const customerId = extractCustomerId(subscription.customer);
+        const userId = await resolveUserId(
+          subscription.metadata?.userId ?? null,
+          customerId
+        );
         if (userId) {
-          await updateUserPremiumStatus(userId, false);
+          await updateSubscriptionDeleted({
+            userId,
+            customerId,
+            subscriptionId: subscription.id,
+          });
         }
         break;
       }
 
+      case 'invoice.payment_succeeded':
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = invoice.subscription as string;
+        const subscriptionId = extractSubscriptionId(invoice.subscription);
 
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const userId = subscription.metadata?.userId;
+          const customerId = extractCustomerId(subscription.customer);
+          const userId = await resolveUserId(
+            subscription.metadata?.userId ?? null,
+            customerId
+          );
 
           if (userId) {
-            // Keep premium for now, but log the failed payment
-            console.log(`Payment failed for user ${userId}, subscription ${subscriptionId}`);
+            await processSubscriptionEvent(subscription, userId);
+            if (event.type === 'invoice.payment_failed') {
+              await db.collection('users').doc(userId).set(
+                {
+                  stripeLastPaymentFailedAt: new Date().toISOString(),
+                  updatedAt: FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+            }
           }
         }
         break;
       }
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        // Event intentionally ignored.
     }
+
+    await eventRef.set(
+      {
+        status: 'processed',
+        processedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    await eventRef.delete().catch(() => undefined);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error processing webhook:', error);
+    }
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }

@@ -366,7 +366,7 @@ export default function DateIdeasPage() {
                       'p-2 rounded-full transition-colors',
                       savedIdeas.includes(idea.id)
                         ? 'text-amber-500'
-                        : 'text-gray-400 hover:text-amber-500'
+                        : 'text-gray-500 hover:text-amber-500'
                     )}
                   >
                     <Star

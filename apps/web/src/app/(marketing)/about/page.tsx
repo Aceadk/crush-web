@@ -151,7 +151,7 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold text-white mb-4">
             Ready to find your match?
           </h2>
-          <p className="text-gray-400 mb-8 max-w-xl mx-auto">
+          <p className="text-gray-500 mb-8 max-w-xl mx-auto">
             Join millions of people who have found meaningful connections on Crush.
           </p>
           <Link

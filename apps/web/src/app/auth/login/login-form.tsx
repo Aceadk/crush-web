@@ -6,26 +6,47 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
 import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@crush/ui';
 import { Mail, Lock, Eye, EyeOff, Chrome, Phone } from 'lucide-react';
+import { useAnalytics } from '@/components/analytics';
+import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/discover';
+  const redirect = sanitizeRedirectPath(searchParams.get('redirect'));
+  const timeoutReason = searchParams.get('reason');
+  const signupHref = appendRedirectParam('/auth/signup', redirect);
+  const phoneHref = appendRedirectParam('/auth/phone', redirect);
+  const forgotPasswordHref = appendRedirectParam('/auth/forgot-password', redirect);
 
-  const { user, profile, signInWithEmail, signInWithGoogle, loading, error, clearError, initialized } = useAuthStore();
+  const {
+    user,
+    profile,
+    signInWithEmail,
+    signInWithGoogle,
+    sendEmailSignInLink,
+    rememberMe,
+    setRememberMe,
+    loading,
+    error,
+    clearError,
+    initialized,
+  } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isSendingEmailLink, setIsSendingEmailLink] = useState(false);
+  const [emailLinkSuccess, setEmailLinkSuccess] = useState<string | null>(null);
+  const { track, funnelStep } = useAnalytics();
 
   // Redirect when user is authenticated
   useEffect(() => {
     if (initialized && user && !loading) {
       // Email/password users must verify email before entering app flow.
       if (user.email && !user.emailVerified) {
-        router.push('/auth/verify-email');
+        router.push(appendRedirectParam('/auth/verify-email', redirect));
         return;
       }
 
@@ -38,9 +59,21 @@ export default function LoginForm() {
     }
   }, [user, profile, initialized, loading, redirect, router]);
 
+  useEffect(() => {
+    if (timeoutReason === 'timeout') {
+      setValidationError('Your session expired due to inactivity. Please sign in again.');
+      return;
+    }
+
+    if (timeoutReason === 'device') {
+      setValidationError('Please verify this new device from your email link before continuing.');
+    }
+  }, [timeoutReason]);
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
+    setEmailLinkSuccess(null);
     clearError();
 
     if (!email || !password) {
@@ -50,27 +83,72 @@ export default function LoginForm() {
 
     try {
       setIsSigningIn(true);
-      await signInWithEmail(email, password);
+      funnelStep('auth', 'login_attempt', 'started', { method: 'email_password' });
+      await signInWithEmail(email, password, { rememberMe });
+      track({
+        name: 'login',
+        properties: { method: 'email_password' },
+      });
+      funnelStep('auth', 'login_success', 'completed', { method: 'email_password' });
       // Redirect will happen via useEffect when user state updates
-    } catch {
+    } catch (error) {
+      funnelStep('auth', 'login_failed', 'failed', {
+        method: 'email_password',
+        reason: error instanceof Error ? error.message : 'unknown_error',
+      });
       setIsSigningIn(false);
       // Error is handled by the store
     }
   };
 
   const handleGoogleLogin = async () => {
+    setEmailLinkSuccess(null);
     clearError();
     try {
       setIsSigningIn(true);
-      await signInWithGoogle();
+      funnelStep('auth', 'login_attempt', 'started', { method: 'google' });
+      await signInWithGoogle({ rememberMe });
+      track({
+        name: 'login',
+        properties: { method: 'google' },
+      });
+      funnelStep('auth', 'login_success', 'completed', { method: 'google' });
       // Redirect will happen via useEffect when user state updates
-    } catch {
+    } catch (error) {
+      funnelStep('auth', 'login_failed', 'failed', {
+        method: 'google',
+        reason: error instanceof Error ? error.message : 'unknown_error',
+      });
       setIsSigningIn(false);
       // Error is handled by the store
     }
   };
 
-  const isLoading = loading || isSigningIn;
+  const handleEmailLinkLogin = async () => {
+    setValidationError(null);
+    setEmailLinkSuccess(null);
+    clearError();
+
+    if (!email) {
+      setValidationError('Enter your email address first to receive a sign-in link.');
+      return;
+    }
+
+    try {
+      setIsSendingEmailLink(true);
+      funnelStep('auth', 'email_link_requested', 'started', { method: 'email_link' });
+      await sendEmailSignInLink(email, redirect);
+      setEmailLinkSuccess(`Sign-in link sent to ${email}. Check your inbox.`);
+      funnelStep('auth', 'email_link_requested', 'completed', { method: 'email_link' });
+    } catch {
+      funnelStep('auth', 'email_link_requested', 'failed', { method: 'email_link' });
+      // Error is handled by the store
+    } finally {
+      setIsSendingEmailLink(false);
+    }
+  };
+
+  const isLoading = loading || isSigningIn || isSendingEmailLink;
 
   return (
     <Card className="border-0 shadow-lg">
@@ -92,7 +170,7 @@ export default function LoginForm() {
             Continue with Google
           </Button>
 
-          <Link href="/auth/phone">
+          <Link href={phoneHref}>
             <Button variant="outline" className="w-full h-12" disabled={isLoading}>
               <Phone className="w-5 h-5 mr-2" />
               Continue with Phone
@@ -151,10 +229,25 @@ export default function LoginForm() {
             </p>
           )}
 
-          <div className="text-right">
+          {emailLinkSuccess && (
+            <p className="text-sm text-green-600 text-center">{emailLinkSuccess}</p>
+          )}
+
+          <div className="flex items-center justify-between gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-input accent-primary"
+                disabled={isLoading}
+              />
+              Remember me for 30 days
+            </label>
+
             <Link
-              href="/auth/forgot-password"
-              className="text-sm text-primary hover:underline"
+              href={forgotPasswordHref}
+              className="text-sm text-primary hover:underline whitespace-nowrap"
             >
               Forgot password?
             </Link>
@@ -163,12 +256,23 @@ export default function LoginForm() {
           <Button type="submit" className="w-full h-12" loading={isLoading}>
             {isSigningIn ? 'Signing in...' : 'Sign In'}
           </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-12"
+            onClick={handleEmailLinkLogin}
+            loading={isSendingEmailLink}
+            disabled={isLoading}
+          >
+            Email me a sign-in link
+          </Button>
         </form>
 
         {/* Sign up link */}
         <p className="text-center text-sm text-muted-foreground">
           Don't have an account?{' '}
-          <Link href="/auth/signup" className="text-primary hover:underline font-medium">
+          <Link href={signupHref} className="text-primary hover:underline font-medium">
             Sign up
           </Link>
         </p>

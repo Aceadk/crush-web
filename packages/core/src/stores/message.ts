@@ -3,6 +3,85 @@ import { messageService } from '../services/message';
 import { Message, Conversation, TypingIndicator, MessageType, MessageMetadata, MessageReactionType, MESSAGES_PER_PAGE } from '../types/message';
 import { DocumentSnapshot } from 'firebase/firestore';
 
+const TRANSIENT_ERROR_CODES = new Set([
+  'aborted',
+  'deadline-exceeded',
+  'internal',
+  'network-request-failed',
+  'resource-exhausted',
+  'unavailable',
+  'unknown',
+]);
+
+function getErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+
+  const rawCode = (error as { code?: string }).code;
+  if (!rawCode) {
+    return null;
+  }
+
+  const normalized = rawCode.toLowerCase();
+  const slashIndex = normalized.lastIndexOf('/');
+  return slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized;
+}
+
+function isTransientError(error: unknown): boolean {
+  const code = getErrorCode(error);
+  if (code) {
+    return TRANSIENT_ERROR_CODES.has(code);
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('network') ||
+    message.includes('timeout') ||
+    message.includes('temporar') ||
+    message.includes('unavailable')
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: { attempts?: number; initialDelayMs?: number } = {}
+): Promise<T> {
+  const attempts = options.attempts ?? 3;
+  const initialDelayMs = options.initialDelayMs ?? 300;
+
+  let delayMs = initialDelayMs;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = attempt < attempts && isTransientError(error);
+      if (!shouldRetry) {
+        throw error;
+      }
+      await sleep(delayMs);
+      delayMs = Math.min(delayMs * 2, 2_000);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Operation failed after retries');
+}
+
 interface MessageState {
   // State
   conversations: Conversation[];
@@ -25,6 +104,7 @@ interface MessageState {
   sendMessage: (content: string, currentUserId: string, type?: MessageType, metadata?: MessageMetadata) => Promise<void>;
   sendImageMessage: (imageUrl: string, currentUserId: string, thumbnailUrl?: string) => Promise<void>;
   sendVoiceMessage: (audioUrl: string, duration: number, currentUserId: string) => Promise<void>;
+  retryFailedMessage: (messageId: string, currentUserId: string) => Promise<void>;
   markAsRead: (userId: string, messageIds: string[]) => Promise<void>;
   setTyping: (userId: string, isTyping: boolean) => Promise<void>;
   toggleReaction: (messageId: string, userId: string, emoji: MessageReactionType) => Promise<void>;
@@ -54,7 +134,10 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
   loadConversations: async (userId) => {
     set({ loading: true, error: null });
     try {
-      const conversations = await messageService.getConversations(userId);
+      const conversations = await withRetry(
+        () => messageService.getConversations(userId),
+        { attempts: 3, initialDelayMs: 300 }
+      );
       set({ conversations, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load conversations';
@@ -109,7 +192,10 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
   loadMessages: async (conversationId) => {
     set({ loading: true, error: null });
     try {
-      const result = await messageService.getMessages(conversationId);
+      const result = await withRetry(
+        () => messageService.getMessages(conversationId),
+        { attempts: 3, initialDelayMs: 300 }
+      );
       set({
         messages: result.messages.reverse(),
         lastDoc: result.lastDoc || null,
@@ -129,7 +215,10 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
 
     set({ loadingMore: true, error: null });
     try {
-      const result = await messageService.getMessages(conversationId, lastDoc);
+      const result = await withRetry(
+        () => messageService.getMessages(conversationId, lastDoc),
+        { attempts: 3, initialDelayMs: 250 }
+      );
       set({
         messages: [...result.messages.reverse(), ...messages],
         lastDoc: result.lastDoc || null,
@@ -165,12 +254,16 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
     set({ messages: [...messages, tempMessage] });
 
     try {
-      const sentMessage = await messageService.sendMessage(
-        currentConversation.id,
-        currentUserId,
-        content,
-        type,
-        metadata
+      const sentMessage = await withRetry(
+        () =>
+          messageService.sendMessage(
+            currentConversation.id,
+            currentUserId,
+            content,
+            type,
+            metadata
+          ),
+        { attempts: 3, initialDelayMs: 300 }
       );
 
       // Replace temp message with real one
@@ -187,6 +280,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
         ),
         error: error instanceof Error ? error.message : 'Failed to send message',
       });
+      throw error instanceof Error ? error : new Error('Failed to send message');
     }
   },
 
@@ -206,6 +300,61 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
       audioDuration: duration,
     };
     await get().sendMessage('Voice message', currentUserId, 'audio', metadata);
+  },
+
+  // Retry a failed outbound message
+  retryFailedMessage: async (messageId, currentUserId) => {
+    const { currentConversation, messages } = get();
+    if (!currentConversation) {
+      set({ error: 'No conversation selected' });
+      return;
+    }
+
+    const failedMessage = messages.find((message) => message.id === messageId);
+    if (!failedMessage || failedMessage.status !== 'failed') {
+      return;
+    }
+
+    if (failedMessage.senderId !== currentUserId) {
+      return;
+    }
+
+    set({
+      error: null,
+      messages: messages.map((message) =>
+        message.id === messageId ? { ...message, status: 'sending' as const } : message
+      ),
+    });
+
+    try {
+      const resentMessage = await withRetry(
+        () =>
+          messageService.sendMessage(
+            currentConversation.id,
+            currentUserId,
+            failedMessage.content,
+            failedMessage.type,
+            failedMessage.metadata
+          ),
+        { attempts: 3, initialDelayMs: 400 }
+      );
+
+      set({
+        messages: get().messages.map((message) =>
+          message.id === messageId ? resentMessage : message
+        ),
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to retry message';
+      set({
+        error: errorMessage,
+        messages: get().messages.map((message) =>
+          message.id === messageId ? { ...message, status: 'failed' as const } : message
+        ),
+      });
+      throw error instanceof Error ? error : new Error(errorMessage);
+    }
   },
 
   // Mark messages as read

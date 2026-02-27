@@ -23,6 +23,7 @@ import {
   Tag,
   Loader2,
 } from 'lucide-react';
+import { analytics } from '@/lib/analytics';
 
 const PREMIUM_FEATURES = [
   {
@@ -127,6 +128,14 @@ export default function PremiumView() {
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [validatingPromo, setValidatingPromo] = useState(false);
 
+  useEffect(() => {
+    analytics.track({
+      name: 'premium_page_viewed',
+      properties: {},
+    });
+    analytics.funnelStep('subscription', 'premium_page_view', 'started');
+  }, []);
+
   // Handle promo code from URL params (redirected from settings)
   useEffect(() => {
     const promoFromUrl = searchParams.get('promo');
@@ -167,6 +176,9 @@ export default function PremiumView() {
         type: 'info',
         title: 'Payment Canceled',
         description: 'Your payment was canceled. You can try again anytime.',
+      });
+      analytics.funnelStep('subscription', 'checkout', 'abandoned', {
+        reason: 'checkout_canceled',
       });
       // Remove the query param
       router.replace('/premium');
@@ -217,15 +229,24 @@ export default function PremiumView() {
   };
 
   const handleSubscribe = async () => {
+    const selectedPlanConfig = PLANS.find((plan) => plan.id === selectedPlan);
+
     if (!user) {
       addToast({
         type: 'error',
         title: 'Not logged in',
         description: 'Please log in to subscribe.',
       });
+      analytics.funnelStep('subscription', 'checkout', 'failed', {
+        reason: 'not_authenticated',
+      });
       return;
     }
 
+    analytics.funnelStep('subscription', 'checkout', 'started', {
+      method: selectedPlan,
+      value: selectedPlanConfig?.price,
+    });
     setLoading(true);
     try {
       const response = await fetch('/api/stripe/create-checkout-session', {
@@ -237,8 +258,6 @@ export default function PremiumView() {
           planId: selectedPlan,
           userId: user.uid,
           userEmail: user.email,
-          promoCode: appliedPromoCode || undefined,
-          discountPercent: appliedDiscount || undefined,
         }),
       });
 
@@ -247,6 +266,18 @@ export default function PremiumView() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to create checkout session');
       }
+
+      analytics.track({
+        name: 'subscription_started',
+        properties: {
+          plan: selectedPlan,
+          price: selectedPlanConfig?.price || 0,
+        },
+      });
+      analytics.funnelStep('subscription', 'checkout_redirect', 'completed', {
+        method: selectedPlan,
+        value: selectedPlanConfig?.price,
+      });
 
       // Redirect to Stripe Checkout
       if (data.url) {
@@ -264,6 +295,10 @@ export default function PremiumView() {
       }
     } catch (error) {
       console.error('Subscription error:', error);
+      analytics.funnelStep('subscription', 'checkout', 'failed', {
+        method: selectedPlan,
+        reason: error instanceof Error ? error.message : 'unknown_error',
+      });
       addToast({
         type: 'error',
         title: 'Payment Error',
@@ -557,7 +592,7 @@ export default function PremiumView() {
                   <div className="text-right">
                     {appliedDiscount > 0 ? (
                       <>
-                        <p className="text-lg text-gray-400 line-through">
+                        <p className="text-lg text-gray-500 line-through">
                           ${plan.price}
                         </p>
                         <p className="text-2xl font-bold text-green-600">
@@ -620,7 +655,7 @@ export default function PremiumView() {
             ) : (
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
                     type="text"
                     value={promoCodeInput}
@@ -649,15 +684,15 @@ export default function PremiumView() {
         {/* Trust badges */}
         <div className="flex justify-center gap-6 text-center text-sm text-gray-500">
           <div>
-            <Shield className="w-6 h-6 mx-auto mb-1 text-gray-400" />
+            <Shield className="w-6 h-6 mx-auto mb-1 text-gray-500" />
             <p>Secure Payment</p>
           </div>
           <div>
-            <Zap className="w-6 h-6 mx-auto mb-1 text-gray-400" />
+            <Zap className="w-6 h-6 mx-auto mb-1 text-gray-500" />
             <p>Instant Access</p>
           </div>
           <div>
-            <X className="w-6 h-6 mx-auto mb-1 text-gray-400" />
+            <X className="w-6 h-6 mx-auto mb-1 text-gray-500" />
             <p>Cancel Anytime</p>
           </div>
         </div>

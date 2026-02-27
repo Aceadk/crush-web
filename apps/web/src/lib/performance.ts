@@ -161,7 +161,9 @@ export function getWebVitals(): Promise<PerformanceMetrics> {
 
 export function reportWebVitals(metric: { name: string; value: number; id: string }): void {
   // Send to analytics
-  console.log('[Performance]', metric.name, metric.value);
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Performance]', metric.name, metric.value);
+  }
 
   // In production, send to analytics service
   // analytics.track({ name: 'web_vital', properties: metric });

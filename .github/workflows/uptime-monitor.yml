@@ -1,0 +1,60 @@
+name: Uptime Monitor
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  healthcheck:
+    name: Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      HEALTHCHECK_URL: ${{ secrets.UPTIME_HEALTHCHECK_URL }}
+      DEFAULT_HEALTHCHECK_URL: https://crush-web-chi.vercel.app/api/health
+    steps:
+      - name: Execute health probe
+        run: |
+          set -euo pipefail
+
+          URL="${HEALTHCHECK_URL:-$DEFAULT_HEALTHCHECK_URL}"
+          echo "Checking ${URL}"
+
+          HTTP_CODE="$(curl -sS -L --max-time 25 -w "%{http_code}" -o health-response.json "${URL}")"
+          echo "HTTP status: ${HTTP_CODE}"
+          cat health-response.json
+
+          if [ "${HTTP_CODE}" -ne 200 ]; then
+            echo "Health endpoint returned non-200 response."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          let payload;
+          try {
+            payload = JSON.parse(fs.readFileSync('health-response.json', 'utf8'));
+          } catch (error) {
+            console.error('Failed to parse health response as JSON:', error);
+            process.exit(1);
+          }
+
+          const checks = Array.isArray(payload.checks) ? payload.checks : [];
+          const failures = checks.filter((check) => check.status === 'fail');
+
+          if (payload.status !== 'ok') {
+            console.error(`Service status is not ok: ${payload.status}`);
+            process.exit(1);
+          }
+
+          if (failures.length > 0) {
+            console.error('One or more health checks failed:', failures);
+            process.exit(1);
+          }
+
+          console.log(`Health check passed (${checks.length} checks).`);
+          NODE

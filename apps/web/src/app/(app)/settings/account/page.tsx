@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore, userService, authService } from '@crush/core';
+import { useAuthStore, userService, authService, type TrustedDevice } from '@crush/core';
 import { Card, Button, Input, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
 import {
@@ -22,11 +22,21 @@ import {
   XCircle,
   Pause,
   Play,
+  Laptop,
 } from 'lucide-react';
 
 export default function AccountManagementPage() {
   const router = useRouter();
-  const { user, profile, refreshProfile } = useAuthStore();
+  const {
+    user,
+    profile,
+    refreshProfile,
+    trustedDevices,
+    deviceTrustLoading,
+    loadTrustedDevices,
+    revokeTrustedDevice,
+    trustCurrentDevice,
+  } = useAuthStore();
 
   // Email change state
   const [showEmailChange, setShowEmailChange] = useState(false);
@@ -57,9 +67,71 @@ export default function AccountManagementPage() {
   // Verification state
   const [verificationSent, setVerificationSent] = useState(false);
   const [verificationLoading, setVerificationLoading] = useState(false);
+  const [deviceActionLoadingId, setDeviceActionLoadingId] = useState<string | null>(null);
+  const [deviceActionError, setDeviceActionError] = useState<string | null>(null);
+  const [deviceActionSuccess, setDeviceActionSuccess] = useState<string | null>(null);
 
   const isEmailVerified = user?.emailVerified;
   const isPaused = profile?.settings?.showOnlineStatus === false;
+  const currentTrustedDevice = trustedDevices.find((device) => device.isCurrentDevice);
+
+  useEffect(() => {
+    if (!user || !user.email || !user.emailVerified) {
+      return;
+    }
+
+    void loadTrustedDevices();
+  }, [user, loadTrustedDevices]);
+
+  const formatTrustedDeviceTime = useCallback((timestamp: string) => {
+    const parsed = Date.parse(timestamp);
+    if (Number.isNaN(parsed)) {
+      return 'Unknown';
+    }
+
+    return new Date(parsed).toLocaleString();
+  }, []);
+
+  const handleTrustCurrentDevice = useCallback(async () => {
+    setDeviceActionError(null);
+    setDeviceActionSuccess(null);
+    setDeviceActionLoadingId('current-device');
+    try {
+      await trustCurrentDevice();
+      await loadTrustedDevices();
+      setDeviceActionSuccess('This device is now trusted.');
+    } catch (error) {
+      setDeviceActionError(
+        error instanceof Error ? error.message : 'Failed to trust this device.'
+      );
+    } finally {
+      setDeviceActionLoadingId(null);
+    }
+  }, [trustCurrentDevice, loadTrustedDevices]);
+
+  const handleRevokeDevice = useCallback(
+    async (device: TrustedDevice & { isCurrentDevice?: boolean }) => {
+      if (device.isCurrentDevice) {
+        return;
+      }
+
+      setDeviceActionError(null);
+      setDeviceActionSuccess(null);
+      setDeviceActionLoadingId(device.deviceId);
+      try {
+        await revokeTrustedDevice(device.deviceId);
+        await loadTrustedDevices();
+        setDeviceActionSuccess('Device removed from trusted list.');
+      } catch (error) {
+        setDeviceActionError(
+          error instanceof Error ? error.message : 'Failed to remove trusted device.'
+        );
+      } finally {
+        setDeviceActionLoadingId(null);
+      }
+    },
+    [revokeTrustedDevice, loadTrustedDevices]
+  );
 
   const handleEmailChange = useCallback(async () => {
     if (!user || !newEmail || !emailPassword) return;
@@ -360,7 +432,7 @@ export default function AccountManagementPage() {
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600"
                   >
                     {showCurrentPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -379,7 +451,7 @@ export default function AccountManagementPage() {
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600"
                   >
                     {showNewPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -484,6 +556,100 @@ export default function AccountManagementPage() {
           </div>
         </Card>
 
+        {/* Trusted Devices */}
+        <Card className="overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              Trusted Devices
+            </h2>
+          </div>
+          <div className="p-4 space-y-4">
+            {!user?.email || !user.emailVerified ? (
+              <p className="text-sm text-gray-500">
+                Trusted-device verification is available after email verification.
+              </p>
+            ) : (
+              <>
+                {!currentTrustedDevice && (
+                  <Button
+                    className="w-full"
+                    onClick={handleTrustCurrentDevice}
+                    disabled={deviceActionLoadingId === 'current-device' || deviceTrustLoading}
+                  >
+                    {deviceActionLoadingId === 'current-device' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Trusting...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="w-4 h-4 mr-2" />
+                        Trust This Device
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {trustedDevices.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No trusted devices yet. Trust this device to avoid extra verification.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {trustedDevices.map((device) => (
+                      <div
+                        key={device.deviceId}
+                        className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                          <Laptop className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-gray-900 dark:text-white truncate">
+                              {device.deviceName}
+                            </p>
+                            {device.isCurrentDevice && (
+                              <Badge className="bg-green-100 text-green-700 border-0">
+                                Current device
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 truncate">{device.userAgent}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Last active: {formatTrustedDeviceTime(device.lastUsedAt)}
+                          </p>
+                        </div>
+                        {!device.isCurrentDevice && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleRevokeDevice(device)}
+                            disabled={deviceActionLoadingId === device.deviceId || deviceTrustLoading}
+                          >
+                            {deviceActionLoadingId === device.deviceId ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              'Remove'
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {deviceActionSuccess && (
+              <p className="text-sm text-green-600">{deviceActionSuccess}</p>
+            )}
+            {deviceActionError && (
+              <p className="text-sm text-red-500">{deviceActionError}</p>
+            )}
+          </div>
+        </Card>
+
         {/* Data Export */}
         <Card className="overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -543,6 +709,7 @@ export default function AccountManagementPage() {
                 <li>Use a strong, unique password</li>
                 <li>Verify your email for account recovery</li>
                 <li>Never share your login credentials</li>
+                <li>Review and remove old trusted devices regularly</li>
               </ul>
             </div>
           </div>

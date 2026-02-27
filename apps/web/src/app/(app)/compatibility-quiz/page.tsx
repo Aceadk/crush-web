@@ -348,7 +348,7 @@ export default function CompatibilityQuizPage() {
         try {
           await userService.updateUserProfile(user.uid, {
             // Store compatibility type in profile
-          } as any);
+          });
         } catch (error) {
           console.error('Failed to save quiz result:', error);
         }

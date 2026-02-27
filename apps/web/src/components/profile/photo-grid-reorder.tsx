@@ -1,29 +1,36 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { cn } from '@crush/ui';
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
   KeyboardSensor,
   PointerSensor,
   TouchSensor,
+  UniqueIdentifier,
   useSensor,
   useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay,
-  UniqueIdentifier,
 } from '@dnd-kit/core';
 import {
   arrayMove,
+  rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
-  rectSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Camera, GripVertical, X, Crown, Plus, Loader2 } from 'lucide-react';
-import { cn } from '@crush/ui';
+import { Camera, Crown, GripVertical, Loader2, Plus, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import Image from 'next/image';
+import { useCallback, useRef, useState } from 'react';
+
+const PhotoCropModal = dynamic(
+  () => import('./photo-crop-modal').then((mod) => mod.PhotoCropModal),
+  { ssr: false }
+);
 
 interface Photo {
   id: string;
@@ -33,7 +40,7 @@ interface Photo {
 interface PhotoGridReorderProps {
   photos: string[];
   onPhotosChange: (photos: string[]) => void;
-  onAddPhoto: () => void;
+  onAddPhoto: (file?: File) => void;
   onRemovePhoto: (index: number) => void;
   isUploading?: boolean;
   maxPhotos?: number;
@@ -50,6 +57,12 @@ export function PhotoGridReorder({
   className = '',
 }: PhotoGridReorderProps) {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+
+  // Cropping State
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Convert photos array to objects with IDs for @dnd-kit
   const photoItems: Photo[] = photos.map((url, index) => ({
@@ -101,6 +114,29 @@ export function PhotoGridReorder({
     setActiveId(null);
   }, []);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImageSrc(reader.result as string);
+      setCropModalOpen(true);
+    };
+    reader.readAsDataURL(file);
+
+    // Reset file input so selecting the same file again works
+    e.target.value = '';
+  };
+
+  const handleCropComplete = (croppedFile: File) => {
+    onAddPhoto(croppedFile);
+  };
+
+  const handleAddClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const activePhoto = photoItems.find((item) => item.id === activeId);
 
   return (
@@ -128,12 +164,19 @@ export function PhotoGridReorder({
             {/* Add photo button */}
             {photos.length < maxPhotos && (
               <AddPhotoButton
-                onClick={onAddPhoto}
+                onClick={handleAddClick}
                 isUploading={isUploading}
                 isEmpty={photos.length === 0}
               />
             )}
           </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/*"
+            className="hidden"
+          />
         </SortableContext>
 
         {/* Drag overlay - the "ghost" element that follows the cursor */}
@@ -145,11 +188,21 @@ export function PhotoGridReorder({
       </DndContext>
 
       {/* Helper text */}
-      <p className="text-xs text-muted-foreground mt-3 text-center">
+      <p className="mt-3 text-center text-xs text-muted-foreground">
         {photos.length === 0
           ? 'Add photos to get started'
           : 'Drag photos to reorder. First photo is your main profile picture.'}
       </p>
+
+      <PhotoCropModal
+        isOpen={cropModalOpen}
+        onClose={() => {
+          setCropModalOpen(false);
+          setCropImageSrc(null);
+        }}
+        imageSrc={cropImageSrc}
+        onCropComplete={handleCropComplete}
+      />
     </div>
   );
 }
@@ -178,16 +231,18 @@ function SortablePhotoItem({ photo, index, isMain, onRemove, isDragging }: Sorta
       ref={setNodeRef}
       style={style}
       className={cn(
-        'relative rounded-xl overflow-hidden group touch-none',
+        'group relative touch-none overflow-hidden rounded-xl',
         isMain ? 'col-span-2 row-span-2' : '',
         isDragging ? 'opacity-40' : ''
       )}
     >
-      <div className={cn('aspect-[3/4] w-full', isMain && 'aspect-auto h-full')}>
-        <img
+      <div className={cn('relative aspect-[3/4] w-full', isMain && 'aspect-auto h-full')}>
+        <Image
           src={photo.url}
           alt={`Photo ${index + 1}`}
-          className="w-full h-full object-cover"
+          fill
+          sizes={isMain ? '(max-width: 640px) 100vw, 50vw' : '150px'}
+          className="object-cover"
           draggable={false}
         />
       </div>
@@ -196,11 +251,12 @@ function SortablePhotoItem({ photo, index, isMain, onRemove, isDragging }: Sorta
       <div
         {...attributes}
         {...listeners}
-        className="absolute inset-0 cursor-grab active:cursor-grabbing"
+        className="absolute inset-0 cursor-grab rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary active:cursor-grabbing"
+        aria-label={`Reorder photo ${index + 1}`}
       >
         {/* Drag handle indicator */}
-        <div className="absolute top-2 left-2 p-1.5 bg-black/50 rounded-lg text-white opacity-0 group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity backdrop-blur-sm">
-          <GripVertical className="w-4 h-4" />
+        <div className="absolute left-2 top-2 rounded-lg bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+          <GripVertical className="h-4 w-4" />
         </div>
       </div>
 
@@ -210,23 +266,23 @@ function SortablePhotoItem({ photo, index, isMain, onRemove, isDragging }: Sorta
           e.stopPropagation();
           onRemove();
         }}
-        className="absolute top-2 right-2 p-1.5 bg-black/50 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 backdrop-blur-sm z-10"
+        className="absolute right-2 top-2 z-10 rounded-lg bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-red-500 group-hover:opacity-100"
         type="button"
       >
-        <X className="w-4 h-4" />
+        <X className="h-4 w-4" />
       </button>
 
       {/* Main photo badge */}
       {isMain && (
-        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-medium rounded-full shadow-lg">
-          <Crown className="w-3 h-3" />
+        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg">
+          <Crown className="h-3 w-3" />
           Main photo
         </div>
       )}
 
       {/* Photo number indicator */}
       {!isMain && (
-        <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded-full backdrop-blur-sm">
+        <div className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-1 text-xs text-white backdrop-blur-sm">
           {index + 1}
         </div>
       )}
@@ -244,15 +300,17 @@ function PhotoOverlayItem({ photo, isMain }: PhotoOverlayItemProps) {
   return (
     <div
       className={cn(
-        'rounded-xl overflow-hidden shadow-2xl ring-2 ring-primary',
+        'overflow-hidden rounded-xl shadow-2xl ring-2 ring-primary',
         isMain ? 'w-48 sm:w-64' : 'w-24 sm:w-32'
       )}
     >
-      <div className={cn('aspect-[3/4]', isMain && 'aspect-auto')}>
-        <img
+      <div className={cn('relative aspect-[3/4]', isMain && 'aspect-auto')}>
+        <Image
           src={photo.url}
           alt="Dragging"
-          className="w-full h-full object-cover"
+          fill
+          sizes={isMain ? '300px' : '150px'}
+          className="object-cover"
           draggable={false}
         />
       </div>
@@ -277,34 +335,30 @@ function AddPhotoButton({ onClick, isUploading, isEmpty }: AddPhotoButtonProps) 
         'flex flex-col items-center justify-center gap-2',
         'transition-all duration-200',
         isUploading
-          ? 'border-muted cursor-not-allowed opacity-60'
-          : 'border-muted-foreground/30 hover:border-primary hover:bg-primary/5 cursor-pointer',
+          ? 'cursor-not-allowed border-muted opacity-60'
+          : 'cursor-pointer border-muted-foreground/30 hover:border-primary hover:bg-primary/5',
         isEmpty ? 'col-span-2 row-span-2' : ''
       )}
       type="button"
     >
       {isUploading ? (
         <>
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <span className="text-xs text-muted-foreground">Uploading...</span>
         </>
       ) : (
         <>
-          <div className="p-3 rounded-full bg-muted">
+          <div className="rounded-full bg-muted p-3">
             {isEmpty ? (
-              <Camera className="w-8 h-8 text-muted-foreground" />
+              <Camera className="h-8 w-8 text-muted-foreground" />
             ) : (
-              <Plus className="w-6 h-6 text-muted-foreground" />
+              <Plus className="h-6 w-6 text-muted-foreground" />
             )}
           </div>
           <span className="text-sm font-medium text-muted-foreground">
             {isEmpty ? 'Add your first photo' : 'Add photo'}
           </span>
-          {isEmpty && (
-            <span className="text-xs text-muted-foreground mt-1">
-              Tap to upload
-            </span>
-          )}
+          {isEmpty && <span className="mt-1 text-xs text-muted-foreground">Tap to upload</span>}
         </>
       )}
     </button>
@@ -364,11 +418,18 @@ function SimpleSortableItem({ id, url, index }: { id: string; url: string; index
       {...attributes}
       {...listeners}
       className={cn(
-        'flex-shrink-0 w-16 h-20 rounded-lg overflow-hidden cursor-grab active:cursor-grabbing touch-none',
+        'relative h-20 w-16 flex-shrink-0 cursor-grab touch-none overflow-hidden rounded-lg active:cursor-grabbing',
         isDragging && 'opacity-50 ring-2 ring-primary'
       )}
     >
-      <img src={url} alt={`Photo ${index + 1}`} className="w-full h-full object-cover" />
+      <Image
+        src={url}
+        alt={`Photo ${index + 1}`}
+        fill
+        sizes="100px"
+        className="object-cover"
+        draggable={false}
+      />
     </div>
   );
 }

@@ -22,8 +22,8 @@ export default function AuthCallbackPage() {
           // No redirect result — user may have navigated here directly
           router.push('/auth/login');
         }
-      } catch (err: any) {
-        setError(err?.message || 'Authentication failed. Please try again.');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
       }
     }
     handleCallback();

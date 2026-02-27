@@ -1,23 +1,20 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuthStore, userService } from '@crush/core';
-import { Card, Button, Badge } from '@crush/ui';
+import { Card, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
+import { PlusFeatureGate } from '@/features/premium';
 import {
   ArrowLeft,
   Eye,
   EyeOff,
   Ghost,
-  Crown,
-  Sparkles,
   Shield,
   Clock,
   Users,
   Check,
-  AlertCircle,
   Loader2,
   Info,
 } from 'lucide-react';
@@ -150,119 +147,114 @@ export default function IncognitoModePage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Premium Gate */}
-        {!isPremium && (
-          <Card className="overflow-hidden">
-            <div className="p-6 bg-gradient-to-br from-purple-500 to-indigo-600 text-white">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                  <Crown className="w-6 h-6" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-bold mb-2">Premium Feature</h2>
-                  <p className="text-white/80 mb-4">
-                    Incognito Mode is available exclusively for Premium members. Browse profiles privately and control who sees you.
-                  </p>
-                  <Link href="/premium">
-                    <Button className="bg-white text-purple-600 hover:bg-white/90">
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Upgrade to Premium
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Incognito Toggle */}
-        <Card className={cn('overflow-hidden', !isPremium && 'opacity-60')}>
-          <div className="p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div className={cn(
-                  'w-14 h-14 rounded-full flex items-center justify-center transition-colors',
-                  incognitoEnabled
-                    ? 'bg-purple-100 dark:bg-purple-900/30'
-                    : 'bg-gray-100 dark:bg-gray-800'
-                )}>
-                  {incognitoEnabled ? (
-                    <Ghost className="w-7 h-7 text-purple-600" />
-                  ) : (
-                    <Eye className="w-7 h-7 text-gray-400" />
-                  )}
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {incognitoEnabled ? 'Incognito is ON' : 'Incognito is OFF'}
-                  </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {incognitoEnabled
-                      ? 'You are browsing privately. Only people you like can see you.'
-                      : 'Your profile is visible to everyone in discovery.'}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleToggleIncognito}
-                disabled={!isPremium || saving}
-                className={cn(
-                  'relative w-14 h-8 rounded-full transition-colors',
-                  incognitoEnabled ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600',
-                  (!isPremium || saving) && 'opacity-50 cursor-not-allowed'
-                )}
-              >
-                {saving ? (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+        <PlusFeatureGate
+          isPremium={isPremium}
+          featureKey="incognito_mode"
+          title="Premium Feature"
+          description="Incognito Mode is available exclusively for Premium members. Browse privately and control who sees you."
+          ctaLabel="Upgrade to Premium"
+          variant="purple"
+          lockWhenFree
+          lockClassName="space-y-6"
+          modalTitle="Incognito Mode is Premium-only"
+          modalDescription="Upgrade to browse invisibly, control profile visibility, and keep your activity private."
+          modalBenefits={[
+            "View profiles without appearing in 'Who Viewed Me'",
+            'Hide your profile from general discovery',
+            'Control visibility so only selected users can find you',
+          ]}
+        >
+          <div className="space-y-6">
+            {/* Incognito Toggle */}
+            <Card className="overflow-hidden">
+              <div className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className={cn(
+                      'w-14 h-14 rounded-full flex items-center justify-center transition-colors',
+                      incognitoEnabled
+                        ? 'bg-purple-100 dark:bg-purple-900/30'
+                        : 'bg-gray-100 dark:bg-gray-800'
+                    )}>
+                      {incognitoEnabled ? (
+                        <Ghost className="w-7 h-7 text-purple-600" />
+                      ) : (
+                        <Eye className="w-7 h-7 text-gray-500" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {incognitoEnabled ? 'Incognito is ON' : 'Incognito is OFF'}
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {incognitoEnabled
+                          ? 'You are browsing privately. Only people you like can see you.'
+                          : 'Your profile is visible to everyone in discovery.'}
+                      </p>
+                    </div>
                   </div>
-                ) : (
-                  <div
+                  <button
+                    onClick={handleToggleIncognito}
+                    disabled={!isPremium || saving}
                     className={cn(
-                      'absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform',
-                      incognitoEnabled ? 'translate-x-7' : 'translate-x-1'
+                      'relative w-14 h-8 rounded-full transition-colors',
+                      incognitoEnabled ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600',
+                      (!isPremium || saving) && 'opacity-50 cursor-not-allowed'
                     )}
-                  />
-                )}
-              </button>
-            </div>
-          </div>
-        </Card>
-
-        {/* Features List */}
-        <Card className={cn('overflow-hidden', !isPremium && 'opacity-60')}>
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              What Incognito Mode Does
-            </h2>
-          </div>
-          <div className="divide-y divide-gray-100 dark:divide-gray-800">
-            {INCOGNITO_FEATURES.map((feature, index) => (
-              <div key={index} className="p-4 flex items-start gap-4">
-                <div className={cn(
-                  'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
-                  incognitoEnabled
-                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-400'
-                )}>
-                  {feature.icon}
+                  >
+                    {saving ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      </div>
+                    ) : (
+                      <div
+                        className={cn(
+                          'absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform',
+                          incognitoEnabled ? 'translate-x-7' : 'translate-x-1'
+                        )}
+                      />
+                    )}
+                  </button>
                 </div>
-                <div>
-                  <h3 className="font-medium text-gray-900 dark:text-white">
-                    {feature.title}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {feature.description}
-                  </p>
-                </div>
-                {incognitoEnabled && (
-                  <Check className="w-5 h-5 text-green-500 flex-shrink-0 ml-auto" />
-                )}
               </div>
-            ))}
+            </Card>
+
+            {/* Features List */}
+            <Card className="overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  What Incognito Mode Does
+                </h2>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {INCOGNITO_FEATURES.map((feature, index) => (
+                  <div key={index} className="p-4 flex items-start gap-4">
+                    <div className={cn(
+                      'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+                      incognitoEnabled
+                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                    )}>
+                      {feature.icon}
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 dark:text-white">
+                        {feature.title}
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {feature.description}
+                      </p>
+                    </div>
+                    {incognitoEnabled && (
+                      <Check className="w-5 h-5 text-green-500 flex-shrink-0 ml-auto" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
           </div>
-        </Card>
+        </PlusFeatureGate>
 
         {/* Additional Privacy Settings */}
         <Card className="overflow-hidden">

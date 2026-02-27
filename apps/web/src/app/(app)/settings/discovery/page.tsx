@@ -2,26 +2,36 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore, userService } from '@crush/core';
-import { Button, Card } from '@crush/ui';
+import { useAuthStore, userService, locationService, type Gender, type GeoLocation } from '@crush/core';
+import { Button, Card, Input } from '@crush/ui';
 import { cn } from '@crush/ui';
+import { PlusFeatureGate } from '@/features/premium';
+import { analytics } from '@/lib/analytics';
 import {
   ArrowLeft,
   MapPin,
   Users,
   Calendar,
   Compass,
+  Globe,
+  Navigation,
   Loader2,
   Check,
   Info,
 } from 'lucide-react';
-import type { Gender } from '@crush/core';
 
 interface DiscoverySettings {
   maxDistance: number;
   ageRangeMin: number;
   ageRangeMax: number;
   interestedIn: Gender[];
+}
+
+interface PassportState {
+  city: string;
+  country: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 const GENDER_OPTIONS: { value: Gender; label: string }[] = [
@@ -127,14 +137,13 @@ function RangeSlider({
 }
 
 interface GenderButtonProps {
-  gender: Gender;
   label: string;
   selected: boolean;
   onChange: (selected: boolean) => void;
   disabled?: boolean;
 }
 
-function GenderButton({ gender, label, selected, onChange, disabled }: GenderButtonProps) {
+function GenderButton({ label, selected, onChange, disabled }: GenderButtonProps) {
   return (
     <button
       onClick={() => !disabled && onChange(!selected)}
@@ -155,15 +164,26 @@ function GenderButton({ gender, label, selected, onChange, disabled }: GenderBut
 export default function DiscoverySettingsPage() {
   const router = useRouter();
   const { user, profile, refreshProfile } = useAuthStore();
-  const [saving, setSaving] = useState(false);
+  const isPremium = profile?.isPremium ?? false;
   const [saved, setSaved] = useState(false);
   const [savingField, setSavingField] = useState<string | null>(null);
+  const [detectingPassportLocation, setDetectingPassportLocation] = useState(false);
+  const [passportError, setPassportError] = useState<string | null>(null);
 
   const [settings, setSettings] = useState<DiscoverySettings>({
     maxDistance: profile?.settings?.maxDistance ?? 50,
     ageRangeMin: profile?.settings?.ageRangeMin ?? 18,
     ageRangeMax: profile?.settings?.ageRangeMax ?? 50,
     interestedIn: profile?.interestedIn ?? ['female'],
+  });
+  const [passportMode, setPassportMode] = useState<boolean>(
+    profile?.settings?.passportMode ?? false
+  );
+  const [passportLocation, setPassportLocation] = useState<PassportState>({
+    city: profile?.settings?.passportLocation?.city ?? profile?.location?.city ?? '',
+    country: profile?.settings?.passportLocation?.country ?? profile?.location?.country ?? '',
+    latitude: profile?.settings?.passportLocation?.latitude,
+    longitude: profile?.settings?.passportLocation?.longitude,
   });
 
   // Load settings from profile
@@ -174,6 +194,13 @@ export default function DiscoverySettingsPage() {
         ageRangeMin: profile.settings?.ageRangeMin ?? 18,
         ageRangeMax: profile.settings?.ageRangeMax ?? 50,
         interestedIn: profile.interestedIn ?? ['female'],
+      });
+      setPassportMode(profile.settings?.passportMode ?? false);
+      setPassportLocation({
+        city: profile.settings?.passportLocation?.city ?? profile.location?.city ?? '',
+        country: profile.settings?.passportLocation?.country ?? profile.location?.country ?? '',
+        latitude: profile.settings?.passportLocation?.latitude,
+        longitude: profile.settings?.passportLocation?.longitude,
       });
     }
   }, [profile]);
@@ -236,6 +263,148 @@ export default function DiscoverySettingsPage() {
     updateSettings('interestedIn', newInterests);
   }, [settings.interestedIn, updateSettings]);
 
+  const toPassportGeoLocation = useCallback((value: PassportState): GeoLocation | undefined => {
+    const city = value.city.trim();
+    const country = value.country.trim();
+    const latitude = typeof value.latitude === 'number' ? value.latitude : undefined;
+    const longitude = typeof value.longitude === 'number' ? value.longitude : undefined;
+
+    if (!city && !country && latitude === undefined && longitude === undefined) {
+      return undefined;
+    }
+
+    return {
+      city: city || undefined,
+      country: country || undefined,
+      latitude,
+      longitude,
+    };
+  }, []);
+
+  const persistPassportSettings = useCallback(async (
+    nextMode: boolean,
+    nextLocation: PassportState,
+    analyticsFeature: string
+  ) => {
+    if (!user) return;
+
+    const normalizedLocation = toPassportGeoLocation(nextLocation);
+    if (nextMode && !normalizedLocation) {
+      setPassportError('Set a destination before enabling Passport mode.');
+      return;
+    }
+
+    setSavingField('passport');
+    setPassportError(null);
+
+    try {
+      const settingsPayload: { passportMode: boolean; passportLocation?: GeoLocation } = {
+        passportMode: nextMode,
+      };
+      if (normalizedLocation) {
+        settingsPayload.passportLocation = normalizedLocation;
+      }
+
+      await userService.updateUserSettings(user.uid, settingsPayload);
+      setPassportMode(nextMode);
+      setPassportLocation(nextLocation);
+      analytics.track({
+        name: 'feature_used',
+        properties: { feature: analyticsFeature },
+      });
+      await refreshProfile();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (error) {
+      console.error('Failed to update passport settings:', error);
+      setPassportError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update passport settings. Please try again.'
+      );
+    } finally {
+      setSavingField(null);
+    }
+  }, [user, toPassportGeoLocation, refreshProfile]);
+
+  const handleTogglePassportMode = useCallback(async () => {
+    if (!isPremium) {
+      setPassportError('Passport mode is available for Premium members.');
+      return;
+    }
+
+    const nextMode = !passportMode;
+    let nextLocation = passportLocation;
+    if (nextMode && !toPassportGeoLocation(nextLocation)) {
+      if (profile?.location?.city || profile?.location?.country) {
+        nextLocation = {
+          city: profile.location.city ?? '',
+          country: profile.location.country ?? '',
+          latitude: profile.location.latitude,
+          longitude: profile.location.longitude,
+        };
+      } else {
+        setPassportError('Add a destination first, then enable Passport mode.');
+        return;
+      }
+    }
+
+    await persistPassportSettings(nextMode, nextLocation, 'passport_mode_toggled');
+  }, [
+    isPremium,
+    passportMode,
+    passportLocation,
+    profile?.location,
+    persistPassportSettings,
+    toPassportGeoLocation,
+  ]);
+
+  const handleDetectPassportLocation = useCallback(async () => {
+    setDetectingPassportLocation(true);
+    setPassportError(null);
+    try {
+      const detected = await locationService.getCurrentLocation(true);
+      const nextLocation: PassportState = {
+        city: detected.city ?? '',
+        country: detected.country ?? '',
+        latitude: detected.latitude,
+        longitude: detected.longitude,
+      };
+      await persistPassportSettings(
+        passportMode,
+        nextLocation,
+        'passport_location_detected'
+      );
+    } catch (error) {
+      setPassportError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to detect location. Enter destination manually.'
+      );
+    } finally {
+      setDetectingPassportLocation(false);
+    }
+  }, [passportMode, persistPassportSettings]);
+
+  const handleSavePassportDestination = useCallback(async () => {
+    const nextLocation: PassportState = {
+      city: passportLocation.city.trim(),
+      country: passportLocation.country.trim(),
+    };
+    await persistPassportSettings(
+      passportMode,
+      nextLocation,
+      'passport_destination_updated'
+    );
+  }, [passportLocation.city, passportLocation.country, passportMode, persistPassportSettings]);
+
+  const passportDestinationLabel = [
+    passportLocation.city.trim(),
+    passportLocation.country.trim(),
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
       {/* Header */}
@@ -282,7 +451,7 @@ export default function DiscoverySettingsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {savingField === 'maxDistance' && (
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
                     )}
                     <span className="text-lg font-semibold text-primary">
                       {settings.maxDistance} km
@@ -297,7 +466,7 @@ export default function DiscoverySettingsPage() {
                   onChange={(value) => updateSettings('maxDistance', value)}
                   disabled={savingField === 'maxDistance'}
                 />
-                <div className="flex justify-between mt-1 text-xs text-gray-400">
+                <div className="flex justify-between mt-1 text-xs text-gray-500">
                   <span>1 km</span>
                   <span>200 km</span>
                 </div>
@@ -340,7 +509,7 @@ export default function DiscoverySettingsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {(savingField === 'ageRangeMin' || savingField === 'ageRangeMax') && (
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
                     )}
                     <span className="text-lg font-semibold text-primary">
                       {settings.ageRangeMin} - {settings.ageRangeMax}
@@ -357,7 +526,7 @@ export default function DiscoverySettingsPage() {
                   onMaxChange={(value) => updateSettings('ageRangeMax', value)}
                   disabled={savingField === 'ageRangeMin' || savingField === 'ageRangeMax'}
                 />
-                <div className="flex justify-between mt-1 text-xs text-gray-400">
+                <div className="flex justify-between mt-1 text-xs text-gray-500">
                   <span>18</span>
                   <span>100</span>
                 </div>
@@ -389,7 +558,6 @@ export default function DiscoverySettingsPage() {
                   {GENDER_OPTIONS.map(({ value, label }) => (
                     <GenderButton
                       key={value}
-                      gender={value}
                       label={label}
                       selected={settings.interestedIn.includes(value)}
                       onChange={() => toggleGender(value)}
@@ -407,6 +575,141 @@ export default function DiscoverySettingsPage() {
             </div>
           </div>
         </Card>
+
+        {/* Passport Mode */}
+        <PlusFeatureGate
+          isPremium={isPremium}
+          featureKey="passport_mode"
+          title="Passport Mode"
+          description="Change your discovery location and match with people from any destination."
+          ctaLabel="Unlock Passport"
+          variant="amber"
+          lockWhenFree
+          lockClassName="space-y-4"
+          modalTitle="Passport Mode is Premium-only"
+          modalDescription="Upgrade to set a destination and discover people outside your current location."
+          modalBenefits={[
+            'Set your destination city for discovery',
+            'Travel-match before arriving',
+            'Switch between destinations anytime',
+          ]}
+        >
+          <Card className="overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                Passport
+              </h2>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="flex items-start gap-4">
+                <div className={cn(
+                  'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+                  passportMode ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-gray-100 dark:bg-gray-800'
+                )}>
+                  <Globe className={cn('w-5 h-5', passportMode ? 'text-amber-600' : 'text-gray-500')} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        Passport Mode {passportMode ? 'On' : 'Off'}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Use a destination location for discovery instead of your current area.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleTogglePassportMode}
+                      disabled={savingField === 'passport'}
+                      className={cn(
+                        'relative w-12 h-7 rounded-full transition-colors',
+                        passportMode ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600',
+                        savingField === 'passport' && 'opacity-60 cursor-not-allowed'
+                      )}
+                      aria-label="Toggle Passport mode"
+                    >
+                      <div
+                        className={cn(
+                          'absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform',
+                          passportMode ? 'translate-x-6' : 'translate-x-1'
+                        )}
+                      />
+                    </button>
+                  </div>
+                  {passportDestinationLabel && (
+                    <p className="text-sm text-amber-700 dark:text-amber-400">
+                      Active destination: {passportDestinationLabel}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  Destination
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    value={passportLocation.city}
+                    onChange={(event) =>
+                      setPassportLocation((previous) => ({
+                        ...previous,
+                        city: event.target.value,
+                        latitude: undefined,
+                        longitude: undefined,
+                      }))
+                    }
+                    placeholder="City"
+                    disabled={savingField === 'passport'}
+                  />
+                  <Input
+                    value={passportLocation.country}
+                    onChange={(event) =>
+                      setPassportLocation((previous) => ({
+                        ...previous,
+                        country: event.target.value,
+                        latitude: undefined,
+                        longitude: undefined,
+                      }))
+                    }
+                    placeholder="Country"
+                    disabled={savingField === 'passport'}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDetectPassportLocation}
+                    disabled={detectingPassportLocation || savingField === 'passport'}
+                  >
+                    {detectingPassportLocation ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Navigation className="w-4 h-4 mr-2" />
+                    )}
+                    Use Current Location
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSavePassportDestination}
+                    disabled={savingField === 'passport'}
+                  >
+                    {savingField === 'passport' ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <MapPin className="w-4 h-4 mr-2" />
+                    )}
+                    Save Destination
+                  </Button>
+                </div>
+                {passportError && (
+                  <p className="text-sm text-red-600 dark:text-red-400">{passportError}</p>
+                )}
+              </div>
+            </div>
+          </Card>
+        </PlusFeatureGate>
 
         {/* Info Note */}
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">

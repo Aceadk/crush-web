@@ -1,4 +1,5 @@
 export { ErrorBoundary, withErrorBoundary } from './error-boundary';
+export { RouteErrorFallback } from './route-error-fallback';
 export {
   // Loading states
   LoadingSpinner,

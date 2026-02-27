@@ -1,21 +1,22 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function gotoAuthPage(page: Page, path: string) {
+  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(new RegExp(path.replace('?', '\\?')));
+  await expect(page).toHaveTitle(/crush/i);
+}
+
+async function waitForAuthForm(page: Page) {
+  const emailInput = page.locator('input[type="email"]');
+  const passwordInputs = page.locator('input[type="password"]');
+  await expect(emailInput).toBeVisible({ timeout: 20_000 });
+  await expect(passwordInputs.first()).toBeVisible({ timeout: 20_000 });
+}
 
 test.describe('Authentication Pages', () => {
   test('login page loads correctly', async ({ page }) => {
-    await page.goto('/auth/login');
-
-    // Check page has loaded
-    await expect(page).toHaveTitle(/login|sign in/i);
-
-    // Check email input exists
-    const emailInput = page.getByRole('textbox', { name: /email/i }).or(
-      page.locator('input[type="email"]')
-    );
-    await expect(emailInput).toBeVisible();
-
-    // Check password input exists
-    const passwordInput = page.locator('input[type="password"]');
-    await expect(passwordInput).toBeVisible();
+    await gotoAuthPage(page, '/auth/login');
+    await waitForAuthForm(page);
 
     // Check login button exists
     const loginButton = page.getByRole('button', { name: /sign in|log in|login/i });
@@ -23,64 +24,46 @@ test.describe('Authentication Pages', () => {
   });
 
   test('signup page loads correctly', async ({ page }) => {
-    await page.goto('/auth/signup');
-
-    // Check page has loaded - either signup or may redirect to login
-    await expect(page).toHaveURL(/auth\/(signup|login)/);
-
-    // Check form elements exist
-    const emailInput = page.getByRole('textbox', { name: /email/i }).or(
-      page.locator('input[type="email"]')
-    );
-    await expect(emailInput).toBeVisible();
+    await gotoAuthPage(page, '/auth/signup');
+    await waitForAuthForm(page);
   });
 
   test('login form shows validation errors', async ({ page }) => {
-    await page.goto('/auth/login');
+    await gotoAuthPage(page, '/auth/login');
+    await waitForAuthForm(page);
 
     // Click login without filling form
     const loginButton = page.getByRole('button', { name: /sign in|log in|login/i });
     await loginButton.click();
 
-    // Should show some validation message or the inputs should be marked as invalid
-    const emailInput = page.locator('input[type="email"]');
-    const isInvalid = await emailInput.evaluate(el => !el.checkValidity());
-    expect(isInvalid).toBe(true);
+    await expect(page.getByText(/please fill in all fields/i)).toBeVisible();
   });
 
   test('can navigate between login and signup', async ({ page }) => {
-    await page.goto('/auth/login');
+    await gotoAuthPage(page, '/auth/login');
+    await waitForAuthForm(page);
 
     // Look for link to signup
     const signupLink = page.getByRole('link', { name: /sign up|register|create account/i });
-    if (await signupLink.isVisible()) {
-      await signupLink.click();
-      await expect(page).toHaveURL(/signup/);
-    }
+    await expect(signupLink).toBeVisible();
+    await signupLink.click();
+    await expect(page).toHaveURL(/\/auth\/signup/);
   });
 
   test('forgot password page exists', async ({ page }) => {
-    await page.goto('/auth/login');
-
-    // Look for forgot password link
-    const forgotLink = page.getByRole('link', { name: /forgot|reset/i });
-    if (await forgotLink.isVisible()) {
-      await forgotLink.click();
-      await expect(page).toHaveURL(/forgot|reset/);
-    }
+    await gotoAuthPage(page, '/auth/forgot-password');
+    await expect(page.getByRole('heading', { name: /reset your password/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: /send reset link/i })).toBeVisible();
   });
 
   test('social login buttons are visible', async ({ page }) => {
-    await page.goto('/auth/login');
-
-    // Check for Google login button
-    const googleButton = page.getByRole('button', { name: /google/i }).or(
-      page.locator('button').filter({ hasText: /google/i })
-    );
-
-    // Social login may or may not be present
-    // Just check page loads without error
-    await expect(page.locator('body')).toBeVisible();
+    await gotoAuthPage(page, '/auth/login');
+    await waitForAuthForm(page);
+    await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /continue with phone/i })).toBeVisible();
   });
 });
 

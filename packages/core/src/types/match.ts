@@ -41,6 +41,10 @@ export interface DiscoveryProfile {
   prompts?: { question: string; answer: string }[];
   isVerified: boolean;
   lastActive?: string;
+  boost?: {
+    isActive: boolean;
+    expiresAt?: string;
+  };
 }
 
 export interface DiscoveryFilters {
@@ -48,6 +52,7 @@ export interface DiscoveryFilters {
   maxAge: number;
   maxDistance: number;
   genders?: string[];
+  interests?: string[];
   hasPhotos?: boolean;
   isVerified?: boolean;
 }

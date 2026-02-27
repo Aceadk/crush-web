@@ -19,6 +19,7 @@ export interface UserProfile {
   location?: GeoLocation;
   interests?: string[];
   prompts?: UserPrompt[];
+  lifestyle?: LifestyleInfo;
   isVerified: boolean;
   isPremium: boolean;
   premiumPlan?: 'monthly' | 'quarterly' | 'yearly';
@@ -38,9 +39,23 @@ export interface UserProfile {
   profileComplete: boolean;
   isEmailVerified?: boolean;
   isPhoneVerified?: boolean;
+  boost?: {
+    expiresAt?: string;
+    activatedAt?: string;
+    lastActivatedAt?: string;
+    totalActivations?: number;
+  };
 }
 
-export type SexualOrientation = 'straight' | 'gay' | 'lesbian' | 'bisexual' | 'pansexual' | 'asexual' | 'other' | 'prefer_not_to_say';
+export type SexualOrientation =
+  | 'straight'
+  | 'gay'
+  | 'lesbian'
+  | 'bisexual'
+  | 'pansexual'
+  | 'asexual'
+  | 'other'
+  | 'prefer_not_to_say';
 
 export type Gender = 'male' | 'female' | 'non_binary' | 'other';
 
@@ -49,6 +64,14 @@ export interface GeoLocation {
   longitude?: number;
   city?: string;
   country?: string;
+}
+
+export interface LifestyleInfo {
+  height?: string;
+  education?: string;
+  drinking?: 'yes' | 'no' | 'sometimes' | '';
+  smoking?: 'yes' | 'no' | 'sometimes' | '';
+  workout?: 'active' | 'sometimes' | 'never' | '';
 }
 
 export interface UserPrompt {
@@ -73,6 +96,9 @@ export interface UserSettings {
   showReadReceipts?: boolean;
   // Show typing indicators
   showTypingIndicators?: boolean;
+  // Passport mode - discover people from a selected destination location
+  passportMode?: boolean;
+  passportLocation?: GeoLocation;
 }
 
 export interface NotificationSettings {
@@ -127,4 +153,5 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   ageRangeMin: 18,
   ageRangeMax: 50,
   theme: 'system',
+  passportMode: false,
 };

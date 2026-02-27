@@ -15,14 +15,166 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
-import { Match, MatchStatus, SwipeAction, DiscoveryProfile, DiscoveryFilters, ReceivedLike, MessageRequest, WeeklyPick } from '../types/match';
+import { Match, MatchStatus, DiscoveryProfile, DiscoveryFilters, ReceivedLike, MessageRequest, WeeklyPick } from '../types/match';
 import { calculateAge } from '../types/user';
+import { streakService } from './streak';
 
 const MATCHES_COLLECTION = 'matches';
 const SWIPES_COLLECTION = 'swipes';
 const USERS_COLLECTION = 'users';
+const BLOCKS_COLLECTION = 'blocks';
+const LEGACY_BLOCKED_SUBCOLLECTION = 'blocked';
+const DAILY_LIKE_LIMIT_REACHED_ERROR = 'Daily like limit reached';
+
+const normalizeInterest = (interest: unknown): string =>
+  typeof interest === 'string' ? interest.trim().toLowerCase() : '';
+
+interface RankedDiscoveryCandidate {
+  profile: DiscoveryProfile;
+  isBoosted: boolean;
+  boostExpiresAtMs: number;
+  lastActiveMs: number;
+}
+
+interface NormalizedGeoLocation {
+  latitude?: number;
+  longitude?: number;
+  city?: string;
+  country?: string;
+}
 
 class MatchService {
+  private toFiniteNumber(value: unknown): number | undefined {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return undefined;
+    }
+    return value;
+  }
+
+  private normalizeGeoLocation(value: unknown): NormalizedGeoLocation | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const source = value as Record<string, unknown>;
+    const latitude = this.toFiniteNumber(source.latitude);
+    const longitude = this.toFiniteNumber(source.longitude);
+    const city = typeof source.city === 'string' ? source.city.trim() : undefined;
+    const country = typeof source.country === 'string' ? source.country.trim() : undefined;
+
+    if (
+      latitude === undefined &&
+      longitude === undefined &&
+      !city &&
+      !country
+    ) {
+      return null;
+    }
+
+    return { latitude, longitude, city, country };
+  }
+
+  private getDiscoveryReferenceLocation(
+    currentUserData: Record<string, unknown> | undefined
+  ): NormalizedGeoLocation | null {
+    if (!currentUserData) return null;
+
+    const settings = (currentUserData.settings as Record<string, unknown> | undefined) ?? {};
+    const passportMode = Boolean(settings.passportMode);
+    const passportLocation = this.normalizeGeoLocation(settings.passportLocation);
+    const profileLocation = this.normalizeGeoLocation(currentUserData.location);
+
+    if (passportMode && passportLocation) {
+      return passportLocation;
+    }
+
+    return profileLocation;
+  }
+
+  private calculateDistanceKm(
+    from: NormalizedGeoLocation | null,
+    to: NormalizedGeoLocation | null
+  ): number | undefined {
+    if (!from || !to) return undefined;
+    if (
+      from.latitude === undefined ||
+      from.longitude === undefined ||
+      to.latitude === undefined ||
+      to.longitude === undefined
+    ) {
+      return undefined;
+    }
+
+    const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const dLat = toRadians(to.latitude - from.latitude);
+    const dLon = toRadians(to.longitude - from.longitude);
+    const lat1 = toRadians(from.latitude);
+    const lat2 = toRadians(to.latitude);
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return Math.round(earthRadiusKm * c);
+  }
+
+  /**
+   * Get user IDs that should be excluded from discovery because of blocking.
+   * Supports both canonical `blocks` docs and legacy `users/{uid}/blocked` docs.
+   */
+  private async getDiscoveryBlockedUserIds(userId: string): Promise<Set<string>> {
+    const db = getFirebaseDb();
+    const blockedUserIds = new Set<string>();
+
+    const [blockedByMeResult, blockedMeResult, legacyBlockedResult] =
+      await Promise.allSettled([
+        getDocs(
+          query(
+            collection(db, BLOCKS_COLLECTION),
+            where('blockerId', '==', userId)
+          )
+        ),
+        getDocs(
+          query(
+            collection(db, BLOCKS_COLLECTION),
+            where('blockedId', '==', userId)
+          )
+        ),
+        getDocs(collection(db, USERS_COLLECTION, userId, LEGACY_BLOCKED_SUBCOLLECTION)),
+      ]);
+
+    if (blockedByMeResult.status === 'fulfilled') {
+      for (const blockDoc of blockedByMeResult.value.docs) {
+        const blockedId = blockDoc.data().blockedId;
+        if (typeof blockedId === 'string' && blockedId) {
+          blockedUserIds.add(blockedId);
+        }
+      }
+    }
+
+    if (blockedMeResult.status === 'fulfilled') {
+      for (const blockDoc of blockedMeResult.value.docs) {
+        const blockerId = blockDoc.data().blockerId;
+        if (typeof blockerId === 'string' && blockerId) {
+          blockedUserIds.add(blockerId);
+        }
+      }
+    }
+
+    if (legacyBlockedResult.status === 'fulfilled') {
+      for (const blockDoc of legacyBlockedResult.value.docs) {
+        if (blockDoc.id) {
+          blockedUserIds.add(blockDoc.id);
+        }
+      }
+    }
+
+    blockedUserIds.delete(userId);
+    return blockedUserIds;
+  }
+
   /**
    * Get all matches for a user
    */
@@ -81,10 +233,28 @@ class MatchService {
     action: 'like' | 'pass' | 'superlike'
   ): Promise<{ isMatch: boolean; matchId?: string }> {
     const db = getFirebaseDb();
+    const swipeId = `${swiperId}_${swipedUserId}`;
+    const swipeRef = doc(db, SWIPES_COLLECTION, swipeId);
+    const existingSwipe = await getDoc(swipeRef);
+    const existingAction = existingSwipe.exists()
+      ? (existingSwipe.data().action as string | undefined)
+      : undefined;
+    const isPositiveAction = action === 'like' || action === 'superlike';
+    const alreadyCountedLike = existingAction === 'like' || existingAction === 'superlike';
+
+    // Enforce daily like limits for first-time positive swipes only.
+    if (isPositiveAction && !alreadyCountedLike) {
+      const swiperDoc = await getDoc(doc(db, USERS_COLLECTION, swiperId));
+      const isPremium = Boolean(swiperDoc.data()?.isPremium);
+      const likeResult = await streakService.useLike(swiperId, isPremium);
+
+      if (!likeResult.success) {
+        throw new Error(likeResult.error || DAILY_LIKE_LIMIT_REACHED_ERROR);
+      }
+    }
 
     // Record the swipe
-    const swipeId = `${swiperId}_${swipedUserId}`;
-    await setDoc(doc(db, SWIPES_COLLECTION, swipeId), {
+    await setDoc(swipeRef, {
       swiperId,
       swipedUserId,
       action,
@@ -175,6 +345,10 @@ class MatchService {
     pageSize: number = 20
   ): Promise<DiscoveryProfile[]> {
     const db = getFirebaseDb();
+    const blockedUserIds = await this.getDiscoveryBlockedUserIds(userId);
+    const currentUserSnapshot = await getDoc(doc(db, USERS_COLLECTION, userId));
+    const currentUserData = currentUserSnapshot.data() as Record<string, unknown> | undefined;
+    const referenceLocation = this.getDiscoveryReferenceLocation(currentUserData);
 
     // Get users already swiped
     const swipesQuery = query(
@@ -185,6 +359,9 @@ class MatchService {
     const swipedUserIds = new Set(
       swipesSnapshot.docs.map((doc) => doc.data().swipedUserId as string)
     );
+    for (const blockedId of blockedUserIds) {
+      swipedUserIds.add(blockedId);
+    }
     swipedUserIds.add(userId); // Exclude self
 
     // Query users
@@ -197,7 +374,13 @@ class MatchService {
 
     const usersSnapshot = await getDocs(usersQuery);
 
-    const profiles: DiscoveryProfile[] = [];
+    const rankedCandidates: RankedDiscoveryCandidate[] = [];
+    const nowMs = Date.now();
+    const selectedInterests = new Set(
+      ((filters.interests as unknown[] | undefined) ?? [])
+        .map((interest) => normalizeInterest(interest))
+        .filter(Boolean)
+    );
 
     for (const userDoc of usersSnapshot.docs) {
       if (swipedUserIds.has(userDoc.id)) continue;
@@ -206,12 +389,16 @@ class MatchService {
       const photos = ((data.photos as string[] | undefined) ?? []).filter(Boolean);
       const isVerified = Boolean(data.isVerified);
       const distance =
-        typeof data.distance === 'number' && Number.isFinite(data.distance)
+        this.calculateDistanceKm(referenceLocation, this.normalizeGeoLocation(data.location)) ??
+        (typeof data.distance === 'number' && Number.isFinite(data.distance)
           ? data.distance
-          : undefined;
+          : undefined);
       const age =
         calculateAge(data.birthDate as string | undefined) ??
         (typeof data.age === 'number' ? data.age : undefined);
+      const boostExpiresAtMs = this.getBoostExpiresAtMillis(data);
+      const isBoosted = boostExpiresAtMs > nowMs;
+      const lastActiveMs = this.timestampToMillis(data.lastActive);
 
       // Apply age filter
       if (age !== undefined && (age < filters.minAge || age > filters.maxAge)) continue;
@@ -230,24 +417,62 @@ class MatchService {
       // Apply distance filter when distance is available on profile
       if (distance !== undefined && distance > filters.maxDistance) continue;
 
-      profiles.push({
-        id: userDoc.id,
-        displayName: data.displayName as string || '',
-        birthDate: data.birthDate as string | undefined,
-        age,
-        bio: data.bio as string | undefined,
-        photos,
-        distance,
-        interests: data.interests as string[] | undefined,
-        prompts: data.prompts as DiscoveryProfile['prompts'],
-        isVerified,
-        lastActive: this.timestampToString(data.lastActive),
-      });
+      // Apply shared-interest filter (at least one overlap required)
+      if (selectedInterests.size > 0) {
+        const profileInterests = ((data.interests as unknown[] | undefined) ?? [])
+          .map((interest) => normalizeInterest(interest))
+          .filter(Boolean);
+        const hasInterestOverlap = profileInterests.some((interest) =>
+          selectedInterests.has(interest)
+        );
+        if (!hasInterestOverlap) continue;
+      }
 
-      if (profiles.length >= pageSize) break;
+      rankedCandidates.push({
+        isBoosted,
+        boostExpiresAtMs,
+        lastActiveMs,
+        profile: {
+          id: userDoc.id,
+          displayName: data.displayName as string || '',
+          birthDate: data.birthDate as string | undefined,
+          age,
+          bio: data.bio as string | undefined,
+          photos,
+          distance,
+          interests: data.interests as string[] | undefined,
+          prompts: data.prompts as DiscoveryProfile['prompts'],
+          isVerified,
+          lastActive: this.timestampToOptionalString(data.lastActive),
+          boost: {
+            isActive: isBoosted,
+            expiresAt: isBoosted ? new Date(boostExpiresAtMs).toISOString() : undefined,
+          },
+        },
+      });
     }
 
-    return profiles;
+    rankedCandidates.sort((a, b) => {
+      if (a.isBoosted !== b.isBoosted) {
+        return a.isBoosted ? -1 : 1;
+      }
+
+      if (a.isBoosted && b.isBoosted && a.boostExpiresAtMs !== b.boostExpiresAtMs) {
+        return b.boostExpiresAtMs - a.boostExpiresAtMs;
+      }
+
+      if (a.profile.isVerified !== b.profile.isVerified) {
+        return a.profile.isVerified ? -1 : 1;
+      }
+
+      if (a.lastActiveMs !== b.lastActiveMs) {
+        return b.lastActiveMs - a.lastActiveMs;
+      }
+
+      return 0;
+    });
+
+    return rankedCandidates.slice(0, pageSize).map((candidate) => candidate.profile);
   }
 
   /**
@@ -392,6 +617,7 @@ class MatchService {
    */
   async getWeeklyPicks(userId: string): Promise<WeeklyPick[]> {
     const db = getFirebaseDb();
+    const blockedUserIds = await this.getDiscoveryBlockedUserIds(userId);
 
     // Get users already swiped
     const swipesQuery = query(
@@ -402,6 +628,9 @@ class MatchService {
     const swipedUserIds = new Set(
       swipesSnapshot.docs.map((doc) => doc.data().swipedUserId as string)
     );
+    for (const blockedId of blockedUserIds) {
+      swipedUserIds.add(blockedId);
+    }
     swipedUserIds.add(userId); // Exclude self
 
     // Get current user's profile for matching interests
@@ -509,6 +738,11 @@ class MatchService {
     });
   }
 
+  private getBoostExpiresAtMillis(data: Record<string, unknown>): number {
+    const boost = (data.boost as Record<string, unknown> | undefined) ?? {};
+    return this.timestampToMillis(boost.expiresAt);
+  }
+
   /**
    * Map Firestore document to Match
    */
@@ -531,10 +765,44 @@ class MatchService {
     };
   }
 
+  private timestampToOptionalString(timestamp: unknown): string | undefined {
+    const ms = this.timestampToMillis(timestamp);
+    if (!ms) return undefined;
+    return new Date(ms).toISOString();
+  }
+
+  private timestampToMillis(timestamp: unknown): number {
+    if (!timestamp) return 0;
+    if (timestamp instanceof Timestamp) {
+      return timestamp.toMillis();
+    }
+    if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+    if (typeof timestamp === 'string') {
+      const parsed = Date.parse(timestamp);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    }
+    if (
+      typeof timestamp === 'object' &&
+      timestamp !== null &&
+      'toDate' in timestamp &&
+      typeof (timestamp as { toDate?: unknown }).toDate === 'function'
+    ) {
+      const asDate = (timestamp as { toDate: () => Date }).toDate();
+      const ms = asDate.getTime();
+      return Number.isNaN(ms) ? 0 : ms;
+    }
+    return 0;
+  }
+
   private timestampToString(timestamp: unknown): string {
     if (!timestamp) return new Date().toISOString();
     if (timestamp instanceof Timestamp) {
       return timestamp.toDate().toISOString();
+    }
+    if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
+      return new Date(timestamp).toISOString();
     }
     if (typeof timestamp === 'string') return timestamp;
     return new Date().toISOString();

@@ -76,9 +76,10 @@ export default defineConfig({
 
   // Run your local dev server before starting the tests
   webServer: {
-    command: 'pnpm dev',
+    // Use webpack dev server for E2E stability (Turbopack has intermittent panics in CI/local runs).
+    command: 'NEXT_PUBLIC_E2E_AUTH_BYPASS=1 pnpm exec next dev --webpack --port 3000',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
+    timeout: 180 * 1000,
   },
 });

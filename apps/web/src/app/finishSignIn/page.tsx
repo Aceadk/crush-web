@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Heart, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
 export default function FinishSignInPage() {
   const router = useRouter();
@@ -15,6 +16,9 @@ export default function FinishSignInPage() {
       try {
         const { getAuth, isSignInWithEmailLink, signInWithEmailLink } = await import('firebase/auth');
         const auth = getAuth();
+        const redirectPath = sanitizeRedirectPath(
+          new URL(window.location.href).searchParams.get('redirect')
+        );
 
         if (isSignInWithEmailLink(auth, window.location.href)) {
           let email = window.localStorage.getItem('emailForSignIn');
@@ -29,14 +33,14 @@ export default function FinishSignInPage() {
           await signInWithEmailLink(auth, email, window.location.href);
           window.localStorage.removeItem('emailForSignIn');
           setStatus('success');
-          setTimeout(() => router.push('/discover'), 1500);
+          setTimeout(() => router.push(redirectPath), 1500);
         } else {
           setStatus('error');
           setErrorMessage('Invalid sign-in link. Please request a new one.');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setStatus('error');
-        setErrorMessage(err?.message || 'Failed to complete sign-in.');
+        setErrorMessage(err instanceof Error ? err.message : 'Failed to complete sign-in.');
       }
     }
     completeSignIn();

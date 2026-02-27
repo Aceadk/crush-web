@@ -5,14 +5,21 @@ import {
   getDownloadURL,
   deleteObject,
   listAll,
-  UploadTask,
 } from 'firebase/storage';
 import { getFirebaseStorage } from '../firebase/config';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_AUDIO_SIZE = 5 * 1024 * 1024; // 5MB for voice notes
+const MAX_STORY_IMAGE_SIZE = 15 * 1024 * 1024; // 15MB
+const MAX_STORY_VIDEO_SIZE = 25 * 1024 * 1024; // 25MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 const ALLOWED_AUDIO_TYPES = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/wav'];
+const ALLOWED_STORY_VIDEO_TYPES = [
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-m4v',
+];
 
 export interface UploadProgress {
   progress: number;
@@ -34,6 +41,28 @@ class StorageService {
     const storage = getFirebaseStorage();
     const fileName = `${Date.now()}_${file.name}`;
     const storageRef = ref(storage, `users/${userId}/photos/${fileName}`);
+
+    if (onProgress) {
+      return this.uploadWithProgress(storageRef, file, onProgress);
+    }
+
+    await uploadBytes(storageRef, file);
+    return getDownloadURL(storageRef);
+  }
+
+  /**
+   * Upload story media (photo or short video)
+   */
+  async uploadStoryMedia(
+    userId: string,
+    file: File,
+    onProgress?: (progress: UploadProgress) => void
+  ): Promise<string> {
+    this.validateStoryFile(file);
+
+    const storage = getFirebaseStorage();
+    const fileName = `${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, `users/${userId}/stories/${fileName}`);
 
     if (onProgress) {
       return this.uploadWithProgress(storageRef, file, onProgress);
@@ -81,6 +110,12 @@ class StorageService {
     // Validate audio size
     if (audioBlob.size > MAX_AUDIO_SIZE) {
       throw new Error(`Voice note exceeds ${MAX_AUDIO_SIZE / 1024 / 1024}MB limit`);
+    }
+
+    if (audioBlob.type && !ALLOWED_AUDIO_TYPES.includes(audioBlob.type)) {
+      throw new Error(
+        `Audio type ${audioBlob.type} is not allowed. Allowed types: ${ALLOWED_AUDIO_TYPES.join(', ')}`
+      );
     }
 
     const storage = getFirebaseStorage();
@@ -227,6 +262,33 @@ class StorageService {
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       throw new Error(`File type ${file.type} is not allowed. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}`);
     }
+  }
+
+  /**
+   * Validate story media file before upload
+   */
+  private validateStoryFile(file: File): void {
+    if (ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      if (file.size > MAX_STORY_IMAGE_SIZE) {
+        throw new Error(
+          `Story image exceeds ${MAX_STORY_IMAGE_SIZE / 1024 / 1024}MB limit`
+        );
+      }
+      return;
+    }
+
+    if (ALLOWED_STORY_VIDEO_TYPES.includes(file.type)) {
+      if (file.size > MAX_STORY_VIDEO_SIZE) {
+        throw new Error(
+          `Story video exceeds ${MAX_STORY_VIDEO_SIZE / 1024 / 1024}MB limit`
+        );
+      }
+      return;
+    }
+
+    throw new Error(
+      `Unsupported story media type ${file.type}. Use an image or MP4/WebM video.`
+    );
   }
 }
 

@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore, matchService, MessageRequest } from '@crush/core';
 import { Card, Avatar, AvatarImage, AvatarFallback, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
+import { PlusFeatureGate } from '@/features/premium';
 import {
   ArrowLeft,
   MessageSquare,
   Heart,
   X,
   Star,
-  Sparkles,
   Lock,
   Crown,
   Loader2,
@@ -106,33 +106,22 @@ export default function MessageRequestsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6">
-        {/* Premium gate */}
-        {!isPremium && (
-          <Card className="overflow-hidden mb-6">
-            <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0">
-                  <Crown className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                    Unlock Message Requests
-                  </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    See messages from people who liked you before you match. Upgrade to Premium to
-                    read and respond to message requests.
-                  </p>
-                  <Link href="/premium">
-                    <button className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-medium hover:from-amber-600 hover:to-orange-600 transition-colors flex items-center gap-2">
-                      <Sparkles className="w-4 h-4" />
-                      Upgrade to Premium
-                    </button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
+        <PlusFeatureGate
+          isPremium={isPremium}
+          featureKey="message_requests"
+          title="Unlock Message Requests"
+          description="See messages from people who liked you before you match. Upgrade to read and respond instantly."
+          ctaLabel="Upgrade to Premium"
+          className="mb-6"
+          variant="amber"
+          modalTitle="Message Requests is a Premium feature"
+          modalDescription="Unlock incoming message previews so you can decide who to match with faster."
+          modalBenefits={[
+            'Read full message request previews',
+            'Respond before matching to speed up conversations',
+            'See sender identity and profile details',
+          ]}
+        />
 
         {/* Loading state */}
         {loading && (
@@ -156,7 +145,7 @@ export default function MessageRequestsPage() {
         {!loading && requests.length === 0 && (
           <div className="text-center py-16">
             <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-              <MessageSquare className="w-10 h-10 text-gray-400" />
+              <MessageSquare className="w-10 h-10 text-gray-500" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
               No message requests

@@ -26,7 +26,7 @@
     --accent-foreground: 340 82% 43%;
 
     /* CRUSH Brand Colors */
-    --primary: 340 82% 63%;
+    --primary: 340 82% 46%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 255 100% 65%;
@@ -47,7 +47,7 @@
     /* UI Elements */
     --border: 240 6% 90%;
     --input: 240 6% 90%;
-    --ring: 340 82% 63%;
+    --ring: 340 82% 46%;
 
     /* Sidebar */
     --sidebar: 0 0% 98%;
@@ -57,7 +57,7 @@
     --sidebar-border: 240 6% 90%;
 
     /* Chart Colors */
-    --chart-1: 340 82% 63%;
+    --chart-1: 340 82% 46%;
     --chart-2: 255 100% 65%;
     --chart-3: 142 71% 45%;
     --chart-4: 38 92% 50%;
@@ -102,7 +102,7 @@
     --accent-foreground: 340 82% 75%;
 
     /* CRUSH Brand Colors (same in dark) */
-    --primary: 340 82% 63%;
+    --primary: 340 82% 46%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 255 100% 65%;
@@ -123,7 +123,7 @@
     /* UI Elements */
     --border: 240 4% 16%;
     --input: 240 4% 16%;
-    --ring: 340 82% 63%;
+    --ring: 340 82% 46%;
 
     /* Sidebar */
     --sidebar: 240 6% 8%;

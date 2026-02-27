@@ -11,7 +11,7 @@ import {
   Button,
 } from '@crush/ui';
 import { DiscoveryFilters, DEFAULT_DISCOVERY_FILTERS } from '@crush/core';
-import { MapPin, Users, Shield, Image } from 'lucide-react';
+import { MapPin, Users, Shield, Image as ImageIcon, Sparkles } from 'lucide-react';
 
 interface FilterDialogProps {
   open: boolean;
@@ -23,7 +23,32 @@ interface FilterDialogProps {
 const GENDER_OPTIONS = [
   { value: 'male', label: 'Men' },
   { value: 'female', label: 'Women' },
-  { value: 'non-binary', label: 'Non-binary' },
+  { value: 'non_binary', label: 'Non-binary' },
+  { value: 'other', label: 'Other' },
+];
+
+const INTEREST_OPTIONS = [
+  'Travel',
+  'Music',
+  'Movies',
+  'Reading',
+  'Cooking',
+  'Fitness',
+  'Gaming',
+  'Photography',
+  'Art',
+  'Dancing',
+  'Hiking',
+  'Yoga',
+  'Coffee',
+  'Food',
+  'Fashion',
+  'Tech',
+  'Sports',
+  'Pets',
+  'Nature',
+  'Meditation',
+  'Writing',
 ];
 
 export function FilterDialog({
@@ -54,6 +79,17 @@ export function FilterDialog({
       ? currentGenders.filter((g) => g !== gender)
       : [...currentGenders, gender];
     setLocalFilters({ ...localFilters, genders: newGenders });
+  };
+
+  const toggleInterest = (interest: string) => {
+    const currentInterests = localFilters.interests || [];
+    const newInterests = currentInterests.includes(interest)
+      ? currentInterests.filter((item) => item !== interest)
+      : [...currentInterests, interest];
+    setLocalFilters({
+      ...localFilters,
+      interests: newInterests.length > 0 ? newInterests : undefined,
+    });
   };
 
   return (
@@ -167,6 +203,49 @@ export function FilterDialog({
             </div>
           </div>
 
+          {/* Shared Interests */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-muted-foreground" />
+                Shared Interests
+              </label>
+              {(localFilters.interests?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setLocalFilters({
+                      ...localFilters,
+                      interests: undefined,
+                    })
+                  }
+                  className="text-xs text-primary hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Show profiles with at least one selected shared interest.
+            </p>
+            <div className="max-h-32 overflow-y-auto pr-1 flex flex-wrap gap-2">
+              {INTEREST_OPTIONS.map((interest) => (
+                <button
+                  key={interest}
+                  type="button"
+                  onClick={() => toggleInterest(interest)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    localFilters.interests?.includes(interest)
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }`}
+                >
+                  {interest}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Additional Filters */}
           <div className="space-y-3">
             <label className="text-sm font-medium">Additional Filters</label>
@@ -183,7 +262,7 @@ export function FilterDialog({
                   }
                   className="w-5 h-5 rounded accent-primary"
                 />
-                <Image className="w-4 h-4 text-muted-foreground" />
+                <ImageIcon className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm">Only show profiles with photos</span>
               </label>
               <label className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors">
