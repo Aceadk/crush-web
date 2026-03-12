@@ -1,133 +1,88 @@
 // Firebase
 export {
-  getFirebaseAuth,
-  getFirebaseDb,
-  getFirebaseStorage,
-  firebaseConfig,
+    firebaseConfig, getFirebaseAuth,
+    getFirebaseDb,
+    getFirebaseStorage
 } from './firebase/config';
 
 // Types
-export type {
-  UserProfile,
-  Gender,
-  SexualOrientation,
-  GeoLocation,
-  UserPrompt,
-  UserSettings,
-  NotificationSettings,
-  UserStats,
-} from './types/user';
 export { DEFAULT_USER_SETTINGS, calculateAge } from './types/user';
-
 export type {
-  Match,
-  MatchStatus,
-  SwipeAction,
-  DiscoveryProfile,
-  DiscoveryFilters,
-  ReceivedLike,
-  MessageRequest,
-  WeeklyPick,
-} from './types/match';
+    Gender, GeoLocation, NotificationSettings, SexualOrientation, UserProfile, UserPrompt,
+    UserSettings, UserStats
+} from './types/user';
+
 export { DEFAULT_DISCOVERY_FILTERS } from './types/match';
-
 export type {
-  Message,
-  MessageType,
-  MessageStatus,
-  MessageMetadata,
-  MessageReaction,
-  MessageReactionType,
-  Conversation,
-  TypingIndicator,
-  ReadReceipt,
-} from './types/message';
+    DiscoveryFilters, DiscoveryProfile, Match,
+    MatchStatus, MessageRequest, ReceivedLike, SwipeAction, WeeklyPick
+} from './types/match';
+
 export { MESSAGES_PER_PAGE } from './types/message';
-
 export type {
-  StreakData,
-  LikeLimitInfo,
-  StreakInfo,
-  StreakMilestone,
-} from './types/streak';
+    Conversation, Message, MessageMetadata,
+    MessageReaction,
+    MessageReactionType, MessageStatus, MessageType, ReadReceipt, TypingIndicator
+} from './types/message';
+
 export {
-  STREAK_MILESTONES,
-  BASE_DAILY_LIKES,
-  MAX_DAILY_LIKES,
-  LIKES_RESET_HOURS,
-  calculateStreakBonus,
-  calculateTotalAllowedLikes,
-  getCurrentMilestone,
-  getNextMilestone,
-  DEFAULT_STREAK_DATA,
+    BASE_DAILY_LIKES, DEFAULT_STREAK_DATA, LIKES_RESET_HOURS, MAX_DAILY_LIKES, STREAK_MILESTONES, calculateStreakBonus,
+    calculateTotalAllowedLikes,
+    getCurrentMilestone,
+    getNextMilestone
 } from './types/streak';
+export type { LikeLimitInfo, StreakData, StreakInfo, StreakMilestone } from './types/streak';
+
+export { getBoostActiveRemainingMs, getBoostCooldownRemainingMs } from './types/boost';
+export type { BoostStatus, BoostUnavailableReason } from './types/boost';
 
 export type {
-  BoostUnavailableReason,
-  BoostStatus,
-} from './types/boost';
-export {
-  getBoostActiveRemainingMs,
-  getBoostCooldownRemainingMs,
-} from './types/boost';
-
-export type {
-  PromoCode,
-  PromoCodeRedemption,
-  PromoCodeValidationResult,
-  ApplyPromoResult,
+    ApplyPromoResult, PromoCode,
+    PromoCodeRedemption,
+    PromoCodeValidationResult
 } from './types/promo';
 
-export type {
-  ProfileStory,
-  StoryMediaType,
-} from './types/story';
 export {
-  STORY_DEFAULT_DURATION_HOURS,
-  STORY_PHOTO_DURATION_MS,
-  STORY_MAX_VIDEO_DURATION_SECONDS,
-  STORY_MAX_STORIES_PER_USER,
-  getStoryExpirationMs,
-  isStoryActive,
-  getStoryRemainingMs,
-  sortStoriesByNewest,
-  filterActiveStories,
+    STORY_DEFAULT_DURATION_HOURS, STORY_MAX_STORIES_PER_USER, STORY_MAX_VIDEO_DURATION_SECONDS, STORY_PHOTO_DURATION_MS, filterActiveStories, getStoryExpirationMs, getStoryRemainingMs, isStoryActive, sortStoriesByNewest
 } from './types/story';
+export type { ProfileStory, StoryMediaType } from './types/story';
 
 // Services
 export { authService } from './services/auth';
 export type { AuthState } from './services/auth';
 
-export { userService } from './services/user';
 export { matchService } from './services/match';
 export { messageService } from './services/message';
 export { storageService } from './services/storage';
 export type { UploadProgress } from './services/storage';
+export { userService } from './services/user';
 
 export { locationService } from './services/location';
 export type {
-  LocationCoordinates,
-  LocationDetails,
-  LocationPermissionStatus,
-  LocationError,
+    LocationCoordinates,
+    LocationDetails, LocationError, LocationPermissionStatus
 } from './services/location';
 
-export { streakService } from './services/streak';
 export { boostService } from './services/boost';
-export { storyService } from './services/story';
-export { promoCodeService } from './services/promo';
 export { deviceSecurityService } from './services/device-security';
-export type {
-  TrustedDevice,
-  DeviceTrustResult,
-} from './services/device-security';
+export type { DeviceTrustResult, TrustedDevice } from './services/device-security';
+export { promoCodeService } from './services/promo';
+export { storyService } from './services/story';
+export { streakService } from './services/streak';
 
 // Stores
 export { useAuthStore } from './stores/auth';
+export { useBoostStore } from './stores/boost';
 export { useMatchStore } from './stores/match';
 export { useMessageStore } from './stores/message';
-export { useUIStore } from './stores/ui';
-export { useStreakStore } from './stores/streak';
-export { useBoostStore } from './stores/boost';
-export { useStoryStore } from './stores/story';
 export { usePromoCodeStore } from './stores/promo';
+export { useStoryStore } from './stores/story';
+export { useStreakStore } from './stores/streak';
+export { useUIStore } from './stores/ui';
+
+// Config
+export { BILLING_CONFIG } from './config/billing';
+export type {
+    BillingFeature, BillingPeriod, BillingPlanConfig, SubscriptionTier
+} from './config/billing';
+

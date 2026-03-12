@@ -1,16 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { verifyCsrf } from '@/shared/lib/csrf';
 import { checkRateLimit, getRateLimitKey } from '@/shared/lib/rate-limit';
+import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
 });
 
 const PRICE_IDS: Record<string, string> = {
-  monthly: process.env.STRIPE_MONTHLY_PRICE_ID || 'price_monthly',
-  quarterly: process.env.STRIPE_QUARTERLY_PRICE_ID || 'price_quarterly',
-  yearly: process.env.STRIPE_YEARLY_PRICE_ID || 'price_yearly',
+  plus_monthly: process.env.STRIPE_PLUS_MONTHLY_PRICE_ID || 'price_plus_monthly',
+  plus_quarterly: process.env.STRIPE_PLUS_QUARTERLY_PRICE_ID || 'price_plus_quarterly',
+  plus_yearly: process.env.STRIPE_PLUS_YEARLY_PRICE_ID || 'price_plus_yearly',
+  platinum_monthly: process.env.STRIPE_PLATINUM_MONTHLY_PRICE_ID || 'price_platinum_monthly',
+  platinum_quarterly: process.env.STRIPE_PLATINUM_QUARTERLY_PRICE_ID || 'price_platinum_quarterly',
+  platinum_yearly: process.env.STRIPE_PLATINUM_YEARLY_PRICE_ID || 'price_platinum_yearly',
 };
 
 export async function POST(request: NextRequest) {
@@ -18,10 +21,7 @@ export async function POST(request: NextRequest) {
     // CSRF protection — verify request origin
     const csrfError = verifyCsrf(request);
     if (csrfError) {
-      return NextResponse.json(
-        { error: csrfError },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: csrfError }, { status: 403 });
     }
 
     // Rate limiting — 10 checkout attempts per 15 minutes per IP
@@ -42,28 +42,20 @@ export async function POST(request: NextRequest) {
     // Verify auth token exists (middleware guards the route, but double-check here)
     const authToken = request.cookies.get('auth-token')?.value;
     if (!authToken) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { planId, userId, userEmail } = body;
+    const { tier, period, userId, userEmail } = body;
 
-    if (!planId || !userId) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+    if (!tier || !period || !userId) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const priceId = PRICE_IDS[planId];
+    const priceKey = `${tier}_${period}`;
+    const priceId = PRICE_IDS[priceKey];
     if (!priceId) {
-      return NextResponse.json(
-        { error: 'Invalid plan selected' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid tier or period selected' }, { status: 400 });
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -87,12 +79,14 @@ export async function POST(request: NextRequest) {
       cancel_url: `${baseUrl}/premium/cancel`,
       metadata: {
         userId,
-        planId,
+        tier,
+        period,
       },
       subscription_data: {
         metadata: {
           userId,
-          planId,
+          tier,
+          period,
         },
       },
     };
@@ -104,9 +98,6 @@ export async function POST(request: NextRequest) {
     if (process.env.NODE_ENV === 'development') {
       console.error('Error creating checkout session:', error);
     }
-    return NextResponse.json(
-      { error: 'Failed to create checkout session' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 });
   }
 }

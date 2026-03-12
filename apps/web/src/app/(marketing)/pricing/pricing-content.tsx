@@ -1,159 +1,78 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import {
-  Heart,
-  Check,
-  X,
-  ArrowRight,
-  Star,
-  Sparkles,
-  Eye,
-  Rewind,
-  Globe,
-  Zap,
-  Lock,
-  Flame,
-  MessageCircle,
-  Crown,
-  Shield
-} from 'lucide-react';
 import { ThemeToggle } from '@/shared/components/theme';
-
-type BillingPeriod = 'monthly' | 'quarterly' | 'yearly';
-
-const plans = {
-  free: {
-    name: 'Free',
-    description: 'Everything you need to get started',
-    monthlyPrice: 0,
-    quarterlyPrice: 0,
-    yearlyPrice: 0,
-    features: [
-      { name: 'Unlimited swipes', included: true },
-      { name: 'See your matches', included: true },
-      { name: 'Send messages', included: true },
-      { name: 'Basic discovery filters', included: true },
-      { name: 'Profile prompts', included: true },
-      { name: 'See who likes you', included: false },
-      { name: 'Unlimited rewinds', included: false },
-      { name: 'Super likes', included: false },
-      { name: 'Passport mode', included: false },
-      { name: 'Profile boost', included: false },
-      { name: 'Incognito mode', included: false },
-      { name: 'Read receipts', included: false },
-      { name: 'Priority support', included: false },
-    ],
-  },
-  plus: {
-    name: 'Crush+',
-    description: 'Unlock premium features',
-    monthlyPrice: 9.99,
-    quarterlyPrice: 24.99,
-    yearlyPrice: 79.99,
-    features: [
-      { name: 'Unlimited swipes', included: true },
-      { name: 'See your matches', included: true },
-      { name: 'Send messages', included: true },
-      { name: 'Basic discovery filters', included: true },
-      { name: 'Profile prompts', included: true },
-      { name: 'See who likes you', included: true },
-      { name: 'Unlimited rewinds', included: true },
-      { name: '5 Super likes/day', included: true },
-      { name: 'Passport mode', included: true },
-      { name: '1 Boost/month', included: true },
-      { name: 'Incognito mode', included: false },
-      { name: 'Read receipts', included: false },
-      { name: 'Priority support', included: false },
-    ],
-    popular: true,
-  },
-  platinum: {
-    name: 'Crush Platinum',
-    description: 'The ultimate dating experience',
-    monthlyPrice: 19.99,
-    quarterlyPrice: 49.99,
-    yearlyPrice: 149.99,
-    features: [
-      { name: 'Unlimited swipes', included: true },
-      { name: 'See your matches', included: true },
-      { name: 'Send messages', included: true },
-      { name: 'Advanced discovery filters', included: true },
-      { name: 'Profile prompts', included: true },
-      { name: 'See who likes you', included: true },
-      { name: 'Unlimited rewinds', included: true },
-      { name: 'Unlimited Super likes', included: true },
-      { name: 'Passport mode', included: true },
-      { name: '5 Boosts/month', included: true },
-      { name: 'Incognito mode', included: true },
-      { name: 'Read receipts', included: true },
-      { name: 'Priority support', included: true },
-    ],
-  },
-};
+import { BILLING_CONFIG, BillingPeriod, BillingPlanConfig } from '@crush/core';
+import {
+    ArrowRight,
+    Check,
+    Crown,
+    Eye,
+    Globe,
+    Heart,
+    Shield,
+    Sparkles,
+    Star,
+    X,
+    Zap,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useState } from 'react';
 
 export function PricingContent() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
 
-  const getPrice = (plan: typeof plans.free | typeof plans.plus | typeof plans.platinum) => {
-    switch (billingPeriod) {
-      case 'quarterly':
-        return plan.quarterlyPrice;
-      case 'yearly':
-        return plan.yearlyPrice;
-      default:
-        return plan.monthlyPrice;
-    }
-  };
+  const freePlan = BILLING_CONFIG.plans.find((p) => p.tier === 'free')!;
+  const plusPlan = BILLING_CONFIG.plans.find((p) => p.tier === 'plus')!;
+  const platinumPlan = BILLING_CONFIG.plans.find((p) => p.tier === 'platinum')!;
 
-  const getMonthlyEquivalent = (plan: typeof plans.free | typeof plans.plus | typeof plans.platinum) => {
-    switch (billingPeriod) {
-      case 'quarterly':
-        return (plan.quarterlyPrice / 3).toFixed(2);
-      case 'yearly':
-        return (plan.yearlyPrice / 12).toFixed(2);
-      default:
-        return plan.monthlyPrice.toFixed(2);
-    }
-  };
-
-  const getSavings = (plan: typeof plans.free | typeof plans.plus | typeof plans.platinum) => {
-    if (plan.monthlyPrice === 0) return 0;
-    const monthlyTotal = plan.monthlyPrice * (billingPeriod === 'yearly' ? 12 : billingPeriod === 'quarterly' ? 3 : 1);
-    const discountedPrice = getPrice(plan);
-    return Math.round((1 - discountedPrice / monthlyTotal) * 100);
-  };
+  const getPrice = (plan: BillingPlanConfig) =>
+    BILLING_CONFIG.getPriceForPeriod(plan, billingPeriod);
+  const getMonthlyEquivalent = (plan: BillingPlanConfig) =>
+    BILLING_CONFIG.getMonthlyEquivalent(plan, billingPeriod).toFixed(2);
+  const getSavings = (plan: BillingPlanConfig) =>
+    BILLING_CONFIG.getSavingsPercentage(plan, billingPeriod);
 
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
+      <nav className="glass fixed left-0 right-0 top-0 z-50 border-b border-border/50">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-14 items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
-              <Heart className="w-6 h-6 text-primary fill-primary" />
-              <span className="text-lg font-semibold text-gradient">Crush</span>
+              <Heart className="h-6 w-6 fill-primary text-primary" />
+              <span className="text-gradient text-lg font-semibold">Crush</span>
             </Link>
 
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <div className="hidden items-center gap-6 md:flex">
+              <Link
+                href="/features"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
                 Features
               </Link>
-              <Link href="/pricing" className="text-sm text-foreground font-medium">
+              <Link href="/pricing" className="text-sm font-medium text-foreground">
                 Pricing
               </Link>
-              <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Link
+                href="/about"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
                 About
               </Link>
-              <Link href="/safety" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Link
+                href="/safety"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
                 Safety
               </Link>
             </div>
 
             <div className="flex items-center gap-3">
               <ThemeToggle />
-              <Link href="/auth/login" className="hidden sm:inline-flex text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <Link
+                href="/auth/login"
+                className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+              >
                 Log in
               </Link>
               <Link href="/auth/signup" className="btn-primary text-sm">
@@ -165,28 +84,27 @@ export function PricingContent() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-28 pb-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent text-accent-foreground text-xs font-medium mb-6">
-              <Sparkles className="w-3.5 h-3.5" />
+      <section className="px-4 pb-12 pt-28 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground">
+              <Sparkles className="h-3.5 w-3.5" />
               <span>Simple, transparent pricing</span>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight mb-4">
-              Choose Your{' '}
-              <span className="text-gradient">Perfect Plan</span>
+            <h1 className="mb-4 text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">
+              Choose Your <span className="text-gradient">Perfect Plan</span>
             </h1>
 
-            <p className="text-base sm:text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+            <p className="mx-auto mb-8 max-w-2xl text-base text-muted-foreground sm:text-lg">
               Start for free, upgrade when you're ready. No hidden fees, cancel anytime.
             </p>
 
             {/* Billing Toggle */}
-            <div className="inline-flex items-center p-1 rounded-full bg-muted">
+            <div className="inline-flex items-center rounded-full bg-muted p-1">
               <button
                 onClick={() => setBillingPeriod('monthly')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   billingPeriod === 'monthly'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -196,7 +114,7 @@ export function PricingContent() {
               </button>
               <button
                 onClick={() => setBillingPeriod('quarterly')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   billingPeriod === 'quarterly'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
@@ -206,14 +124,14 @@ export function PricingContent() {
               </button>
               <button
                 onClick={() => setBillingPeriod('yearly')}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors relative ${
+                className={`relative rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   billingPeriod === 'yearly'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 Yearly
-                <span className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-success text-success-foreground text-[10px] font-semibold">
+                <span className="absolute -right-2 -top-2 rounded-full bg-success px-1.5 py-0.5 text-[10px] font-semibold text-success-foreground">
                   -33%
                 </span>
               </button>
@@ -223,48 +141,48 @@ export function PricingContent() {
       </section>
 
       {/* Pricing Cards */}
-      <section className="pb-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-6">
+      <section className="px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-6 md:grid-cols-3">
             {/* Free Plan */}
             <PricingCard
-              plan={plans.free}
-              price={getPrice(plans.free)}
-              monthlyEquivalent={getMonthlyEquivalent(plans.free)}
+              plan={freePlan}
+              price={getPrice(freePlan)}
+              monthlyEquivalent={getMonthlyEquivalent(freePlan)}
               billingPeriod={billingPeriod}
-              savings={getSavings(plans.free)}
+              savings={getSavings(freePlan)}
             />
 
             {/* Plus Plan */}
             <PricingCard
-              plan={plans.plus}
-              price={getPrice(plans.plus)}
-              monthlyEquivalent={getMonthlyEquivalent(plans.plus)}
+              plan={plusPlan}
+              price={getPrice(plusPlan)}
+              monthlyEquivalent={getMonthlyEquivalent(plusPlan)}
               billingPeriod={billingPeriod}
-              savings={getSavings(plans.plus)}
-              popular
+              savings={getSavings(plusPlan)}
+              popular={plusPlan.popular}
             />
 
             {/* Platinum Plan */}
             <PricingCard
-              plan={plans.platinum}
-              price={getPrice(plans.platinum)}
-              monthlyEquivalent={getMonthlyEquivalent(plans.platinum)}
+              plan={platinumPlan}
+              price={getPrice(platinumPlan)}
+              monthlyEquivalent={getMonthlyEquivalent(platinumPlan)}
               billingPeriod={billingPeriod}
-              savings={getSavings(plans.platinum)}
+              savings={getSavings(platinumPlan)}
             />
           </div>
         </div>
       </section>
 
       {/* Feature Comparison Table */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-muted/30">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3">
+      <section className="bg-muted/30 px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-12 text-center">
+            <h2 className="mb-3 text-2xl font-semibold tracking-tight sm:text-3xl">
               Compare All <span className="text-gradient">Features</span>
             </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
+            <p className="mx-auto max-w-xl text-muted-foreground">
               See exactly what you get with each plan
             </p>
           </div>
@@ -273,41 +191,26 @@ export function PricingContent() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-4 px-4 font-semibold">Feature</th>
-                  <th className="text-center py-4 px-4 font-semibold">Free</th>
-                  <th className="text-center py-4 px-4 font-semibold">
+                  <th className="px-4 py-4 text-left font-semibold">Feature</th>
+                  <th className="px-4 py-4 text-center font-semibold">Free</th>
+                  <th className="px-4 py-4 text-center font-semibold">
                     <div className="flex items-center justify-center gap-1">
                       Crush+
-                      <Star className="w-4 h-4 text-primary fill-primary" />
+                      <Star className="h-4 w-4 fill-primary text-primary" />
                     </div>
                   </th>
-                  <th className="text-center py-4 px-4 font-semibold">
+                  <th className="px-4 py-4 text-center font-semibold">
                     <div className="flex items-center justify-center gap-1">
                       Platinum
-                      <Crown className="w-4 h-4 text-warning" />
+                      <Crown className="h-4 w-4 text-warning" />
                     </div>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                <ComparisonRow
-                  feature="Unlimited swipes"
-                  free={true}
-                  plus={true}
-                  platinum={true}
-                />
-                <ComparisonRow
-                  feature="See your matches"
-                  free={true}
-                  plus={true}
-                  platinum={true}
-                />
-                <ComparisonRow
-                  feature="Send messages"
-                  free={true}
-                  plus={true}
-                  platinum={true}
-                />
+                <ComparisonRow feature="Unlimited swipes" free={true} plus={true} platinum={true} />
+                <ComparisonRow feature="See your matches" free={true} plus={true} platinum={true} />
+                <ComparisonRow feature="Send messages" free={true} plus={true} platinum={true} />
                 <ComparisonRow
                   feature="Discovery filters"
                   free="Basic"
@@ -332,30 +235,15 @@ export function PricingContent() {
                   plus="5/day"
                   platinum="Unlimited"
                 />
-                <ComparisonRow
-                  feature="Passport mode"
-                  free={false}
-                  plus={true}
-                  platinum={true}
-                />
+                <ComparisonRow feature="Passport mode" free={false} plus={true} platinum={true} />
                 <ComparisonRow
                   feature="Profile boosts"
                   free={false}
                   plus="1/month"
                   platinum="5/month"
                 />
-                <ComparisonRow
-                  feature="Incognito mode"
-                  free={false}
-                  plus={false}
-                  platinum={true}
-                />
-                <ComparisonRow
-                  feature="Read receipts"
-                  free={false}
-                  plus={false}
-                  platinum={true}
-                />
+                <ComparisonRow feature="Incognito mode" free={false} plus={false} platinum={true} />
+                <ComparisonRow feature="Read receipts" free={false} plus={false} platinum={true} />
                 <ComparisonRow
                   feature="Priority support"
                   free={false}
@@ -369,35 +257,35 @@ export function PricingContent() {
       </section>
 
       {/* Premium Benefits */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3">
+      <section className="px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12 text-center">
+            <h2 className="mb-3 text-2xl font-semibold tracking-tight sm:text-3xl">
               Why Go <span className="text-gradient">Premium</span>?
             </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
+            <p className="mx-auto max-w-xl text-muted-foreground">
               Premium members get more matches and find love faster
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <BenefitCard
-              icon={<Eye className="w-6 h-6" />}
+              icon={<Eye className="h-6 w-6" />}
               title="3x More Matches"
               description="See who likes you and match instantly instead of waiting"
             />
             <BenefitCard
-              icon={<Zap className="w-6 h-6" />}
+              icon={<Zap className="h-6 w-6" />}
               title="10x More Views"
               description="Boost your profile to the top and get seen by more people"
             />
             <BenefitCard
-              icon={<Globe className="w-6 h-6" />}
+              icon={<Globe className="h-6 w-6" />}
               title="Global Access"
               description="Match with people anywhere in the world with Passport"
             />
             <BenefitCard
-              icon={<Shield className="w-6 h-6" />}
+              icon={<Shield className="h-6 w-6" />}
               title="Full Control"
               description="Browse privately with Incognito mode and choose who sees you"
             />
@@ -406,10 +294,10 @@ export function PricingContent() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-muted/30">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3">
+      <section className="bg-muted/30 px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-12 text-center">
+            <h2 className="mb-3 text-2xl font-semibold tracking-tight sm:text-3xl">
               Frequently Asked <span className="text-gradient">Questions</span>
             </h2>
           </div>
@@ -441,41 +329,44 @@ export function PricingContent() {
             />
           </div>
 
-          <div className="text-center mt-8">
-            <Link href="/faq" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
+          <div className="mt-8 text-center">
+            <Link
+              href="/faq"
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            >
               View all FAQs
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto text-center">
+      <section className="px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
           <div className="rounded-2xl border border-border bg-card p-8 sm:p-12">
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3">
+            <h2 className="mb-3 text-2xl font-semibold tracking-tight sm:text-3xl">
               Ready to Find Your <span className="text-gradient">Match</span>?
             </h2>
-            <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
+            <p className="mx-auto mb-6 max-w-lg text-muted-foreground">
               Join millions of singles who have found love on Crush. Start free today.
             </p>
             <Link href="/auth/signup" className="btn-primary px-6 py-2.5">
               Create Free Account
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+      <footer className="border-t border-border px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 grid grid-cols-2 gap-8 md:grid-cols-4">
             <div>
-              <Link href="/" className="flex items-center gap-2 mb-4">
-                <Heart className="w-5 h-5 text-primary fill-primary" />
-                <span className="font-semibold text-gradient">Crush</span>
+              <Link href="/" className="mb-4 flex items-center gap-2">
+                <Heart className="h-5 w-5 fill-primary text-primary" />
+                <span className="text-gradient font-semibold">Crush</span>
               </Link>
               <p className="text-xs text-muted-foreground">
                 Find meaningful connections with people who share your interests.
@@ -483,34 +374,70 @@ export function PricingContent() {
             </div>
 
             <div>
-              <h4 className="text-sm font-medium mb-3">Product</h4>
+              <h4 className="mb-3 text-sm font-medium">Product</h4>
               <ul className="space-y-2 text-xs text-muted-foreground">
-                <li><Link href="/features" className="hover:text-foreground transition-colors">Features</Link></li>
-                <li><Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
-                <li><Link href="/#download" className="hover:text-foreground transition-colors">Download</Link></li>
+                <li>
+                  <Link href="/features" className="transition-colors hover:text-foreground">
+                    Features
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/pricing" className="transition-colors hover:text-foreground">
+                    Pricing
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/#download" className="transition-colors hover:text-foreground">
+                    Download
+                  </Link>
+                </li>
               </ul>
             </div>
 
             <div>
-              <h4 className="text-sm font-medium mb-3">Company</h4>
+              <h4 className="mb-3 text-sm font-medium">Company</h4>
               <ul className="space-y-2 text-xs text-muted-foreground">
-                <li><Link href="/about" className="hover:text-foreground transition-colors">About</Link></li>
-                <li><Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
-                <li><Link href="/faq" className="hover:text-foreground transition-colors">FAQ</Link></li>
+                <li>
+                  <Link href="/about" className="transition-colors hover:text-foreground">
+                    About
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact" className="transition-colors hover:text-foreground">
+                    Contact
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/faq" className="transition-colors hover:text-foreground">
+                    FAQ
+                  </Link>
+                </li>
               </ul>
             </div>
 
             <div>
-              <h4 className="text-sm font-medium mb-3">Legal</h4>
+              <h4 className="mb-3 text-sm font-medium">Legal</h4>
               <ul className="space-y-2 text-xs text-muted-foreground">
-                <li><Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
-                <li><Link href="/safety" className="hover:text-foreground transition-colors">Safety</Link></li>
+                <li>
+                  <Link href="/privacy" className="transition-colors hover:text-foreground">
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/terms" className="transition-colors hover:text-foreground">
+                    Terms of Service
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/safety" className="transition-colors hover:text-foreground">
+                    Safety
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>
 
-          <div className="border-t border-border pt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex flex-col items-center justify-between gap-4 border-t border-border pt-6 sm:flex-row">
             <p className="text-xs text-muted-foreground">
               &copy; {new Date().getFullYear()} Crush. All rights reserved.
             </p>
@@ -529,7 +456,7 @@ function PricingCard({
   savings,
   popular,
 }: {
-  plan: typeof plans.free;
+  plan: BillingPlanConfig;
   price: number;
   monthlyEquivalent: string;
   billingPeriod: BillingPeriod;
@@ -538,19 +465,19 @@ function PricingCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border bg-card p-6 relative ${
-        popular ? 'border-primary shadow-lg scale-105' : 'border-border'
+      className={`relative rounded-2xl border bg-card p-6 ${
+        popular ? 'scale-105 border-primary shadow-lg' : 'border-border'
       }`}
     >
       {popular && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
           Most Popular
         </div>
       )}
 
-      <div className="text-center mb-6">
-        <h3 className="text-lg font-semibold mb-1">{plan.name}</h3>
-        <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
+      <div className="mb-6 text-center">
+        <h3 className="mb-1 text-lg font-semibold">{plan.name}</h3>
+        <p className="mb-4 text-sm text-muted-foreground">{plan.description}</p>
 
         <div className="flex items-baseline justify-center gap-1">
           <span className="text-4xl font-bold">${price === 0 ? '0' : price.toFixed(2)}</span>
@@ -563,11 +490,9 @@ function PricingCard({
 
         {price > 0 && billingPeriod !== 'monthly' && (
           <div className="mt-2 space-y-1">
-            <p className="text-xs text-muted-foreground">
-              ${monthlyEquivalent}/month
-            </p>
+            <p className="text-xs text-muted-foreground">${monthlyEquivalent}/month</p>
             {savings > 0 && (
-              <span className="inline-block px-2 py-0.5 rounded-full bg-success/10 text-success text-xs font-medium">
+              <span className="inline-block rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
                 Save {savings}%
               </span>
             )}
@@ -575,13 +500,13 @@ function PricingCard({
         )}
       </div>
 
-      <ul className="space-y-3 mb-6">
+      <ul className="mb-6 space-y-3">
         {plan.features.slice(0, 8).map((feature, i) => (
           <li key={i} className="flex items-center gap-2.5 text-sm">
             {feature.included ? (
-              <Check className="w-4 h-4 text-success flex-shrink-0" />
+              <Check className="h-4 w-4 flex-shrink-0 text-success" />
             ) : (
-              <X className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
+              <X className="h-4 w-4 flex-shrink-0 text-muted-foreground/50" />
             )}
             <span className={feature.included ? '' : 'text-muted-foreground/50'}>
               {feature.name}
@@ -591,8 +516,8 @@ function PricingCard({
       </ul>
 
       <Link
-        href={price === 0 ? '/auth/signup' : `/auth/signup?plan=${plan.name.toLowerCase().replace(' ', '-')}`}
-        className={`block text-center w-full py-3 rounded-lg text-sm font-medium transition-colors ${
+        href={price === 0 ? '/auth/signup' : `/auth/signup?plan=${plan.tier}&source=marketing`}
+        className={`block w-full rounded-lg py-3 text-center text-sm font-medium transition-colors ${
           popular ? 'btn-primary' : 'btn-outline'
         }`}
       >
@@ -616,20 +541,20 @@ function ComparisonRow({
   const renderValue = (value: boolean | string) => {
     if (typeof value === 'boolean') {
       return value ? (
-        <Check className="w-5 h-5 text-success mx-auto" />
+        <Check className="mx-auto h-5 w-5 text-success" />
       ) : (
-        <X className="w-5 h-5 text-muted-foreground/30 mx-auto" />
+        <X className="mx-auto h-5 w-5 text-muted-foreground/30" />
       );
     }
     return <span className="text-sm">{value}</span>;
   };
 
   return (
-    <tr className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-      <td className="py-4 px-4 text-sm">{feature}</td>
-      <td className="py-4 px-4 text-center">{renderValue(free)}</td>
-      <td className="py-4 px-4 text-center bg-primary/5">{renderValue(plus)}</td>
-      <td className="py-4 px-4 text-center">{renderValue(platinum)}</td>
+    <tr className="border-b border-border/50 transition-colors hover:bg-muted/30">
+      <td className="px-4 py-4 text-sm">{feature}</td>
+      <td className="px-4 py-4 text-center">{renderValue(free)}</td>
+      <td className="bg-primary/5 px-4 py-4 text-center">{renderValue(plus)}</td>
+      <td className="px-4 py-4 text-center">{renderValue(platinum)}</td>
     </tr>
   );
 }
@@ -644,34 +569,28 @@ function BenefitCard({
   description: string;
 }) {
   return (
-    <div className="text-center p-6">
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary mb-4">
+    <div className="p-6 text-center">
+      <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
         {icon}
       </div>
-      <h3 className="font-semibold mb-2">{title}</h3>
+      <h3 className="mb-2 font-semibold">{title}</h3>
       <p className="text-sm text-muted-foreground">{description}</p>
     </div>
   );
 }
 
-function FAQItem({
-  question,
-  answer,
-}: {
-  question: string;
-  answer: string;
-}) {
+function FAQItem({ question, answer }: { question: string; answer: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <div className="rounded-lg border border-border bg-card">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-6 py-4 flex items-center justify-between text-left"
+        className="flex w-full items-center justify-between px-6 py-4 text-left"
       >
         <span className="font-medium">{question}</span>
         <svg
-          className={`w-5 h-5 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`h-5 w-5 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

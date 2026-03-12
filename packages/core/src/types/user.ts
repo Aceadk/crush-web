@@ -21,8 +21,10 @@ export interface UserProfile {
   prompts?: UserPrompt[];
   lifestyle?: LifestyleInfo;
   isVerified: boolean;
-  isPremium: boolean;
-  premiumPlan?: 'monthly' | 'quarterly' | 'yearly';
+  isPremium?: never; // Deprecated, use subscriptionTier
+  premiumPlan?: never; // Deprecated, use billingPeriod
+  subscriptionTier: 'free' | 'plus' | 'platinum';
+  billingPeriod?: 'monthly' | 'quarterly' | 'yearly';
   premiumExpiresAt?: string;
   premiumAutoRenew?: boolean;
   stripeCustomerId?: string;

@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
-import {
-  useAuthStore,
-  useUIStore,
-  useMatchStore,
-  useMessageStore,
-  type UserProfile,
-  type Match,
-  type Conversation,
-  type Message,
-} from '@crush/core';
 import { monitoring } from '@/lib/sentry';
+import {
+    useAuthStore,
+    useMatchStore,
+    useMessageStore,
+    useUIStore,
+    type Conversation,
+    type Match,
+    type Message,
+    type UserProfile,
+} from '@crush/core';
+import { useEffect, useState, type ReactNode } from 'react';
 
 type E2EScenario = 'onboarding' | 'discovery' | 'chat';
 
@@ -72,9 +72,7 @@ function seedMatchStoreForE2E(scenario: E2EScenario) {
     displayName: E2E_OTHER_USER_NAME,
     age: 29,
     bio: 'QA-powered profile used for deterministic end-to-end flow validation.',
-    photos: [
-      E2E_AVATAR_URL,
-    ],
+    photos: [E2E_AVATAR_URL],
     distance: 4,
     interests: ['Coffee', 'Hiking', 'Music'],
     isVerified: true,
@@ -267,13 +265,11 @@ export function AuthInitializer({ children }: AuthInitializerProps) {
           phoneNumber: payload.user.phoneNumber,
           displayName: payload.user.displayName || 'E2E Tester',
           bio: 'Deterministic E2E profile',
-          photos: [
-            E2E_AVATAR_URL,
-          ],
+          photos: [E2E_AVATAR_URL],
           profilePhotoUrl: E2E_AVATAR_URL,
           interests: ['Coffee', 'Travel', 'Music'],
           isVerified: true,
-          isPremium: false,
+          subscriptionTier: 'free',
           createdAt: now,
           updatedAt: now,
           hasAcceptedTerms: true,

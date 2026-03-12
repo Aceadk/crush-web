@@ -47,9 +47,15 @@ export type AnalyticsEvent =
   | { name: 'conversation_unpinned'; properties: { matchId: string } }
 
   // Premium
-  | { name: 'premium_page_viewed'; properties?: Record<string, never> }
-  | { name: 'subscription_started'; properties: { plan: string; price: number } }
-  | { name: 'subscription_cancelled'; properties: { plan: string; reason?: string } }
+  | { name: 'paywall_viewed'; properties: { source: string } }
+  | { name: 'checkout_started'; properties: { tier: string; price: number; currency: string } }
+  | {
+      name: 'subscription_purchased';
+      properties: { tier: string; price: number; currency: string };
+    }
+  | { name: 'subscription_cancelled'; properties: { tier: string; reason?: string } }
+  | { name: 'premium_feature_used'; properties: { feature: string } }
+  | { name: 'premium_feature_blocked'; properties: { feature: string } }
   | { name: 'boost_used'; properties?: Record<string, never> }
 
   // Streaks
@@ -84,7 +90,8 @@ export interface UserProperties {
   userId?: string;
   email?: string;
   isPremium?: boolean;
-  premiumPlan?: string;
+  subscriptionTier?: string;
+  billingPeriod?: string;
   profileComplete?: boolean;
   signupDate?: string;
   age?: number;

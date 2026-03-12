@@ -1,18 +1,18 @@
 import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  serverTimestamp,
-  Timestamp,
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    getDocs,
+    query,
+    serverTimestamp,
+    setDoc,
+    Timestamp,
+    updateDoc,
+    where,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
-import { UserProfile, UserSettings, DEFAULT_USER_SETTINGS, SexualOrientation } from '../types/user';
+import { DEFAULT_USER_SETTINGS, SexualOrientation, UserProfile, UserSettings } from '../types/user';
 
 const USERS_COLLECTION = 'users';
 
@@ -43,7 +43,7 @@ class UserService {
       displayName: data.displayName || '',
       photos: data.photos || [],
       isVerified: false,
-      isPremium: false,
+      subscriptionTier: 'free',
       createdAt: now,
       updatedAt: now,
       hasAcceptedTerms: false,
@@ -98,7 +98,10 @@ class UserService {
   /**
    * Update notification settings
    */
-  async updateNotificationSettings(userId: string, notificationSettings: Record<string, boolean>): Promise<void> {
+  async updateNotificationSettings(
+    userId: string,
+    notificationSettings: Record<string, boolean>
+  ): Promise<void> {
     const db = getFirebaseDb();
     const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
 
@@ -176,7 +179,10 @@ class UserService {
    * The Cloud Function handles cascading deletion of all user data
    * across Firestore, RTDB, Storage, and Auth after the grace period.
    */
-  async deleteAccount(userId: string, reason?: string): Promise<{
+  async deleteAccount(
+    userId: string,
+    reason?: string
+  ): Promise<{
     scheduledAt: string;
     gracePeriodDays: number;
     message: string;
@@ -188,7 +194,9 @@ class UserService {
       { success: boolean; scheduledAt: string; gracePeriodDays: number; message: string }
     >(functions, 'requestAccountDeletion');
 
-    const result = await requestDeletion({ reason: reason || 'User requested deletion from web app' });
+    const result = await requestDeletion({
+      reason: reason || 'User requested deletion from web app',
+    });
     return result.data;
   }
 
@@ -210,7 +218,9 @@ class UserService {
   /**
    * Get blocked users
    */
-  async getBlockedUsers(userId: string): Promise<{ id: string; name: string; photoUrl?: string; blockedAt: Date }[]> {
+  async getBlockedUsers(
+    userId: string
+  ): Promise<{ id: string; name: string; photoUrl?: string; blockedAt: Date }[]> {
     const db = getFirebaseDb();
     const blockedCollection = collection(db, USERS_COLLECTION, userId, 'blocked');
     const snapshot = await getDocs(blockedCollection);
@@ -334,12 +344,9 @@ class UserService {
     const profile = await this.getUserProfile(userId);
 
     // Get matches
-    const matchesQuery = query(
-      collection(db, 'matches'),
-      where('userId', '==', userId)
-    );
+    const matchesQuery = query(collection(db, 'matches'), where('userId', '==', userId));
     const matchesSnapshot = await getDocs(matchesQuery);
-    const matches = matchesSnapshot.docs.map(doc => ({
+    const matches = matchesSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -350,7 +357,7 @@ class UserService {
       where('participants', 'array-contains', userId)
     );
     const conversationsSnapshot = await getDocs(conversationsQuery);
-    const conversations = conversationsSnapshot.docs.map(doc => ({
+    const conversations = conversationsSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -393,7 +400,7 @@ class UserService {
       id,
       email: data.email as string | undefined,
       phoneNumber: data.phoneNumber as string | undefined,
-      displayName: data.displayName as string || '',
+      displayName: (data.displayName as string) || '',
       username: data.username as string | undefined,
       bio: data.bio as string | undefined,
       birthDate: data.birthDate as string | undefined,
@@ -406,9 +413,9 @@ class UserService {
       location: data.location as UserProfile['location'],
       interests: data.interests as string[] | undefined,
       prompts: data.prompts as UserProfile['prompts'],
-      isVerified: data.isVerified as boolean || false,
-      isPremium: data.isPremium as boolean || false,
-      premiumPlan: data.premiumPlan as UserProfile['premiumPlan'],
+      isVerified: (data.isVerified as boolean) || false,
+      subscriptionTier: (data.subscriptionTier as UserProfile['subscriptionTier']) || 'free',
+      billingPeriod: data.billingPeriod as UserProfile['billingPeriod'],
       premiumExpiresAt: data.premiumExpiresAt as string | undefined,
       premiumAutoRenew: data.premiumAutoRenew as boolean | undefined,
       stripeCustomerId: data.stripeCustomerId as string | undefined,
@@ -422,12 +429,12 @@ class UserService {
         ...((data.settings as UserSettings | undefined) ?? {}),
       },
       notificationSettings: data.notificationSettings as UserProfile['notificationSettings'],
-      hasAcceptedTerms: data.hasAcceptedTerms as boolean || false,
+      hasAcceptedTerms: (data.hasAcceptedTerms as boolean) || false,
       termsAcceptedAt: data.termsAcceptedAt as string | undefined,
-      onboardingComplete: data.onboardingComplete as boolean || false,
-      profileComplete: data.profileComplete as boolean || false,
-      isEmailVerified: data.isEmailVerified as boolean || false,
-      isPhoneVerified: data.isPhoneVerified as boolean || false,
+      onboardingComplete: (data.onboardingComplete as boolean) || false,
+      profileComplete: (data.profileComplete as boolean) || false,
+      isEmailVerified: (data.isEmailVerified as boolean) || false,
+      isPhoneVerified: (data.isPhoneVerified as boolean) || false,
       boost: {
         expiresAt: this.timestampToOptionalString(
           (data.boost as Record<string, unknown> | undefined)?.expiresAt
@@ -439,8 +446,9 @@ class UserService {
           (data.boost as Record<string, unknown> | undefined)?.lastActivatedAt
         ),
         totalActivations:
-          ((data.boost as Record<string, unknown> | undefined)
-            ?.totalActivations as number | undefined) ?? 0,
+          ((data.boost as Record<string, unknown> | undefined)?.totalActivations as
+            | number
+            | undefined) ?? 0,
       },
     };
   }
