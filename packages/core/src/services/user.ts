@@ -12,7 +12,12 @@ import {
     where,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
-import { DEFAULT_USER_SETTINGS, SexualOrientation, UserProfile, UserSettings } from '../types/user';
+import { DEFAULT_USER_SETTINGS, UserProfile, UserSettings } from '../types/user';
+import {
+  buildUserProfileCreateData,
+  buildUserProfileUpdateData,
+  mapUserDocumentToUserProfile,
+} from './user_document';
 
 const USERS_COLLECTION = 'users';
 
@@ -37,23 +42,25 @@ class UserService {
   async createUserProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile> {
     const db = getFirebaseDb();
     const now = new Date().toISOString();
-
-    const profile: Partial<UserProfile> = {
-      id: userId,
-      displayName: data.displayName || '',
-      photos: data.photos || [],
-      isVerified: false,
-      subscriptionTier: 'free',
-      createdAt: now,
-      updatedAt: now,
-      hasAcceptedTerms: false,
-      onboardingComplete: false,
-      profileComplete: false,
-      isEmailVerified: false,
-      isPhoneVerified: Boolean(data.phoneNumber),
-      settings: DEFAULT_USER_SETTINGS,
-      ...data,
-    };
+    const profile = buildUserProfileCreateData(
+      {
+        id: userId,
+        displayName: data.displayName || '',
+        photos: data.photos || [],
+        isVerified: false,
+        subscriptionTier: 'free',
+        createdAt: now,
+        updatedAt: now,
+        hasAcceptedTerms: false,
+        onboardingComplete: false,
+        profileComplete: false,
+        isEmailVerified: false,
+        isPhoneVerified: Boolean(data.phoneNumber),
+        settings: DEFAULT_USER_SETTINGS,
+        ...data,
+      },
+      now
+    );
 
     await setDoc(doc(db, USERS_COLLECTION, userId), {
       ...profile,
@@ -61,7 +68,7 @@ class UserService {
       updatedAt: serverTimestamp(),
     });
 
-    return profile as UserProfile;
+    return mapUserDocumentToUserProfile(userId, profile);
   }
 
   /**
@@ -71,7 +78,7 @@ class UserService {
     const db = getFirebaseDb();
 
     await updateDoc(doc(db, USERS_COLLECTION, userId), {
-      ...data,
+      ...buildUserProfileUpdateData(data),
       updatedAt: serverTimestamp(),
     });
   }
@@ -91,6 +98,9 @@ class UserService {
 
     await updateDoc(doc(db, USERS_COLLECTION, userId), {
       settings: { ...currentSettings, ...settings },
+      ...buildUserProfileUpdateData({
+        settings: { ...currentSettings, ...settings },
+      }),
       updatedAt: serverTimestamp(),
     });
   }
@@ -396,61 +406,7 @@ class UserService {
    * Map Firestore document to UserProfile
    */
   private mapDocToUserProfile(id: string, data: Record<string, unknown>): UserProfile {
-    return {
-      id,
-      email: data.email as string | undefined,
-      phoneNumber: data.phoneNumber as string | undefined,
-      displayName: (data.displayName as string) || '',
-      username: data.username as string | undefined,
-      bio: data.bio as string | undefined,
-      birthDate: data.birthDate as string | undefined,
-      age: data.age as number | undefined,
-      gender: data.gender as UserProfile['gender'],
-      sexualOrientation: data.sexualOrientation as SexualOrientation | undefined,
-      interestedIn: data.interestedIn as UserProfile['interestedIn'],
-      photos: (data.photos as string[]) || [],
-      profilePhotoUrl: data.profilePhotoUrl as string | undefined,
-      location: data.location as UserProfile['location'],
-      interests: data.interests as string[] | undefined,
-      prompts: data.prompts as UserProfile['prompts'],
-      isVerified: (data.isVerified as boolean) || false,
-      subscriptionTier: (data.subscriptionTier as UserProfile['subscriptionTier']) || 'free',
-      billingPeriod: data.billingPeriod as UserProfile['billingPeriod'],
-      premiumExpiresAt: data.premiumExpiresAt as string | undefined,
-      premiumAutoRenew: data.premiumAutoRenew as boolean | undefined,
-      stripeCustomerId: data.stripeCustomerId as string | undefined,
-      stripeSubscriptionId: data.stripeSubscriptionId as string | undefined,
-      createdAt: this.timestampToString(data.createdAt),
-      updatedAt: this.timestampToString(data.updatedAt),
-      lastActive: this.timestampToString(data.lastActive),
-      isOnline: data.isOnline as boolean | undefined,
-      settings: {
-        ...DEFAULT_USER_SETTINGS,
-        ...((data.settings as UserSettings | undefined) ?? {}),
-      },
-      notificationSettings: data.notificationSettings as UserProfile['notificationSettings'],
-      hasAcceptedTerms: (data.hasAcceptedTerms as boolean) || false,
-      termsAcceptedAt: data.termsAcceptedAt as string | undefined,
-      onboardingComplete: (data.onboardingComplete as boolean) || false,
-      profileComplete: (data.profileComplete as boolean) || false,
-      isEmailVerified: (data.isEmailVerified as boolean) || false,
-      isPhoneVerified: (data.isPhoneVerified as boolean) || false,
-      boost: {
-        expiresAt: this.timestampToOptionalString(
-          (data.boost as Record<string, unknown> | undefined)?.expiresAt
-        ),
-        activatedAt: this.timestampToOptionalString(
-          (data.boost as Record<string, unknown> | undefined)?.activatedAt
-        ),
-        lastActivatedAt: this.timestampToOptionalString(
-          (data.boost as Record<string, unknown> | undefined)?.lastActivatedAt
-        ),
-        totalActivations:
-          ((data.boost as Record<string, unknown> | undefined)?.totalActivations as
-            | number
-            | undefined) ?? 0,
-      },
-    };
+    return mapUserDocumentToUserProfile(id, data);
   }
 
   private timestampToString(timestamp: unknown): string {

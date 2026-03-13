@@ -80,6 +80,7 @@ export type AnalyticsEvent =
         step: string;
         status: FunnelStepStatus;
         method?: string;
+        tier?: string;
         reason?: string;
         value?: number;
       };
@@ -244,7 +245,7 @@ class Analytics {
     funnel: FunnelName,
     step: string,
     status: FunnelStepStatus,
-    extras?: { method?: string; reason?: string; value?: number }
+    extras?: { method?: string; tier?: string; reason?: string; value?: number }
   ) {
     this.track({
       name: 'funnel_step',
@@ -253,6 +254,7 @@ class Analytics {
         step,
         status,
         method: extras?.method,
+        tier: extras?.tier,
         reason: extras?.reason,
         value: extras?.value,
       },

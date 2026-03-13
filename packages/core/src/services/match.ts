@@ -14,9 +14,9 @@ import {
   onSnapshot,
   Unsubscribe,
 } from 'firebase/firestore';
-import { getFirebaseDb } from '../firebase/config';
+import { firebaseConfig, getFirebaseAuth, getFirebaseDb } from '../firebase/config';
 import { Match, MatchStatus, DiscoveryProfile, DiscoveryFilters, ReceivedLike, MessageRequest, WeeklyPick } from '../types/match';
-import { calculateAge } from '../types/user';
+import { buildDiscoveryRestUrl, mapDiscoveryRestProfiles } from './discovery_rest';
 import { streakService } from './streak';
 
 const MATCHES_COLLECTION = 'matches';
@@ -25,16 +25,6 @@ const USERS_COLLECTION = 'users';
 const BLOCKS_COLLECTION = 'blocks';
 const LEGACY_BLOCKED_SUBCOLLECTION = 'blocked';
 const DAILY_LIKE_LIMIT_REACHED_ERROR = 'Daily like limit reached';
-
-const normalizeInterest = (interest: unknown): string =>
-  typeof interest === 'string' ? interest.trim().toLowerCase() : '';
-
-interface RankedDiscoveryCandidate {
-  profile: DiscoveryProfile;
-  isBoosted: boolean;
-  boostExpiresAtMs: number;
-  lastActiveMs: number;
-}
 
 interface NormalizedGeoLocation {
   latitude?: number;
@@ -344,135 +334,32 @@ class MatchService {
     filters: DiscoveryFilters,
     pageSize: number = 20
   ): Promise<DiscoveryProfile[]> {
-    const db = getFirebaseDb();
-    const blockedUserIds = await this.getDiscoveryBlockedUserIds(userId);
-    const currentUserSnapshot = await getDoc(doc(db, USERS_COLLECTION, userId));
-    const currentUserData = currentUserSnapshot.data() as Record<string, unknown> | undefined;
-    const referenceLocation = this.getDiscoveryReferenceLocation(currentUserData);
-
-    // Get users already swiped
-    const swipesQuery = query(
-      collection(db, SWIPES_COLLECTION),
-      where('swiperId', '==', userId)
-    );
-    const swipesSnapshot = await getDocs(swipesQuery);
-    const swipedUserIds = new Set(
-      swipesSnapshot.docs.map((doc) => doc.data().swipedUserId as string)
-    );
-    for (const blockedId of blockedUserIds) {
-      swipedUserIds.add(blockedId);
-    }
-    swipedUserIds.add(userId); // Exclude self
-
-    // Query users
-    const usersQuery = query(
-      collection(db, USERS_COLLECTION),
-      where('onboardingComplete', '==', true),
-      where('profileComplete', '==', true),
-      limit(pageSize * 5) // Get extra to account for local filters
-    );
-
-    const usersSnapshot = await getDocs(usersQuery);
-
-    const rankedCandidates: RankedDiscoveryCandidate[] = [];
-    const nowMs = Date.now();
-    const selectedInterests = new Set(
-      ((filters.interests as unknown[] | undefined) ?? [])
-        .map((interest) => normalizeInterest(interest))
-        .filter(Boolean)
-    );
-
-    for (const userDoc of usersSnapshot.docs) {
-      if (swipedUserIds.has(userDoc.id)) continue;
-
-      const data = userDoc.data();
-      const photos = ((data.photos as string[] | undefined) ?? []).filter(Boolean);
-      const isVerified = Boolean(data.isVerified);
-      const distance =
-        this.calculateDistanceKm(referenceLocation, this.normalizeGeoLocation(data.location)) ??
-        (typeof data.distance === 'number' && Number.isFinite(data.distance)
-          ? data.distance
-          : undefined);
-      const age =
-        calculateAge(data.birthDate as string | undefined) ??
-        (typeof data.age === 'number' ? data.age : undefined);
-      const boostExpiresAtMs = this.getBoostExpiresAtMillis(data);
-      const isBoosted = boostExpiresAtMs > nowMs;
-      const lastActiveMs = this.timestampToMillis(data.lastActive);
-
-      // Apply age filter
-      if (age !== undefined && (age < filters.minAge || age > filters.maxAge)) continue;
-
-      // Apply gender filter
-      if (filters.genders && filters.genders.length > 0) {
-        if (!filters.genders.includes(data.gender as string)) continue;
-      }
-
-      // Apply photo filter
-      if (filters.hasPhotos && photos.length === 0) continue;
-
-      // Apply verification filter
-      if (filters.isVerified && !isVerified) continue;
-
-      // Apply distance filter when distance is available on profile
-      if (distance !== undefined && distance > filters.maxDistance) continue;
-
-      // Apply shared-interest filter (at least one overlap required)
-      if (selectedInterests.size > 0) {
-        const profileInterests = ((data.interests as unknown[] | undefined) ?? [])
-          .map((interest) => normalizeInterest(interest))
-          .filter(Boolean);
-        const hasInterestOverlap = profileInterests.some((interest) =>
-          selectedInterests.has(interest)
-        );
-        if (!hasInterestOverlap) continue;
-      }
-
-      rankedCandidates.push({
-        isBoosted,
-        boostExpiresAtMs,
-        lastActiveMs,
-        profile: {
-          id: userDoc.id,
-          displayName: data.displayName as string || '',
-          birthDate: data.birthDate as string | undefined,
-          age,
-          bio: data.bio as string | undefined,
-          photos,
-          distance,
-          interests: data.interests as string[] | undefined,
-          prompts: data.prompts as DiscoveryProfile['prompts'],
-          isVerified,
-          lastActive: this.timestampToOptionalString(data.lastActive),
-          boost: {
-            isActive: isBoosted,
-            expiresAt: isBoosted ? new Date(boostExpiresAtMs).toISOString() : undefined,
-          },
-        },
-      });
+    const projectId = firebaseConfig.projectId?.trim();
+    if (!projectId) {
+      throw new Error('Firebase project is not configured');
     }
 
-    rankedCandidates.sort((a, b) => {
-      if (a.isBoosted !== b.isBoosted) {
-        return a.isBoosted ? -1 : 1;
-      }
+    const currentUser = getFirebaseAuth().currentUser;
+    if (!currentUser) {
+      throw new Error('User must be authenticated to load discovery profiles');
+    }
 
-      if (a.isBoosted && b.isBoosted && a.boostExpiresAtMs !== b.boostExpiresAtMs) {
-        return b.boostExpiresAtMs - a.boostExpiresAtMs;
-      }
-
-      if (a.profile.isVerified !== b.profile.isVerified) {
-        return a.profile.isVerified ? -1 : 1;
-      }
-
-      if (a.lastActiveMs !== b.lastActiveMs) {
-        return b.lastActiveMs - a.lastActiveMs;
-      }
-
-      return 0;
+    const token = await currentUser.getIdToken();
+    const response = await fetch(buildDiscoveryRestUrl(projectId, filters, pageSize), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
 
-    return rankedCandidates.slice(0, pageSize).map((candidate) => candidate.profile);
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!response.ok) {
+      throw new Error(
+        typeof payload.error === 'string' ? payload.error : 'Failed to load discovery profiles'
+      );
+    }
+
+    return mapDiscoveryRestProfiles(payload);
   }
 
   /**

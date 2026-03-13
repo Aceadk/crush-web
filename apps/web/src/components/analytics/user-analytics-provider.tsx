@@ -17,8 +17,9 @@ export function UserAnalyticsProvider({ children }: UserAnalyticsProviderProps) 
       identify(user.uid, {
         userId: user.uid,
         email: profile.email,
-        isPremium: profile.isPremium,
-        premiumPlan: profile.premiumPlan,
+        isPremium: profile.subscriptionTier !== 'free',
+        subscriptionTier: profile.subscriptionTier,
+        billingPeriod: profile.billingPeriod,
         profileComplete: profile.profileComplete,
         signupDate: profile.createdAt,
         age: profile.age,
