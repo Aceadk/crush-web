@@ -7,6 +7,9 @@ import { UserProfile } from '../types/user';
 import { isFirebaseConfigured } from '../firebase/config';
 
 const REMEMBER_ME_STORAGE_KEY = 'crush.rememberMe';
+const AUTH_COOKIE_NAME = 'auth-token';
+const LAST_ACTIVE_COOKIE_NAME = 'session-last-active';
+const REMEMBER_ME_COOKIE_NAME = 'session-remember-me';
 const DEFAULT_REMEMBER_ME = true;
 
 let pendingRememberMePreference: boolean | null = null;
@@ -33,8 +36,10 @@ const clearAuthCookie = async () => {
   try {
     await fetch('/api/auth/session', { method: 'DELETE' });
   } catch {
-    // Fallback: clear via document.cookie (non-HttpOnly legacy)
-    document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    // Fallback: clear via document.cookie for non-HttpOnly legacy cookies.
+    for (const name of [AUTH_COOKIE_NAME, LAST_ACTIVE_COOKIE_NAME, REMEMBER_ME_COOKIE_NAME]) {
+      document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    }
   }
 };
 

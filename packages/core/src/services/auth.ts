@@ -173,7 +173,14 @@ class AuthService {
    */
   async signOut(): Promise<void> {
     const auth = getFirebaseAuth();
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } finally {
+      this.confirmationResult = null;
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('emailForSignIn');
+      }
+    }
   }
 
   /**
