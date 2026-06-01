@@ -1,15 +1,15 @@
 import {
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    query,
-    serverTimestamp,
-    setDoc,
-    Timestamp,
-    updateDoc,
-    where,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
 import { DEFAULT_USER_SETTINGS, UserProfile, UserSettings } from '../types/user';
@@ -110,7 +110,7 @@ class UserService {
    */
   async updateNotificationSettings(
     userId: string,
-    notificationSettings: Record<string, boolean>
+    notificationSettings: Record<string, boolean | number | string[]>
   ): Promise<void> {
     const db = getFirebaseDb();
     const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
@@ -119,12 +119,18 @@ class UserService {
       throw new Error('User not found');
     }
 
-    const currentNotificationSettings = userDoc.data().notificationSettings || {};
+    const currentNotificationPrefs = userDoc.data().notificationPrefs || {};
 
-    await updateDoc(doc(db, USERS_COLLECTION, userId), {
-      notificationSettings: { ...currentNotificationSettings, ...notificationSettings },
-      updatedAt: serverTimestamp(),
-    });
+    await setDoc(
+      doc(db, USERS_COLLECTION, userId),
+      {
+        notificationPrefs: { ...currentNotificationPrefs, ...notificationSettings },
+        notificationPrefsUpdatedAt: serverTimestamp(),
+        notificationPrefsUpdatedAtMs: Date.now(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
   }
 
   /**

@@ -1,4 +1,10 @@
-import { DEFAULT_USER_SETTINGS, type Gender, type UserProfile, type UserPrompt, type UserSettings } from '../types/user';
+import {
+  DEFAULT_USER_SETTINGS,
+  type Gender,
+  type UserProfile,
+  type UserPrompt,
+  type UserSettings,
+} from '../types/user';
 
 type FirestoreUserData = Record<string, unknown>;
 
@@ -35,7 +41,10 @@ function toStringArray(value: unknown): string[] {
 
 function normalizeGender(value: unknown): Gender | undefined {
   if (typeof value !== 'string') return undefined;
-  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
   switch (normalized) {
     case 'male':
     case 'man':
@@ -60,7 +69,10 @@ function normalizeInterestedIn(value: unknown): Gender[] {
   const normalized = new Set<Gender>();
   for (const entry of Array.isArray(value) ? value : typeof value === 'string' ? [value] : []) {
     if (typeof entry !== 'string') continue;
-    const token = entry.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const token = entry
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
     switch (token) {
       case 'male':
       case 'man':
@@ -175,13 +187,15 @@ function buildCanonicalPreferences(
         : (toStringArray(existingProfilePreferences?.showMeGenders) as Gender[]).length > 0
           ? toStringArray(existingProfilePreferences?.showMeGenders)
           : ['male', 'female'],
-    showMyDistance: settings?.showDistance ?? toBoolean(existingProfilePreferences?.showMyDistance) ?? true,
+    showMyDistance:
+      settings?.showDistance ?? toBoolean(existingProfilePreferences?.showMyDistance) ?? true,
     showMyAge: settings?.showAge ?? toBoolean(existingProfilePreferences?.showMyAge) ?? true,
     hideFromDiscovery:
       settings && 'showInDiscovery' in settings
         ? (settings as UserSettings & { showInDiscovery?: boolean }).showInDiscovery === false
-        : toBoolean(existingProfilePreferences?.hideFromDiscovery) ?? false,
-    incognitoMode: settings?.incognitoMode ?? toBoolean(existingProfilePreferences?.incognitoMode) ?? false,
+        : (toBoolean(existingProfilePreferences?.hideFromDiscovery) ?? false),
+    incognitoMode:
+      settings?.incognitoMode ?? toBoolean(existingProfilePreferences?.incognitoMode) ?? false,
   };
 }
 
@@ -298,6 +312,7 @@ export function buildUserProfileCreateData(
     lastActive: data.lastActive ?? nowIso,
     isOnline: data.isOnline,
     settings,
+    notificationPrefs: data.notificationPrefs ?? data.notificationSettings,
     notificationSettings: data.notificationSettings,
     hasAcceptedTerms: data.hasAcceptedTerms ?? false,
     termsAcceptedAt: data.termsAcceptedAt,
@@ -310,15 +325,12 @@ export function buildUserProfileCreateData(
   };
 }
 
-export function buildUserProfileUpdateData(
-  data: Partial<UserProfile>
-): Record<string, unknown> {
+export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<string, unknown> {
   const updates: Record<string, unknown> = {};
   const settingsPatch = data.settings;
   const interestedIn =
     data.interestedIn !== undefined ? normalizeInterestedIn(data.interestedIn) : undefined;
-  const location =
-    data.location !== undefined ? normalizeLocation(data.location) : undefined;
+  const location = data.location !== undefined ? normalizeLocation(data.location) : undefined;
   const prompts =
     data.prompts !== undefined
       ? data.prompts.filter((prompt) => prompt.answer.trim().length > 0)
@@ -411,7 +423,7 @@ export function buildUserProfileUpdateData(
     const canonicalPreferences = buildCanonicalPreferences(
       interestedIn ?? normalizeInterestedIn([]),
       settingsPatch,
-      {},
+      {}
     );
     if ('maxDistanceKm' in canonicalPreferences) {
       updates['profile.preferences.maxDistanceKm'] = canonicalPreferences.maxDistanceKm;
@@ -439,13 +451,13 @@ export function buildUserProfileUpdateData(
   return updates;
 }
 
-export function mapUserDocumentToUserProfile(
-  id: string,
-  data: FirestoreUserData
-): UserProfile {
+export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData): UserProfile {
   const profile = asRecord(data.profile);
   const canonicalBirthDate = toString(data.birthDate) ?? toString(profile.birthDate);
-  const photos = toStringArray(data.photos).length > 0 ? toStringArray(data.photos) : toStringArray(profile.photoUrls);
+  const photos =
+    toStringArray(data.photos).length > 0
+      ? toStringArray(data.photos)
+      : toStringArray(profile.photoUrls);
   const interestedIn =
     normalizeInterestedIn(data.interestedIn).length > 0
       ? normalizeInterestedIn(data.interestedIn)
@@ -464,11 +476,26 @@ export function mapUserDocumentToUserProfile(
   const settings: UserSettings = {
     ...DEFAULT_USER_SETTINGS,
     ...settingsFromDoc,
-    maxDistance: toNumber(profilePreferences.maxDistanceKm) ?? settingsFromDoc.maxDistance ?? DEFAULT_USER_SETTINGS.maxDistance,
-    ageRangeMin: toNumber(profilePreferences.minAge) ?? settingsFromDoc.ageRangeMin ?? DEFAULT_USER_SETTINGS.ageRangeMin,
-    ageRangeMax: toNumber(profilePreferences.maxAge) ?? settingsFromDoc.ageRangeMax ?? DEFAULT_USER_SETTINGS.ageRangeMax,
-    showDistance: toBoolean(profilePreferences.showMyDistance) ?? settingsFromDoc.showDistance ?? DEFAULT_USER_SETTINGS.showDistance,
-    showAge: toBoolean(profilePreferences.showMyAge) ?? settingsFromDoc.showAge ?? DEFAULT_USER_SETTINGS.showAge,
+    maxDistance:
+      toNumber(profilePreferences.maxDistanceKm) ??
+      settingsFromDoc.maxDistance ??
+      DEFAULT_USER_SETTINGS.maxDistance,
+    ageRangeMin:
+      toNumber(profilePreferences.minAge) ??
+      settingsFromDoc.ageRangeMin ??
+      DEFAULT_USER_SETTINGS.ageRangeMin,
+    ageRangeMax:
+      toNumber(profilePreferences.maxAge) ??
+      settingsFromDoc.ageRangeMax ??
+      DEFAULT_USER_SETTINGS.ageRangeMax,
+    showDistance:
+      toBoolean(profilePreferences.showMyDistance) ??
+      settingsFromDoc.showDistance ??
+      DEFAULT_USER_SETTINGS.showDistance,
+    showAge:
+      toBoolean(profilePreferences.showMyAge) ??
+      settingsFromDoc.showAge ??
+      DEFAULT_USER_SETTINGS.showAge,
     incognitoMode: toBoolean(profilePreferences.incognitoMode) ?? settingsFromDoc.incognitoMode,
   };
   const displayName = toString(data.displayName) ?? toString(profile.name) ?? '';
@@ -493,12 +520,16 @@ export function mapUserDocumentToUserProfile(
     birthDate: canonicalBirthDate,
     age: toNumber(data.age) ?? toNumber(profile.age) ?? deriveAgeFromBirthDate(canonicalBirthDate),
     gender: normalizeGender(data.gender) ?? normalizeGender(profile.gender),
-    sexualOrientation: (toString(data.sexualOrientation) ?? toString(profile.sexualOrientation)) as UserProfile['sexualOrientation'],
+    sexualOrientation: (toString(data.sexualOrientation) ??
+      toString(profile.sexualOrientation)) as UserProfile['sexualOrientation'],
     interestedIn,
     photos,
     profilePhotoUrl: toString(data.profilePhotoUrl) ?? photos[0],
     location,
-    interests: toStringArray(data.interests).length > 0 ? toStringArray(data.interests) : toStringArray(profile.interests),
+    interests:
+      toStringArray(data.interests).length > 0
+        ? toStringArray(data.interests)
+        : toStringArray(profile.interests),
     prompts,
     lifestyle: (data.lifestyle as UserProfile['lifestyle']) ?? undefined,
     isVerified: toBoolean(data.isVerified) ?? toBoolean(profile.isVerified) ?? false,
@@ -513,6 +544,9 @@ export function mapUserDocumentToUserProfile(
     lastActive: normalizeTimestampToString(data.lastActive),
     isOnline: toBoolean(data.isOnline),
     settings,
+    notificationPrefs:
+      (data.notificationPrefs as UserProfile['notificationPrefs']) ??
+      (data.notificationSettings as UserProfile['notificationSettings']),
     notificationSettings: data.notificationSettings as UserProfile['notificationSettings'],
     hasAcceptedTerms: toBoolean(data.hasAcceptedTerms) ?? false,
     termsAcceptedAt: toString(data.termsAcceptedAt),

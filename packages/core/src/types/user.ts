@@ -34,6 +34,7 @@ export interface UserProfile {
   lastActive?: string;
   isOnline?: boolean;
   settings?: UserSettings;
+  notificationPrefs?: NotificationSettings;
   notificationSettings?: NotificationSettings;
   hasAcceptedTerms: boolean;
   termsAcceptedAt?: string;
@@ -104,6 +105,24 @@ export interface UserSettings {
 }
 
 export interface NotificationSettings {
+  // Canonical backend-enforced prefs
+  push?: boolean;
+  email?: boolean;
+  sound?: boolean;
+  vibration?: boolean;
+  matches?: boolean;
+  messages?: boolean;
+  likes?: boolean;
+  profileViews?: boolean;
+  promotions?: boolean;
+  subscriptions?: boolean;
+  safetyAlerts?: boolean;
+  quietHoursEnabled?: boolean;
+  quietHoursStart?: number;
+  quietHoursEnd?: number;
+  mutedMessages?: string[];
+  mutedCalls?: string[];
+
   // Match & Messages
   newMatches?: boolean;
   newMessages?: boolean;
@@ -112,7 +131,6 @@ export interface NotificationSettings {
   // Activity
   likesReceived?: boolean;
   superLikesReceived?: boolean;
-  profileViews?: boolean;
 
   // Promotions
   weeklyPicks?: boolean;

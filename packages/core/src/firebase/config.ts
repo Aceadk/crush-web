@@ -16,8 +16,9 @@ const firebaseConfig = {
 
 // Check if Firebase is configured (only on client side)
 export function isFirebaseConfigured(): boolean {
-  return typeof window !== 'undefined' &&
-    Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+  return (
+    typeof window !== 'undefined' && Boolean(firebaseConfig.apiKey && firebaseConfig.projectId)
+  );
 }
 
 // Initialize Firebase only once
@@ -26,7 +27,7 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
 
-function getFirebaseApp(): FirebaseApp {
+export function getFirebaseApp(): FirebaseApp {
   if (!isFirebaseConfigured()) {
     console.warn('Firebase is not configured. Please set environment variables.');
     throw new Error('Firebase is not configured');

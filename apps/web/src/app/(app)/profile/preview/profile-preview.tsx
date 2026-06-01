@@ -4,18 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuthStore, locationService } from '@crush/core';
-import { Button, Badge } from '@crush/ui';
-import { cn } from '@crush/ui';
-import {
-  ArrowLeft,
-  Edit2,
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  Shield,
-  Sparkles,
-  Info,
-} from 'lucide-react';
+import { Badge, Button, cn } from '@crush/ui';
+import { ArrowLeft, Edit2, MapPin, Shield, Sparkles, Info } from 'lucide-react';
 
 export default function ProfilePreview() {
   const router = useRouter();
@@ -25,9 +15,9 @@ export default function ProfilePreview() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-muted-foreground">Loading preview...</p>
         </div>
       </div>
@@ -50,29 +40,33 @@ export default function ProfilePreview() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/50 to-transparent p-4">
-        <div className="max-w-md mx-auto flex items-center justify-between">
+      <div className="fixed left-0 right-0 top-0 z-20 bg-gradient-to-b from-black/50 to-transparent p-4">
+        <div className="mx-auto flex max-w-lg items-center justify-between">
           <button
             onClick={() => router.back()}
-            className="p-2 -ml-2 text-white hover:bg-white/20 rounded-full transition-colors"
+            className="-ml-2 rounded-full p-2 text-white transition-colors hover:bg-white/20"
+            aria-label="Back"
+            type="button"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="h-6 w-6" />
           </button>
-          <span className="text-white font-medium">Preview</span>
+          <span className="font-medium text-white">Preview</span>
           <button
             onClick={() => router.push('/profile/edit')}
-            className="p-2 -mr-2 text-white hover:bg-white/20 rounded-full transition-colors"
+            className="-mr-2 rounded-full p-2 text-white transition-colors hover:bg-white/20"
+            aria-label="Edit profile"
+            type="button"
           >
-            <Edit2 className="w-5 h-5" />
+            <Edit2 className="h-5 w-5" />
           </button>
         </div>
       </div>
 
       {/* Card container */}
-      <div className="flex-1 flex items-center justify-center p-4 pt-16 pb-8">
-        <div className="w-full max-w-md aspect-[3/4] relative rounded-3xl overflow-hidden shadow-2xl">
+      <div className="flex flex-1 items-center justify-center p-4 pb-8 pt-16">
+        <div className="relative aspect-[3/4] max-h-[min(780px,calc(100dvh-8rem))] w-full max-w-lg overflow-hidden rounded-3xl shadow-2xl">
           {/* Photo */}
           {photos.length > 0 ? (
             <Image
@@ -84,7 +78,7 @@ export default function ProfilePreview() {
               priority
             />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary to-secondary">
               <span className="text-8xl font-bold text-white/30">
                 {profile.displayName?.charAt(0) || '?'}
               </span>
@@ -95,15 +89,13 @@ export default function ProfilePreview() {
           {hasMultiplePhotos && (
             <>
               {/* Photo indicators */}
-              <div className="absolute top-4 left-4 right-4 flex gap-1 z-10">
+              <div className="absolute left-4 right-4 top-4 z-10 flex gap-1">
                 {photos.map((_, index) => (
                   <div
                     key={index}
                     className={cn(
-                      'flex-1 h-1 rounded-full transition-all',
-                      index === currentPhotoIndex
-                        ? 'bg-white'
-                        : 'bg-white/40'
+                      'h-1 flex-1 rounded-full transition-all',
+                      index === currentPhotoIndex ? 'bg-white' : 'bg-white/40'
                     )}
                   />
                 ))}
@@ -112,11 +104,15 @@ export default function ProfilePreview() {
               {/* Navigation buttons */}
               <button
                 onClick={prevPhoto}
-                className="absolute left-0 top-0 bottom-0 w-1/3 z-10"
+                className="absolute bottom-0 left-0 top-0 z-10 w-1/3"
+                aria-label="Previous profile photo"
+                type="button"
               />
               <button
                 onClick={nextPhoto}
-                className="absolute right-0 top-0 bottom-0 w-1/3 z-10"
+                className="absolute bottom-0 right-0 top-0 z-10 w-1/3"
+                aria-label="Next profile photo"
+                type="button"
               />
             </>
           )}
@@ -132,58 +128,52 @@ export default function ProfilePreview() {
             )}
           >
             {/* Name and badges */}
-            <div className="flex items-center gap-2 mb-2">
+            <div className="mb-2 flex items-center gap-2">
               <h1 className="text-3xl font-bold">
                 {profile.displayName}
                 {profile.age && <span className="font-normal">, {profile.age}</span>}
               </h1>
-              {profile.isVerified && (
-                <Shield className="w-6 h-6 text-blue-400" />
-              )}
+              {profile.isVerified && <Shield className="h-6 w-6 text-blue-400" />}
             </div>
 
             {/* Location */}
             {profile.location && (profile.location.city || profile.location.country) && (
-              <div className="flex items-center gap-1 text-white/80 mb-3">
-                <MapPin className="w-4 h-4" />
+              <div className="mb-3 flex items-center gap-1 text-white/80">
+                <MapPin className="h-4 w-4" />
                 <span>{locationService.formatLocationForDisplay(profile.location)}</span>
               </div>
             )}
 
             {/* Badges */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="mb-4 flex items-center gap-2">
               {profile.isVerified && (
                 <Badge variant="verified" className="gap-1 bg-white/20 backdrop-blur">
-                  <Shield className="w-3 h-3" /> Verified
+                  <Shield className="h-3 w-3" /> Verified
                 </Badge>
               )}
               {profile.isPremium && (
                 <Badge variant="premium" className="gap-1 bg-white/20 backdrop-blur">
-                  <Sparkles className="w-3 h-3" /> Premium
+                  <Sparkles className="h-3 w-3" /> Premium
                 </Badge>
               )}
             </div>
 
             {/* Bio */}
-            {profile.bio && (
-              <p className="text-white/90 mb-4 line-clamp-3">
-                {profile.bio}
-              </p>
-            )}
+            {profile.bio && <p className="mb-4 line-clamp-3 text-white/90">{profile.bio}</p>}
 
             {/* Interests */}
             {profile.interests && profile.interests.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4">
+              <div className="mb-4 flex flex-wrap gap-2">
                 {profile.interests.slice(0, 5).map((interest) => (
                   <span
                     key={interest}
-                    className="px-3 py-1 rounded-full text-sm bg-white/20 backdrop-blur"
+                    className="rounded-full bg-white/20 px-3 py-1 text-sm backdrop-blur"
                   >
                     {interest}
                   </span>
                 ))}
                 {profile.interests.length > 5 && (
-                  <span className="px-3 py-1 rounded-full text-sm bg-white/10 backdrop-blur">
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-sm backdrop-blur">
                     +{profile.interests.length - 5}
                   </span>
                 )}
@@ -194,9 +184,10 @@ export default function ProfilePreview() {
             {profile.prompts && profile.prompts.length > 0 && (
               <button
                 onClick={() => setShowDetails(!showDetails)}
-                className="flex items-center gap-2 text-white/80 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-white/80 transition-colors hover:text-white"
+                type="button"
               >
-                <Info className="w-4 h-4" />
+                <Info className="h-4 w-4" />
                 <span className="text-sm">View prompts</span>
               </button>
             )}
@@ -207,33 +198,23 @@ export default function ProfilePreview() {
       {/* Prompts overlay */}
       {showDetails && profile.prompts && profile.prompts.length > 0 && (
         <div
-          className="fixed inset-0 z-30 bg-black/70 flex items-center justify-center p-4"
+          className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 p-4"
           onClick={() => setShowDetails(false)}
         >
           <div
-            className="w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl p-6 space-y-4 animate-in fade-in zoom-in-95"
+            className="animate-in fade-in zoom-in-95 max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-4 overflow-y-auto rounded-3xl bg-white p-6 dark:bg-gray-800"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center">
+            <h2 className="text-center text-xl font-bold text-gray-900 dark:text-white">
               {profile.displayName}'s Prompts
             </h2>
             {profile.prompts.map((prompt, index) => (
-              <div
-                key={index}
-                className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4"
-              >
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                  {prompt.question}
-                </p>
-                <p className="text-gray-900 dark:text-white">
-                  {prompt.answer}
-                </p>
+              <div key={index} className="rounded-xl bg-gray-50 p-4 dark:bg-gray-700">
+                <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">{prompt.question}</p>
+                <p className="text-gray-900 dark:text-white">{prompt.answer}</p>
               </div>
             ))}
-            <Button
-              onClick={() => setShowDetails(false)}
-              className="w-full"
-            >
+            <Button onClick={() => setShowDetails(false)} className="w-full">
               Close
             </Button>
           </div>
@@ -241,7 +222,7 @@ export default function ProfilePreview() {
       )}
 
       {/* Bottom hint */}
-      <div className="text-center pb-6 text-gray-500 text-sm">
+      <div className="pb-6 text-center text-sm text-gray-500">
         This is how others see your profile
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { Button } from '@crush/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Cropper from 'react-easy-crop';
 
 interface Point {
@@ -33,8 +33,9 @@ const getCroppedImg = async (
   const image = new Image();
   image.src = imageSrc;
 
-  await new Promise((resolve) => {
-    image.onload = resolve;
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('Image could not be loaded'));
   });
 
   const canvas = document.createElement('canvas');
@@ -62,15 +63,19 @@ const getCroppedImg = async (
   );
 
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error('Canvas is empty'));
-        return;
-      }
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('Canvas is empty'));
+          return;
+        }
 
-      const file = new File([blob], fileName, { type: 'image/jpeg' });
-      resolve(file);
-    }, 'image/jpeg');
+        const file = new File([blob], fileName, { type: 'image/jpeg' });
+        resolve(file);
+      },
+      'image/jpeg',
+      0.9
+    );
   });
 };
 
@@ -85,6 +90,17 @@ export function PhotoCropModal({
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setIsProcessing(false);
+    setError(null);
+  }, [imageSrc, isOpen]);
 
   const onCropCompleteHandler = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels);
@@ -94,37 +110,50 @@ export function PhotoCropModal({
     if (!imageSrc || !croppedAreaPixels) return;
 
     setIsProcessing(true);
+    setError(null);
     try {
       const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels);
       onCropComplete(croppedImage);
       onClose();
     } catch (e) {
       console.error('Error cropping image:', e);
+      setError('Could not crop that image. Try a different photo or crop area.');
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleClose = () => {
+    setIsProcessing(false);
+    setError(null);
+    onClose();
+  };
+
   if (!imageSrc) return null;
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
-        <Dialog.Content className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-50 w-full max-w-md translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
+        <Dialog.Content className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed left-[50%] top-[50%] z-50 max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-3xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900">
           <div className="flex items-center justify-between border-b border-gray-100 p-4 dark:border-gray-800">
             <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
               Adjust Photo
             </Dialog.Title>
+            <Dialog.Description className="sr-only">
+              Crop and zoom your profile photo before uploading it.
+            </Dialog.Description>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              aria-label="Close photo crop editor"
+              type="button"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="relative h-[400px] w-full bg-black">
+          <div className="relative h-[min(58vh,520px)] min-h-[280px] w-full bg-black">
             <Cropper
               image={imageSrc}
               crop={crop}
@@ -152,9 +181,14 @@ export function PhotoCropModal({
               />
               <ZoomIn className="h-5 w-5 text-gray-500" />
             </div>
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-300">
+                {error}
+              </p>
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={onClose} disabled={isProcessing}>
+              <Button variant="outline" onClick={handleClose} disabled={isProcessing}>
                 Cancel
               </Button>
               <Button onClick={handleSave} disabled={isProcessing}>
