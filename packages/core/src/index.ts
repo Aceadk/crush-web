@@ -145,6 +145,7 @@ export { useStreakStore } from './stores/streak';
 export { useUIStore } from './stores/ui';
 
 // Config
+export { isV2ChatEnabled } from './config/features';
 export { BILLING_CONFIG } from './config/billing';
 export type {
   BillingFeature,
