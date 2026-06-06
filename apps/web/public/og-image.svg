@@ -1,40 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#E11D48;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#BE185D;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="heartGlow" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:0.95" />
-      <stop offset="100%" style="stop-color:#FECDD3;stop-opacity:0.85" />
-    </linearGradient>
+    <radialGradient id="bg" cx="50%" cy="38%" r="60%">
+      <stop offset="0%" style="stop-color:#FF3F7F;stop-opacity:0.18" />
+      <stop offset="60%" style="stop-color:#0D0E12;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0D0E12;stop-opacity:1" />
+    </radialGradient>
   </defs>
 
-  <!-- Background gradient -->
+  <!-- Brand dark background with a subtle primary glow -->
+  <rect width="1200" height="630" fill="#0D0E12" />
   <rect width="1200" height="630" fill="url(#bg)" />
 
   <!-- Subtle pattern overlay -->
-  <circle cx="200" cy="100" r="300" fill="#FFFFFF" opacity="0.03" />
-  <circle cx="1000" cy="530" r="250" fill="#FFFFFF" opacity="0.03" />
-  <circle cx="600" cy="315" r="400" fill="#FFFFFF" opacity="0.02" />
+  <circle cx="200" cy="100" r="300" fill="#FF3F7F" opacity="0.03" />
+  <circle cx="1000" cy="530" r="250" fill="#FF3F7F" opacity="0.03" />
 
-  <!-- Heart icon -->
-  <g transform="translate(600, 220) scale(3.5)">
-    <path d="M0 20l-1.8-1.65C-7.2 12.6-12 8.55-12 3.6 12-1.2-9.6-4.8-6.6-4.8c2.7 0 5.25 1.2 6.6 3.15C1.35-2.85 3.9-4.8 6.6-4.8c3 0 6 2.4 6 7.2 0 4.95-4.8 9-10.2 16.05L0 20z"
-          fill="url(#heartGlow)" />
+  <!-- Heart icon (canonical mark, primary fill) -->
+  <g transform="translate(552, 150) scale(4)">
+    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+          fill="#FF3F7F" />
   </g>
 
   <!-- App name -->
-  <text x="600" y="360" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="72" font-weight="800" fill="#FFFFFF" letter-spacing="2">
+  <text x="600" y="400" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="72" font-weight="800" fill="#FFFFFF" letter-spacing="2">
     Crush
   </text>
 
   <!-- Tagline -->
-  <text x="600" y="420" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="400" fill="#FFFFFF" opacity="0.85" letter-spacing="1">
+  <text x="600" y="458" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="400" fill="#F5F5FA" opacity="0.85" letter-spacing="1">
     Find Your Perfect Match
   </text>
 
-  <!-- Subtle bottom border -->
-  <rect x="500" y="460" width="200" height="3" rx="1.5" fill="#FFFFFF" opacity="0.3" />
+  <!-- Subtle bottom accent -->
+  <rect x="540" y="498" width="120" height="3" rx="1.5" fill="#FF3F7F" opacity="0.6" />
 </svg>

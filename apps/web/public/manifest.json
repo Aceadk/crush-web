@@ -4,8 +4,8 @@
   "description": "Find your perfect match",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#E11D48",
-  "background_color": "#FFFFFF",
+  "theme_color": "#FF3F7F",
+  "background_color": "#0D0E12",
   "orientation": "portrait",
   "categories": ["social", "lifestyle"],
   "icons": [

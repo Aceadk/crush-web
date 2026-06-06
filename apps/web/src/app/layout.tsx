@@ -79,7 +79,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#FFFFFF' },
-    { media: '(prefers-color-scheme: dark)', color: '#0F0F10' },
+    // Canonical brand dark background (matches mobile splash + adaptive icon).
+    { media: '(prefers-color-scheme: dark)', color: '#0D0E12' },
   ],
 };
 
