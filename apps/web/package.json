@@ -14,7 +14,9 @@
     "test:e2e:report": "playwright show-report",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "migrate:conversations": "node scripts/migrate-conversations-to-matches.mjs",
+    "migrate:conversations:execute": "node scripts/migrate-conversations-to-matches.mjs --execute"
   },
   "dependencies": {
     "@crush/core": "workspace:*",
