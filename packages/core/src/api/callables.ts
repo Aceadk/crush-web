@@ -123,15 +123,30 @@ export interface GetChatMediaSignedUrlResponse {
   url: string;
 }
 
-// Safety & Moderation
+// Safety & Moderation (shapes verified against functions/src/index.ts)
 export interface ReportUserRequest {
   reportedId: string;
   reason: string;
-  context?: string;
+  matchId?: string;
+  messageId?: string;
+  source?: string;
+  description?: string;
 }
 
 export interface BlockUserRequest {
-  targetUserId: string;
+  blockedId: string;
+}
+
+export interface BlockedUser {
+  id: string;
+  name: string | null;
+  photoUrl: string | null;
+  blockedAt: string | null;
+}
+
+export interface GetBlockedUsersResponse {
+  ok: boolean;
+  blocked: BlockedUser[];
 }
 
 /**
@@ -222,6 +237,11 @@ export const callables = {
     invokeCallable<BlockUserRequest, OkResponse>('blockUser', data),
   unblockUser: (data: BlockUserRequest) =>
     invokeCallable<BlockUserRequest, OkResponse>('unblockUser', data),
+  getBlockedUsers: () =>
+    invokeCallable<Record<string, never>, GetBlockedUsersResponse>(
+      'getBlockedUsers',
+      {}
+    ),
 } as const;
 
 export { invokeCallable };

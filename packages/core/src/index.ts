@@ -117,6 +117,10 @@ export type {
   SwipeLeftRequest,
   UnmatchRequest,
   SetMatchPinnedRequest,
+  ReportUserRequest,
+  BlockUserRequest,
+  BlockedUser,
+  GetBlockedUsersResponse,
 } from './api/callables';
 export { storageService } from './services/storage';
 export type { UploadProgress } from './services/storage';

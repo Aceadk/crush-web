@@ -191,7 +191,7 @@ describe('messageServiceV2Adapter', () => {
       true
     );
     expect(callableMock.blockUser).toHaveBeenCalledWith({
-      targetUserId: 'blocked-user',
+      blockedId: 'blocked-user',
     });
   });
 });

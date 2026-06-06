@@ -1,6 +1,5 @@
 import {
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -12,6 +11,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
+import { callables } from '../api/callables';
 import { DEFAULT_USER_SETTINGS, UserProfile, UserSettings } from '../types/user';
 import {
   buildUserProfileCreateData,
@@ -235,101 +235,58 @@ class UserService {
    * Get blocked users
    */
   async getBlockedUsers(
-    userId: string
+    _userId?: string
   ): Promise<{ id: string; name: string; photoUrl?: string; blockedAt: Date }[]> {
-    const db = getFirebaseDb();
-    const blockedCollection = collection(db, USERS_COLLECTION, userId, 'blocked');
-    const snapshot = await getDocs(blockedCollection);
-
-    const blockedUsers = await Promise.all(
-      snapshot.docs.map(async (blockedDoc) => {
-        const blockedUserId = blockedDoc.id;
-        const blockedData = blockedDoc.data();
-        const userProfile = await this.getUserProfile(blockedUserId);
-
-        return {
-          id: blockedUserId,
-          name: userProfile?.displayName || 'Unknown User',
-          photoUrl: userProfile?.profilePhotoUrl || userProfile?.photos?.[0],
-          blockedAt: blockedData.blockedAt?.toDate() || new Date(),
-        };
-      })
-    );
-
-    return blockedUsers;
+    // Canonical `blocks` docs (and blocked users' profiles) are not
+    // client-readable; the backend getBlockedUsers callable returns the enriched
+    // list. _userId is ignored (derived from auth) and kept for call-site compat.
+    const result = await callables.getBlockedUsers();
+    return (result.blocked ?? []).map((b) => ({
+      id: b.id,
+      name: b.name || 'Unknown User',
+      photoUrl: b.photoUrl ?? undefined,
+      blockedAt: b.blockedAt ? new Date(b.blockedAt) : new Date(),
+    }));
   }
 
   /**
-   * Block a user - adds to blocked list and removes from matches
+   * Block a user via the backend blockUser callable (writes the canonical
+   * blocks/{blockerId_blockedId} doc and handles match cleanup server-side).
    */
-  async blockUser(userId: string, blockedUserId: string): Promise<void> {
-    const db = getFirebaseDb();
-
-    // Add to blocked list
-    await setDoc(doc(db, USERS_COLLECTION, userId, 'blocked', blockedUserId), {
-      blockedAt: serverTimestamp(),
-    });
-
-    // Also check if there's a match between these users and update it.
-    // Check for match where current user liked the blocked user
-    const matchId1 = `${userId}_${blockedUserId}`;
-    const matchDoc1 = await getDoc(doc(db, 'matches', matchId1));
-    if (matchDoc1.exists() && matchDoc1.data().status === 'matched') {
-      await updateDoc(doc(db, 'matches', matchId1), {
-        status: 'blocked',
-        blockedBy: userId,
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    // Check for reverse match
-    const matchId2 = `${blockedUserId}_${userId}`;
-    const matchDoc2 = await getDoc(doc(db, 'matches', matchId2));
-    if (matchDoc2.exists() && matchDoc2.data().status === 'matched') {
-      await updateDoc(doc(db, 'matches', matchId2), {
-        status: 'blocked',
-        blockedBy: userId,
-        updatedAt: serverTimestamp(),
-      });
-    }
+  async blockUser(_userId: string, blockedUserId: string): Promise<void> {
+    await callables.blockUser({ blockedId: blockedUserId });
   }
 
   /**
-   * Check if a user is blocked
+   * Check if a user is blocked (by the caller). Uses the backend list since the
+   * blocks collection is not client-readable.
    */
-  async isUserBlocked(userId: string, otherUserId: string): Promise<boolean> {
-    const db = getFirebaseDb();
-    const blockedDoc = await getDoc(doc(db, USERS_COLLECTION, userId, 'blocked', otherUserId));
-    return blockedDoc.exists();
+  async isUserBlocked(_userId: string, otherUserId: string): Promise<boolean> {
+    const blocked = await this.getBlockedUsers();
+    return blocked.some((b) => b.id === otherUserId);
   }
 
   /**
-   * Unblock a user
+   * Unblock a user via the backend unblockUser callable.
    */
-  async unblockUser(userId: string, blockedUserId: string): Promise<void> {
-    const db = getFirebaseDb();
-    await deleteDoc(doc(db, USERS_COLLECTION, userId, 'blocked', blockedUserId));
+  async unblockUser(_userId: string, blockedUserId: string): Promise<void> {
+    await callables.unblockUser({ blockedId: blockedUserId });
   }
 
   /**
-   * Report a user
+   * Report a user via the backend reportUser callable (canonical reports shape).
    */
   async reportUser(
-    reporterId: string,
+    _reporterId: string,
     reportedUserId: string,
     reason: string,
     details?: string
   ): Promise<void> {
-    const db = getFirebaseDb();
-    const reportsCollection = collection(db, 'reports');
-
-    await setDoc(doc(reportsCollection), {
-      reporterId,
-      reportedUserId,
+    await callables.reportUser({
+      reportedId: reportedUserId,
       reason,
-      details: details || '',
-      status: 'pending',
-      createdAt: serverTimestamp(),
+      description: details,
+      source: 'web',
     });
   }
 

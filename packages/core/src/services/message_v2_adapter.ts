@@ -227,12 +227,12 @@ export const messageServiceV2Adapter = {
     userId: string,
     isBlocked: boolean
   ): Promise<void> {
-    const targetUserId = await resolveOtherParticipant(conversationId, userId);
-    if (!targetUserId) return;
+    const blockedId = await resolveOtherParticipant(conversationId, userId);
+    if (!blockedId) return;
     if (isBlocked) {
-      await callables.blockUser({ targetUserId });
+      await callables.blockUser({ blockedId });
     } else {
-      await callables.unblockUser({ targetUserId });
+      await callables.unblockUser({ blockedId });
     }
   },
 };
