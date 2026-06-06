@@ -53,6 +53,29 @@ All under `my_first_project/docs/reports/`:
 5. **Auth errors** are presented via `getAuthErrorMessage`
    (`packages/core/src/services/auth_errors.ts`) — never surface raw Firebase
    strings.
+6. **App Check is required for backend calls.** Production callable/REST paths
+   enforce App Check. The web client initializes it in
+   `packages/core/src/firebase/config.ts` (reCAPTCHA Enterprise by default).
+   Firestore/callable SDKs attach the token automatically; **raw `fetch()` to
+   Cloud Functions must attach it manually** via `getAppCheckHeaders()`
+   (see `services/match.ts` discovery REST for the pattern).
+
+## App Check behavior by environment
+
+| | Provider | Site key | Debug token | Missing key |
+|---|---|---|---|---|
+| **Development** | Enterprise (or v3) | optional | honored (`NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG_TOKEN`, register in Firebase console) | warning |
+| **Staging** | Enterprise | required | ignored | error (logged) |
+| **Production** | Enterprise | required | ignored | error (logged) |
+
+- Provider: `NEXT_PUBLIC_FIREBASE_APPCHECK_PROVIDER` (`recaptcha-enterprise`
+  default, or `recaptcha-v3`). Environment resolved from `NEXT_PUBLIC_APP_ENV`
+  (falls back to `NODE_ENV`).
+- Token auto-refresh is on. `validateAppCheckEnv()` runs at init and logs
+  errors (staging/prod) or warnings (dev). `getAppCheckToken()` logs
+  missing/invalid/expired token conditions.
+- A debug token set outside development is logged and **ignored** — it never
+  weakens staging/production enforcement.
 
 ## Local checks (run before committing)
 

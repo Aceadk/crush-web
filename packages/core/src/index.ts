@@ -9,7 +9,11 @@ export {
   getFirebaseAppCheck,
   initializeWebAppCheck,
   isAppCheckConfigured,
+  validateAppCheckEnv,
+  getAppCheckToken,
+  getAppCheckHeaders,
 } from './firebase/config';
+export type { AppCheckEnvValidation } from './firebase/config';
 
 // Types
 export { DEFAULT_USER_SETTINGS, calculateAge } from './types/user';

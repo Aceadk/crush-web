@@ -1,7 +1,9 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import {
   initializeAppCheck,
+  getToken as getAppCheckTokenInternal,
   ReCaptchaV3Provider,
+  ReCaptchaEnterpriseProvider,
   type AppCheck,
 } from 'firebase/app-check';
 import { getAuth, Auth } from 'firebase/auth';
@@ -31,13 +33,76 @@ export function isFirebaseConfigured(): boolean {
 // See docs/reports/shared_backend_contract_matrix_2026-06-05.md (us-central1).
 const FUNCTIONS_REGION = 'us-central1';
 
-// App Check (reCAPTCHA v3) — production callable/REST paths enforce App Check,
-// so the web client must attest. The site key is environment-specific; a debug
-// token enables local/emulator use without weakening production enforcement.
+// App Check — production callable/REST paths enforce App Check, so the web
+// client must attest. The site key is environment-specific. The default
+// provider is reCAPTCHA Enterprise (the approved production provider); set
+// NEXT_PUBLIC_FIREBASE_APPCHECK_PROVIDER=recaptcha-v3 to opt into classic v3.
+// A debug token is honored ONLY in local development, never in staging/prod.
 const APPCHECK_RECAPTCHA_KEY =
   process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_RECAPTCHA_KEY?.trim();
 const APPCHECK_DEBUG_TOKEN =
   process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG_TOKEN?.trim();
+const APPCHECK_PROVIDER = (
+  process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_PROVIDER?.trim().toLowerCase() ||
+  'recaptcha-enterprise'
+) as 'recaptcha-enterprise' | 'recaptcha-v3';
+
+/** Resolved app environment: development | staging | production. */
+function resolveAppEnv(): 'development' | 'staging' | 'production' {
+  const raw = (
+    process.env.NEXT_PUBLIC_APP_ENV?.trim().toLowerCase() ||
+    process.env.NODE_ENV?.trim().toLowerCase() ||
+    ''
+  );
+  if (raw === 'staging' || raw === 'preview') return 'staging';
+  if (raw === 'production') return 'production';
+  // 'development', 'local', 'test', or unset → development.
+  return 'development';
+}
+
+/** Debug tokens are honored only in local development. */
+function debugTokenAllowed(): boolean {
+  return resolveAppEnv() === 'development';
+}
+
+export interface AppCheckEnvValidation {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Validate App Check environment configuration. Missing the site key is an
+ * error in staging/production (App Check is enforced there) and a warning in
+ * development. A debug token present outside development is a warning (ignored).
+ */
+export function validateAppCheckEnv(): AppCheckEnvValidation {
+  const env = resolveAppEnv();
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!APPCHECK_RECAPTCHA_KEY) {
+    const msg =
+      'App Check site key missing (NEXT_PUBLIC_FIREBASE_APPCHECK_RECAPTCHA_KEY). ' +
+      'Protected callable/REST calls will be rejected where App Check is enforced.';
+    if (env === 'development') warnings.push(msg);
+    else errors.push(msg);
+  }
+
+  if (APPCHECK_DEBUG_TOKEN && env !== 'development') {
+    warnings.push(
+      `App Check debug token is set in ${env}; it is ignored outside local development.`
+    );
+  }
+
+  if (APPCHECK_PROVIDER !== 'recaptcha-enterprise' && APPCHECK_PROVIDER !== 'recaptcha-v3') {
+    warnings.push(
+      `Unknown App Check provider "${APPCHECK_PROVIDER}"; falling back to recaptcha-enterprise.`
+    );
+  }
+
+  return { ok: errors.length === 0, errors, warnings };
+}
 
 // Initialize Firebase only once
 let app: FirebaseApp | null = null;
@@ -71,36 +136,45 @@ export function isAppCheckConfigured(): boolean {
 }
 
 /**
- * Initialize Firebase App Check (reCAPTCHA v3) once, client-side. Returns the
- * AppCheck instance, or null when not in a browser or not configured (the call
- * is a safe no-op so SSR/build and unconfigured envs never throw).
+ * Initialize Firebase App Check once, client-side. Uses reCAPTCHA Enterprise by
+ * default (or v3 when NEXT_PUBLIC_FIREBASE_APPCHECK_PROVIDER=recaptcha-v3).
+ * Returns the AppCheck instance, or null when not in a browser or not configured
+ * (the call is a safe no-op so SSR/build and unconfigured envs never throw).
  *
- * Set NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG_TOKEN locally to use a registered
- * debug token against the emulator/staging without a real reCAPTCHA challenge.
+ * In LOCAL DEVELOPMENT only, NEXT_PUBLIC_FIREBASE_APPCHECK_DEBUG_TOKEN is honored
+ * so the emulator/dev can attest without a real reCAPTCHA challenge. The debug
+ * token is ignored in staging/production.
  */
 export function initializeWebAppCheck(): AppCheck | null {
   if (appCheck) return appCheck;
   // Re-entrancy guard: getFirebaseApp() calls back into this function.
   if (appCheckInitStarted) return appCheck;
   if (typeof window === 'undefined' || !isFirebaseConfigured()) return null;
+
+  // Log env validation issues once at init (errors in staging/prod, warns in dev).
+  const validation = validateAppCheckEnv();
+  validation.errors.forEach((e) => console.error(`[AppCheck] ${e}`));
+  validation.warnings.forEach((w) => console.warn(`[AppCheck] ${w}`));
+
   if (!APPCHECK_RECAPTCHA_KEY) {
-    console.warn(
-      'App Check is not configured (missing NEXT_PUBLIC_FIREBASE_APPCHECK_RECAPTCHA_KEY). ' +
-        'Protected backend calls will fail where App Check is enforced.'
-    );
     return null;
   }
   appCheckInitStarted = true;
 
-  // Must be set BEFORE initializeAppCheck so the SDK uses the debug provider.
-  if (APPCHECK_DEBUG_TOKEN) {
+  // Debug token: local development only. Must be set BEFORE initializeAppCheck.
+  if (APPCHECK_DEBUG_TOKEN && debugTokenAllowed()) {
     (
       self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: string | boolean }
     ).FIREBASE_APPCHECK_DEBUG_TOKEN = APPCHECK_DEBUG_TOKEN;
   }
 
+  const provider =
+    APPCHECK_PROVIDER === 'recaptcha-v3'
+      ? new ReCaptchaV3Provider(APPCHECK_RECAPTCHA_KEY)
+      : new ReCaptchaEnterpriseProvider(APPCHECK_RECAPTCHA_KEY);
+
   appCheck = initializeAppCheck(getFirebaseApp(), {
-    provider: new ReCaptchaV3Provider(APPCHECK_RECAPTCHA_KEY),
+    provider,
     isTokenAutoRefreshEnabled: true,
   });
   return appCheck;
@@ -109,6 +183,59 @@ export function initializeWebAppCheck(): AppCheck | null {
 /** Returns the initialized AppCheck instance, initializing it if needed. */
 export function getFirebaseAppCheck(): AppCheck | null {
   return appCheck ?? initializeWebAppCheck();
+}
+
+/**
+ * Get a current App Check token string (for manual attachment to REST/fetch
+ * calls — Firestore/callable SDKs attach it automatically). Returns null when
+ * App Check is unavailable. Logs missing/invalid/expired-token conditions.
+ *
+ * The SDK refreshes tokens automatically; `getToken` returns a fresh one and
+ * throws on attestation failure, which we classify and log here.
+ */
+export async function getAppCheckToken(
+  forceRefresh = false
+): Promise<string | null> {
+  const instance = getFirebaseAppCheck();
+  if (!instance) {
+    if (isAppCheckConfigured()) {
+      console.warn('[AppCheck] Token requested but App Check failed to initialize.');
+    }
+    return null;
+  }
+  try {
+    const result = await getAppCheckTokenInternal(instance, forceRefresh);
+    if (!result?.token) {
+      console.warn('[AppCheck] Empty App Check token returned.');
+      return null;
+    }
+    return result.token;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const code =
+      typeof (error as { code?: unknown })?.code === 'string'
+        ? (error as { code: string }).code
+        : '';
+    // App Check surfaces attestation/expiry failures here; classify for logs.
+    const expired = /expir/i.test(message) || /expir/i.test(code);
+    console.error(
+      `[AppCheck] Failed to obtain App Check token (${
+        expired ? 'expired/invalid' : 'invalid'
+      })${code ? ` [${code}]` : ''}: ${message}`
+    );
+    return null;
+  }
+}
+
+/**
+ * Returns headers that carry the App Check token for manual REST requests, or an
+ * empty object when unavailable. Use to spread into fetch() init headers.
+ */
+export async function getAppCheckHeaders(
+  forceRefresh = false
+): Promise<Record<string, string>> {
+  const token = await getAppCheckToken(forceRefresh);
+  return token ? { 'X-Firebase-AppCheck': token } : {};
 }
 
 export function getFirebaseAuth(): Auth {
