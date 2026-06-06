@@ -28,6 +28,7 @@ const { v2Mock, matchV2Mock, legacyMatchMock, callableMock, firestoreMock } =
       swipeLeft: vi.fn(),
       swipeRight: vi.fn(),
       unmatch: vi.fn(),
+      setPinned: vi.fn(),
     },
     legacyMatchMock: {
       getDiscoveryProfiles: vi.fn(),
@@ -242,5 +243,11 @@ describe('matchServiceV2Adapter', () => {
     matchV2Mock.unmatch.mockResolvedValue(undefined);
     await matchServiceV2Adapter.unmatch('viewer', 'm-1');
     expect(matchV2Mock.unmatch).toHaveBeenCalledWith('m-1');
+  });
+
+  it('togglePinMatch persists via the setMatchPinned callable', async () => {
+    matchV2Mock.setPinned.mockResolvedValue(undefined);
+    await matchServiceV2Adapter.togglePinMatch('m-1', true);
+    expect(matchV2Mock.setPinned).toHaveBeenCalledWith('m-1', true);
   });
 });

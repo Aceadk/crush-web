@@ -92,6 +92,11 @@ export interface SetTypingRequest {
   isTyping: boolean;
 }
 
+export interface SetMatchPinnedRequest {
+  matchId: string;
+  pinned: boolean;
+}
+
 export interface SetPresenceStatusRequest {
   isOnline: boolean;
 }
@@ -178,6 +183,8 @@ export const callables = {
     invokeCallable<SwipeLeftRequest, OkResponse>('swipeLeft', data),
   unmatch: (data: UnmatchRequest) =>
     invokeCallable<UnmatchRequest, OkResponse>('unmatch', data),
+  setMatchPinned: (data: SetMatchPinnedRequest) =>
+    invokeCallable<SetMatchPinnedRequest, OkResponse>('setMatchPinned', data),
 
   // Chat & Messages
   sendMessage: (data: SendMessageRequest) =>

@@ -50,15 +50,10 @@ export const matchServiceV2Adapter = {
     await matchServiceV2.unmatch(matchId);
   },
 
-  async togglePinMatch(_matchId: string, _pinned: boolean): Promise<void> {
-    // No backend callable exists for pinning yet. The canonical match doc has a
-    // pinnedForUser map but no client-write path. Optimistic local state in the
-    // store still reflects the toggle; persistence is a follow-up once a
-    // setPinned callable is added. (Tracked in the alignment plan.)
-    console.warn(
-      '[matchServiceV2Adapter] togglePinMatch is not yet persisted in V2 ' +
-        '(no backend callable). Local state only.'
-    );
+  async togglePinMatch(matchId: string, pinned: boolean): Promise<void> {
+    // Persisted via the backend setMatchPinned callable (writes
+    // pinnedForUser.{uid} on the match doc).
+    await matchServiceV2.setPinned(matchId, pinned);
   },
 };
 

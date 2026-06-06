@@ -155,6 +155,14 @@ class MatchServiceV2 {
   }
 
   /**
+   * Pin/unpin a match for the current user via the backend `setMatchPinned`
+   * callable (writes pinnedForUser.{uid} on the match doc).
+   */
+  async setPinned(matchId: string, pinned: boolean): Promise<void> {
+    await callables.setMatchPinned({ matchId, pinned });
+  }
+
+  /**
    * Get all active matches for the current user.
    */
   async getMatches(): Promise<Match[]> {

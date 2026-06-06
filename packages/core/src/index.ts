@@ -109,6 +109,7 @@ export type {
   SwipeRightResponse,
   SwipeLeftRequest,
   UnmatchRequest,
+  SetMatchPinnedRequest,
 } from './api/callables';
 export { storageService } from './services/storage';
 export type { UploadProgress } from './services/storage';
