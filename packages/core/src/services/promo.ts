@@ -6,14 +6,12 @@
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   query,
   where,
   addDoc,
   updateDoc,
   increment,
-  Timestamp,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
 import {

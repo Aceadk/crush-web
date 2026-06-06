@@ -1,9 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import {
-  Heart,
   Shield,
-  Ban,
   Camera,
   MessageSquare,
   Users,

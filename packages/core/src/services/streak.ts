@@ -8,7 +8,6 @@ import {
   setDoc,
   updateDoc,
   serverTimestamp,
-  Timestamp,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
 import {
@@ -21,7 +20,6 @@ import {
   LIKES_RESET_HOURS,
   calculateStreakBonus,
   calculateTotalAllowedLikes,
-  getCurrentMilestone,
   getNextMilestone,
 } from '../types/streak';
 
@@ -253,7 +251,7 @@ class StreakService {
    */
   async getStreakInfo(userId: string): Promise<StreakInfo> {
     const streakData = await this.getStreakData(userId);
-    const { shouldReset, isNewDay } = this.checkStreakStatus(streakData);
+    const { shouldReset } = this.checkStreakStatus(streakData);
 
     const currentStreak = shouldReset ? 0 : streakData.currentStreak;
     const bonus = calculateStreakBonus(currentStreak);

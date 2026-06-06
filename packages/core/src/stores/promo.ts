@@ -24,7 +24,7 @@ interface PromoCodeState {
   clearError: () => void;
 }
 
-export const usePromoCodeStore = create<PromoCodeState>((set, get) => ({
+export const usePromoCodeStore = create<PromoCodeState>((set) => ({
   // Initial state
   promoCode: '',
   validationResult: null,

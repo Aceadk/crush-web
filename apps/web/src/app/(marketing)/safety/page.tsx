@@ -4,7 +4,6 @@ import {
   Shield,
   Eye,
   AlertTriangle,
-  MessageSquare,
   MapPin,
   Phone,
   UserX,

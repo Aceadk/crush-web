@@ -124,5 +124,24 @@ export const en = {
   },
 } as const;
 
-/** The canonical message shape every locale catalog must satisfy. */
-export type Messages = typeof en;
+/**
+ * The canonical message shape every locale catalog must satisfy.
+ *
+ * Each namespace enforces the exact KEY SET from English (via
+ * `Record<keyof typeof en.x, string>`) while widening every value to `string`,
+ * so a translated catalog must cover the same keys but may hold any locale's
+ * text. (A plain `Record<keyof …, string>` per namespace is used instead of a
+ * recursive mapped type to avoid a typescript-eslint no-unused-vars crash on
+ * mapped/conditional type aliases.)
+ */
+export interface Messages {
+  common: Record<keyof typeof en.common, string>;
+  nav: Record<keyof typeof en.nav, string>;
+  auth: Record<keyof typeof en.auth, string>;
+  discovery: Record<keyof typeof en.discovery, string>;
+  chat: Record<keyof typeof en.chat, string>;
+  settings: Record<keyof typeof en.settings, string>;
+  subscription: Record<keyof typeof en.subscription, string>;
+  errors: Record<keyof typeof en.errors, string>;
+  time: Record<keyof typeof en.time, string>;
+}

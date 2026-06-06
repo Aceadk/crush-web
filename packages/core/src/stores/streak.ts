@@ -10,7 +10,6 @@ import {
   StreakInfo,
   StreakMilestone,
   getCurrentMilestone,
-  getNextMilestone,
 } from '../types/streak';
 
 interface StreakState {
@@ -39,7 +38,7 @@ interface StreakState {
   clearError: () => void;
 }
 
-export const useStreakStore = create<StreakState>()((set, get) => ({
+export const useStreakStore = create<StreakState>()((set) => ({
   // Initial state
   streakData: null,
   limitInfo: null,

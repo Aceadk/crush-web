@@ -270,9 +270,7 @@ class UserService {
       blockedAt: serverTimestamp(),
     });
 
-    // Also check if there's a match between these users and update it
-    const matchesCollection = collection(db, 'matches');
-
+    // Also check if there's a match between these users and update it.
     // Check for match where current user liked the blocked user
     const matchId1 = `${userId}_${blockedUserId}`;
     const matchDoc1 = await getDoc(doc(db, 'matches', matchId1));

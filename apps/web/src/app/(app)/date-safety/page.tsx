@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@crush/core';
 import { Card, Button, Input, Badge } from '@crush/ui';
-import { cn } from '@crush/ui';
 import {
   ArrowLeft,
   Shield,
@@ -17,9 +16,7 @@ import {
   CheckCircle2,
   Users,
   Eye,
-  Bell,
   Share2,
-  Copy,
   Check,
   ExternalLink,
   Heart,
@@ -76,7 +73,6 @@ export default function SafetyPage() {
   const { profile } = useAuthStore();
   const [trustedContacts, setTrustedContacts] = useState<string[]>([]);
   const [newContact, setNewContact] = useState('');
-  const [shareLocationEnabled, setShareLocationEnabled] = useState(false);
   const [datePlan, setDatePlan] = useState({
     who: '',
     where: '',

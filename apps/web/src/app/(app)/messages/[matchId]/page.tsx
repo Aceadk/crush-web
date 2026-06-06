@@ -1,5 +1,6 @@
 'use client';
 
+import { use } from 'react';
 import dynamic from 'next/dynamic';
 import { Skeleton } from '@crush/ui';
 
@@ -39,7 +40,8 @@ interface PageProps {
   params: Promise<{ matchId: string }>;
 }
 
-export default async function ChatPage({ params }: PageProps) {
-  const { matchId } = await params;
+export default function ChatPage({ params }: PageProps) {
+  // Client components must not be async; unwrap the params promise with use().
+  const { matchId } = use(params);
   return <ChatRoom matchId={matchId} />;
 }

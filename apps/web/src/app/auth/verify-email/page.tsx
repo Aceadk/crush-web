@@ -79,7 +79,7 @@ function VerifyEmailRequiredPageContent() {
         setChecking(false);
       }
     },
-    [user?.email, router, getPostVerificationRoute]
+    [user?.email, user?.uid, router, getPostVerificationRoute]
   );
 
   const handleResend = useCallback(async () => {
