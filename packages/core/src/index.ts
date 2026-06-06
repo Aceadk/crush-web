@@ -4,6 +4,7 @@ export {
   getFirebaseApp,
   getFirebaseAuth,
   getFirebaseDb,
+  getFirebaseFunctions,
   getFirebaseStorage,
 } from './firebase/config';
 
@@ -87,6 +88,25 @@ export type { AuthState } from './services/auth';
 
 export { matchService } from './services/match';
 export { messageService } from './services/message';
+
+// V2 services — canonical backend-aligned (Option B migration).
+// Mutations go through Cloud Functions callables; reads use the canonical
+// matches/{matchId}/messages model. See:
+// docs/reports/web_chat_match_migration_plan_2026-06-05.md
+export { matchServiceV2, MatchServiceV2 } from './services/match_v2';
+export { messageServiceV2, MessageServiceV2 } from './services/message_v2';
+
+// Backend callable bindings (typed wrappers over Cloud Functions).
+export { callables, invokeCallable } from './api/callables';
+export type {
+  BackendMatchDTO,
+  CallableMessageType,
+  SendMessageRequest,
+  SendMessageResponse,
+  SwipeRequest,
+  SwipeResponse,
+  UnmatchRequest,
+} from './api/callables';
 export { storageService } from './services/storage';
 export type { UploadProgress } from './services/storage';
 export { userService } from './services/user';

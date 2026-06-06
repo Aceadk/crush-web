@@ -1,6 +1,7 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFunctions, Functions } from 'firebase/functions';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Trim all env values to prevent whitespace/newline contamination (e.g. Vercel env vars)
@@ -21,11 +22,16 @@ export function isFirebaseConfigured(): boolean {
   );
 }
 
+// Cloud Functions region must match the deployed functions runtime.
+// See docs/reports/shared_backend_contract_matrix_2026-06-05.md (us-central1).
+const FUNCTIONS_REGION = 'us-central1';
+
 // Initialize Firebase only once
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
+let functions: Functions | null = null;
 
 export function getFirebaseApp(): FirebaseApp {
   if (!isFirebaseConfigured()) {
@@ -57,6 +63,13 @@ export function getFirebaseStorage(): FirebaseStorage {
     storage = getStorage(getFirebaseApp());
   }
   return storage;
+}
+
+export function getFirebaseFunctions(): Functions {
+  if (!functions) {
+    functions = getFunctions(getFirebaseApp(), FUNCTIONS_REGION);
+  }
+  return functions;
 }
 
 export { firebaseConfig };
