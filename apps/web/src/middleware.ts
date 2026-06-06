@@ -89,7 +89,13 @@ export function middleware(request: NextRequest) {
 
   // Generate a nonce for CSP (CR-AUD-025)
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
-  const cspHeader = buildCspHeader(isDevelopment, nonce);
+  const cspHeader = buildCspHeader({
+    isDevelopment,
+    nonce,
+    // Canonical REST API origin once the domain decision lands (optional;
+    // *.cloudfunctions.net covers the default backend until then).
+    apiOrigin: process.env.NEXT_PUBLIC_API_ORIGIN,
+  });
 
   const authToken = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const lastActiveRaw = request.cookies.get(LAST_ACTIVE_COOKIE_NAME)?.value;

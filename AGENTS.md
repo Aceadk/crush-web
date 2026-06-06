@@ -77,6 +77,28 @@ All under `my_first_project/docs/reports/`:
 - A debug token set outside development is logged and **ignored** — it never
   weakens staging/production enforcement.
 
+## CSP (Content-Security-Policy)
+
+The policy is built in `apps/web/src/shared/lib/csp.ts` (`buildCspHeader`) and
+applied in `middleware.ts`. It is environment-specific and must permit every
+backend integration:
+
+- `connect-src`: `*.cloudfunctions.net` (callables + discovery REST),
+  `*.googleapis.com` (App Check, FCM registration, Storage),
+  `firebasestorage.googleapis.com`, `api.stripe.com`, `*.firebaseio.com` +
+  `wss:` (realtime), `www.google.com` (reCAPTCHA), and — once the domain
+  decision lands — the canonical REST API origin via `NEXT_PUBLIC_API_ORIGIN`.
+- `script-src`/`frame-src`: reCAPTCHA (`www.google.com`, `www.gstatic.com`) and
+  Stripe (`js.stripe.com`, `hooks.stripe.com`).
+- `worker-src 'self'`: the firebase-messaging web-push service worker.
+- **Development only** additionally allows local emulator origins
+  (`http://localhost:*`, `http://127.0.0.1:*`, `ws://…`) plus `unsafe-eval`/
+  `unsafe-inline` for the webpack dev runtime. **Production/staging stay strict**
+  (nonce-based script-src, no unsafe-*, no localhost).
+
+When adding a new external backend, add its origin to the right directive AND a
+regression test in `apps/web/src/lib/__tests__/csp.test.ts`.
+
 ## Local checks (run before committing)
 
 ```bash
