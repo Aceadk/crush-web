@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { User } from 'firebase/auth';
 import { authService } from '../services/auth';
+import { getAuthErrorMessage } from '../services/auth_errors';
 import { userService } from '../services/user';
 import { deviceSecurityService, TrustedDevice } from '../services/device-security';
 import { UserProfile } from '../types/user';
@@ -257,7 +258,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: false });
     } catch (error) {
       pendingRememberMePreference = null;
-      const message = error instanceof Error ? error.message : 'Sign in failed';
+      const message = getAuthErrorMessage(error, 'Sign in failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -284,7 +285,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       set({ profile, loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Sign up failed';
+      const message = getAuthErrorMessage(error, 'Sign up failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -302,7 +303,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: false });
     } catch (error) {
       pendingRememberMePreference = null;
-      const message = error instanceof Error ? error.message : 'Google sign in failed';
+      const message = getAuthErrorMessage(error, 'Google sign in failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -315,7 +316,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       await authService.sendEmailSignInLink(email, { redirectPath });
       set({ loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Email link sign in failed';
+      const message = getAuthErrorMessage(error, 'Email link sign in failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -435,7 +436,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       await authService.startPhoneVerification(phoneNumber, recaptchaContainerId);
       set({ loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Phone verification failed';
+      const message = getAuthErrorMessage(error, 'Phone verification failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -466,7 +467,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
     } catch (error) {
       pendingRememberMePreference = null;
-      const message = error instanceof Error ? error.message : 'Code verification failed';
+      const message = getAuthErrorMessage(error, 'Code verification failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -506,7 +507,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       await authService.sendPasswordReset(email);
       set({ loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Password reset failed';
+      const message = getAuthErrorMessage(error, 'Password reset failed');
       set({ error: message, loading: false });
       throw error;
     }
