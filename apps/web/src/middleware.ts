@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { buildCspHeader } from '@/shared/lib/csp';
 
 // Routes that require authentication
 const protectedRoutes = [
@@ -36,35 +37,6 @@ const SESSION_IDLE_TIMEOUT_SECONDS =
   Number.isFinite(parsedIdleTimeout) && parsedIdleTimeout > 0
     ? parsedIdleTimeout
     : 30 * 60; // 30 minutes
-
-function buildCspHeader(isDevelopment: boolean, nonce: string): string {
-  const scriptSrc = [
-    "'self'",
-    `'nonce-${nonce}'`,
-    'https://apis.google.com',
-    'https://*.firebaseio.com',
-    'https://*.googleapis.com',
-    'https://js.stripe.com',
-    // Next.js webpack dev runtime needs eval/inline during local dev & E2E.
-    ...(isDevelopment ? ["'unsafe-eval'", "'unsafe-inline'"] : []),
-  ].join(' ');
-
-  // Build CSP header with nonce instead of 'unsafe-inline' for script-src
-  return [
-    "default-src 'self'",
-    `script-src ${scriptSrc}`,
-    // style-src keeps 'unsafe-inline' — required for Tailwind CSS inline styles and Google Fonts
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.stripe.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebase.google.com https://api.stripe.com https://firebasestorage.googleapis.com https://nominatim.openstreetmap.org wss://*.firebaseio.com",
-    "frame-src 'self' https://*.firebaseapp.com https://js.stripe.com https://hooks.stripe.com",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    'upgrade-insecure-requests',
-  ].join('; ');
-}
 
 function applyCspHeader(response: NextResponse, cspHeader: string) {
   response.headers.set('Content-Security-Policy', cspHeader);

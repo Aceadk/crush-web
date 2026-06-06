@@ -2,6 +2,7 @@
 
 import { monitoring } from '@/lib/sentry';
 import {
+    initializeWebAppCheck,
     useAuthStore,
     useMatchStore,
     useMessageStore,
@@ -236,6 +237,14 @@ export function AuthInitializer({ children }: AuthInitializerProps) {
 
   useEffect(() => {
     monitoring.init();
+    // Initialize App Check before any protected backend call so attestation
+    // tokens attach to callable/REST/Firestore requests. No-op when unconfigured
+    // or outside the browser. See packages/core/src/firebase/config.ts.
+    try {
+      initializeWebAppCheck();
+    } catch {
+      // App Check init is best-effort at bootstrap; failures are logged inside.
+    }
   }, []);
 
   useEffect(() => {

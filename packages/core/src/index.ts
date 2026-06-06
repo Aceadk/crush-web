@@ -6,6 +6,9 @@ export {
   getFirebaseDb,
   getFirebaseFunctions,
   getFirebaseStorage,
+  getFirebaseAppCheck,
+  initializeWebAppCheck,
+  isAppCheckConfigured,
 } from './firebase/config';
 
 // Types
