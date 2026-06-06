@@ -31,6 +31,30 @@ jobs:
       - name: Run lint
         run: pnpm lint
 
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check (core, ui, web)
+        run: pnpm typecheck
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -54,3 +78,37 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Public, non-secret placeholders so the production build is
+          # deterministic in CI. Real values are injected at deploy time
+          # (Vercel/Firebase env). See domain_environment_matrix in
+          # my_first_project/docs/reports.
+          NEXT_PUBLIC_FIREBASE_API_KEY: ci-dummy
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-dummy
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-dummy.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_APP_ID: ci-dummy
+          NEXT_PUBLIC_APP_URL: https://crush.app
