@@ -3,9 +3,18 @@
  *
  * Replaces the legacy `match.ts` swipe/match-creation logic (which wrote
  * directional `matches/{uid_otherid}` docs and `swipes/` directly). This service
- * reads from the canonical bidirectional `matches/{matchId}` model (matchId =
- * sorted uid1_uid2, with a `userIds` array) and routes swipe/unmatch mutations
- * through backend callables.
+ * reads from the canonical bidirectional `matches/{matchId}` model and routes
+ * swipe/unmatch mutations through backend callables.
+ *
+ * Backend match schema (verified against functions/src/index.ts 2026-06-05):
+ *   userIds: [uid1, uid2], status: 'active' | 'unmatched',
+ *   preMatchRequests: { [uid]: n }, pinnedForUser: { [uid]: bool }, createdAt,
+ *   lastMessageAt, lastMessageContent, lastMessageType, lastMessageFromUserId,
+ *   readBy: { [uid]: ts }, typing: { [uid]: bool }.
+ *
+ * IMPORTANT: `swipeRight` returns only `{ matched, matchId? }` — NOT a full
+ * match DTO. When a match is created we fetch the doc so callers still get a
+ * Match.
  *
  * Discovery candidate fetching continues to use the REST `/v1/discovery/deck`
  * endpoint (already backend-driven via discovery_rest.ts).
@@ -28,7 +37,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseDb } from '../firebase/config';
-import { callables, type BackendMatchDTO } from '../api/callables';
+import { callables } from '../api/callables';
 import { Match, MatchStatus } from '../types/match';
 
 const MATCHES_COLLECTION = 'matches';
@@ -60,8 +69,7 @@ class MatchServiceV2 {
     switch (status) {
       case 'active':
         return 'mutual';
-      case 'archived':
-      case 'cancelled':
+      case 'unmatched':
         return 'unmatched';
       default:
         return 'mutual';
@@ -70,8 +78,13 @@ class MatchServiceV2 {
 
   /**
    * Map a canonical backend match doc (matches/{matchId}) to the web Match type.
-   * Backend uses a `userIds` array + `participants` map; web's Match is
-   * viewer-centric (userId = current user, otherUserId = the other participant).
+   * Backend uses a `userIds` array + per-uid `pinnedForUser`/`preMatchRequests`
+   * maps; web's Match is viewer-centric (userId = current user).
+   *
+   * NOTE: per-user unread count is not stored on the match doc; it is computed
+   * by the backend at read time. We surface 0 here and rely on the per-chat
+   * message subscription for unread state. (Follow-up: expose unread via a
+   * dedicated field or callable if list badges are needed.)
    */
   private mapDocToMatch(
     id: string,
@@ -83,75 +96,55 @@ class MatchServiceV2 {
       : [];
     const otherUserId = userIds.find((uid) => uid !== viewerId) ?? '';
 
-    const participants =
-      (data.participants as Record<
-        string,
-        Record<string, unknown>
-      >) ?? {};
-    const viewerParticipant = participants[viewerId] ?? {};
+    const pinnedForUser =
+      (data.pinnedForUser as Record<string, boolean> | undefined) ?? {};
+    const preMatchRequests =
+      (data.preMatchRequests as Record<string, number> | undefined) ?? {};
 
     return {
       id,
       userId: viewerId,
       otherUserId,
       status: this.mapStatus(data.status),
-      preMatchMessageRequestsCount:
-        typeof data.preMatchMessageRequestsCount === 'number'
-          ? data.preMatchMessageRequestsCount
-          : 0,
-      pinnedForUser: Boolean(viewerParticipant.pinned),
+      preMatchMessageRequestsCount: preMatchRequests[viewerId] ?? 0,
+      pinnedForUser: Boolean(pinnedForUser[viewerId]),
       otherUserName: (data.otherUserName as string | undefined) ?? undefined,
       otherUserPhotoUrl:
         (data.otherUserPhotoUrl as string | undefined) ?? undefined,
       createdAt: this.toIsoString(data.createdAt),
-      updatedAt: this.toIsoString(data.updatedAt),
-      lastMessageAt: viewerParticipant.lastMessageAt
-        ? this.toIsoString(viewerParticipant.lastMessageAt)
+      // Backend has no `updatedAt`; lastMessageAt is the freshest signal.
+      updatedAt: this.toIsoString(data.lastMessageAt ?? data.createdAt),
+      lastMessageAt: data.lastMessageAt
+        ? this.toIsoString(data.lastMessageAt)
         : undefined,
-      unreadCount:
-        typeof viewerParticipant.unreadCount === 'number'
-          ? viewerParticipant.unreadCount
-          : 0,
+      lastMessage: (data.lastMessageContent as string | undefined) ?? undefined,
+      unreadCount: 0,
       isSuperLike: Boolean(data.isSuperLike),
     };
   }
 
   /**
-   * Map the backend match DTO returned by the swipeRight callable to the web
-   * Match type.
-   */
-  private mapBackendDtoToMatch(dto: BackendMatchDTO, viewerId: string): Match {
-    return this.mapDocToMatch(
-      dto.id,
-      dto as unknown as Record<string, unknown>,
-      viewerId
-    );
-  }
-
-  /**
    * Swipe right (like / superlike) via the backend `swipeRight` callable.
-   * Returns the created Match if it resulted in a mutual match, else null.
+   * Returns whether it created a mutual match plus the resolved Match (fetched
+   * separately, since swipeRight returns only { matched, matchId }).
    */
   async swipeRight(
-    candidateId: string,
-    message?: string
-  ): Promise<{ isMatch: boolean; match: Match | null }> {
-    const viewerId = this.requireUserId();
-    const result = await callables.swipeRight({ candidateId, message });
-    if (result.match) {
-      return {
-        isMatch: true,
-        match: this.mapBackendDtoToMatch(result.match, viewerId),
-      };
+    targetUserId: string,
+    attachedMessage?: string
+  ): Promise<{ isMatch: boolean; matchId: string | null; match: Match | null }> {
+    const result = await callables.swipeRight({ targetUserId, attachedMessage });
+    if (result.matched && result.matchId) {
+      const match = await this.getMatch(result.matchId);
+      return { isMatch: true, matchId: result.matchId, match };
     }
-    return { isMatch: false, match: null };
+    return { isMatch: false, matchId: null, match: null };
   }
 
   /**
    * Swipe left (pass) via the backend `swipeLeft` callable.
    */
-  async swipeLeft(candidateId: string): Promise<void> {
-    await callables.swipeLeft({ candidateId });
+  async swipeLeft(targetUserId: string): Promise<void> {
+    await callables.swipeLeft({ targetUserId });
   }
 
   /**
@@ -172,7 +165,7 @@ class MatchServiceV2 {
       collection(db, MATCHES_COLLECTION),
       where('userIds', 'array-contains', viewerId),
       where('status', '==', 'active'),
-      orderBy('updatedAt', 'desc')
+      orderBy('lastMessageAt', 'desc')
     );
 
     const snapshot = await getDocs(q);
@@ -192,7 +185,7 @@ class MatchServiceV2 {
       collection(db, MATCHES_COLLECTION),
       where('userIds', 'array-contains', viewerId),
       where('status', '==', 'active'),
-      orderBy('updatedAt', 'desc')
+      orderBy('lastMessageAt', 'desc')
     );
 
     return onSnapshot(q, (snapshot) => {

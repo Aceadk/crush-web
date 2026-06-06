@@ -7,6 +7,11 @@
  * backend callables, matching the Flutter mobile client and the Firestore
  * security rules.
  *
+ * Backend message schema (verified against functions/src/index.ts 2026-06-05):
+ *   matchId, fromUserId, toUserId, content, type, mediaUrl, sentAt, isRead,
+ *   isDeletedForSender, isDeletedForRecipient, reactions: { [uid]: emoji },
+ *   visibleTo: [uid, toUserId], readAt, readBy.
+ *
  * See:
  * - docs/reports/web_chat_match_migration_plan_2026-06-05.md (Option B)
  * - docs/reports/shared_backend_contract_matrix_2026-06-05.md
@@ -15,6 +20,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -26,10 +32,7 @@ import {
   DocumentSnapshot,
 } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseDb } from '../firebase/config';
-import {
-  callables,
-  type CallableMessageType,
-} from '../api/callables';
+import { callables, type CallableMessageType } from '../api/callables';
 import {
   Message,
   MessageMetadata,
@@ -88,83 +91,92 @@ class MessageServiceV2 {
   }
 
   /**
+   * Resolve the other participant's uid from a match document. The backend
+   * `sendMessage` callable requires `toUserId`, but chat callers typically only
+   * hold the matchId. Pass `toUserId` explicitly to skip this lookup.
+   */
+  private async resolveOtherUserId(matchId: string): Promise<string> {
+    const viewerId = this.requireUserId();
+    const db = getFirebaseDb();
+    const snapshot = await getDoc(doc(db, MATCHES_COLLECTION, matchId));
+    if (!snapshot.exists()) {
+      throw new Error(`Match ${matchId} not found`);
+    }
+    const userIds = (snapshot.data()?.userIds as string[]) ?? [];
+    const other = userIds.find((uid) => uid !== viewerId);
+    if (!other) {
+      throw new Error(`Could not resolve recipient for match ${matchId}`);
+    }
+    return other;
+  }
+
+  /**
    * Map a canonical backend message doc (matches/{matchId}/messages/{id}) to the
-   * web Message type. Handles both the backend field names (isRead, createdAt,
-   * visibleTo) and any legacy fields encountered during migration.
+   * web Message type. Backend uses fromUserId/sentAt/isRead and a per-user
+   * reactions map { [uid]: emoji }.
    */
   private mapDocToMessage(
     id: string,
     matchId: string,
     data: Record<string, unknown>
   ): Message {
+    const viewerId = getFirebaseAuth().currentUser?.uid;
+    const senderId = (data.fromUserId as string) ?? '';
     const isRead = data.isRead === true;
-    const deletedAt = data.deletedAt;
-    const isDeleted = Boolean(deletedAt);
 
-    // Derive status from backend fields. Backend doesn't store a per-message
-    // status enum; we synthesize one from isRead + sender.
-    let status: MessageStatus = 'sent';
-    if (isRead) {
-      status = 'read';
-    }
+    // Soft-delete: backend tracks per-side deletion flags.
+    const isDeletedForSender = data.isDeletedForSender === true;
+    const isDeletedForRecipient = data.isDeletedForRecipient === true;
+    const viewerIsSender = viewerId === senderId;
+    const isDeleted = viewerIsSender
+      ? isDeletedForSender
+      : isDeletedForRecipient;
 
-    // Reactions in backend are a map { emoji: [uid, ...] }; flatten to the
-    // web's MessageReaction[] shape.
+    // Status: synthesized from sender + isRead. Outbound read messages show
+    // 'read'; everything else is 'sent' (delivery is implicit once persisted).
+    const status: MessageStatus = isRead ? 'read' : 'sent';
+
+    // Reactions: backend stores { [uid]: emoji } (one reaction per user).
     const reactions: MessageReaction[] = [];
     const rawReactions = data.reactions;
     if (rawReactions && typeof rawReactions === 'object') {
-      for (const [emoji, uids] of Object.entries(
+      for (const [uid, emoji] of Object.entries(
         rawReactions as Record<string, unknown>
       )) {
-        if (Array.isArray(uids)) {
-          for (const uid of uids) {
-            if (typeof uid === 'string') {
-              reactions.push({
-                emoji: emoji as MessageReactionType,
-                userId: uid,
-                timestamp: this.toIsoString(data.createdAt),
-              });
-            }
-          }
+        if (typeof emoji === 'string' && emoji.length > 0) {
+          reactions.push({
+            emoji: emoji as MessageReactionType,
+            userId: uid,
+            timestamp: this.toIsoString(data.sentAt),
+          });
         }
       }
     }
 
-    const metadata: MessageMetadata | undefined =
-      data.mediaUrl || data.mediaMetadata
-        ? {
-            imageUrl:
-              data.type === 'image'
-                ? (data.mediaUrl as string | undefined)
-                : undefined,
-            videoUrl:
-              data.type === 'video'
-                ? (data.mediaUrl as string | undefined)
-                : undefined,
-            audioUrl:
-              data.type === 'audio' || data.type === 'voice'
-                ? (data.mediaUrl as string | undefined)
-                : undefined,
-            ...(typeof data.mediaMetadata === 'object' && data.mediaMetadata
-              ? (data.mediaMetadata as Record<string, number>)
-              : {}),
-          }
-        : undefined;
+    const type = (data.type as MessageType) ?? 'text';
+    const mediaUrl = data.mediaUrl as string | undefined;
+    const metadata: MessageMetadata | undefined = mediaUrl
+      ? {
+          imageUrl: type === 'image' ? mediaUrl : undefined,
+          videoUrl: type === 'video' ? mediaUrl : undefined,
+          audioUrl: type === 'audio' ? mediaUrl : undefined,
+          gifUrl: type === 'gif' ? mediaUrl : undefined,
+        }
+      : undefined;
 
     return {
       id,
       conversationId: matchId, // V2: conversationId IS the matchId
-      senderId: (data.senderId as string) ?? '',
+      senderId,
       content: (data.content as string) ?? '',
-      type: (data.type as MessageType) ?? 'text',
+      type,
       status,
-      timestamp: this.toIsoString(data.createdAt),
+      timestamp: this.toIsoString(data.sentAt),
       readAt: data.readAt ? this.toIsoString(data.readAt) : undefined,
       metadata,
       reactions: reactions.length > 0 ? reactions : undefined,
       editedAt: data.editedAt ? this.toIsoString(data.editedAt) : undefined,
       isDeleted,
-      deletedAt: deletedAt ? this.toIsoString(deletedAt) : undefined,
     };
   }
 
@@ -177,18 +189,18 @@ class MessageServiceV2 {
     pageSize: number = MESSAGES_PER_PAGE
   ): Promise<{ messages: Message[]; lastDoc?: DocumentSnapshot }> {
     const db = getFirebaseDb();
-    const baseConstraints = [orderBy('createdAt', 'desc'), limit(pageSize)];
 
     const q = lastDoc
       ? query(
           collection(db, MATCHES_COLLECTION, matchId, MESSAGES_SUBCOLLECTION),
-          orderBy('createdAt', 'desc'),
+          orderBy('sentAt', 'desc'),
           startAfter(lastDoc),
           limit(pageSize)
         )
       : query(
           collection(db, MATCHES_COLLECTION, matchId, MESSAGES_SUBCOLLECTION),
-          ...baseConstraints
+          orderBy('sentAt', 'desc'),
+          limit(pageSize)
         );
 
     const snapshot = await getDocs(q);
@@ -212,7 +224,7 @@ class MessageServiceV2 {
     const db = getFirebaseDb();
     const q = query(
       collection(db, MATCHES_COLLECTION, matchId, MESSAGES_SUBCOLLECTION),
-      orderBy('createdAt', 'desc'),
+      orderBy('sentAt', 'desc'),
       limit(MESSAGES_PER_PAGE)
     );
 
@@ -226,24 +238,31 @@ class MessageServiceV2 {
 
   /**
    * Send a message via the backend `sendMessage` callable.
+   *
+   * @param toUserId Optional recipient uid. If omitted it is resolved from the
+   *   match document (one extra read). Pass it when the caller already knows it.
    */
   async sendMessage(
     matchId: string,
     content: string,
     type: MessageType = 'text',
-    mediaUrl?: string
-  ): Promise<{ messageId: string; timestamp: number }> {
+    options?: { mediaUrl?: string; toUserId?: string }
+  ): Promise<{ messageId: string }> {
+    const toUserId =
+      options?.toUserId ?? (await this.resolveOtherUserId(matchId));
     const result = await callables.sendMessage({
       matchId,
+      toUserId,
       type: toCallableMessageType(type),
       content,
-      mediaUrl,
+      mediaUrl: options?.mediaUrl,
     });
-    return { messageId: result.messageId, timestamp: result.timestamp };
+    return { messageId: result.messageId };
   }
 
   /**
    * Unsend (delete) a message via the backend `unsendMessage` callable.
+   * Backend restricts this to Plus-plan users.
    */
   async unsendMessage(matchId: string, messageId: string): Promise<void> {
     await callables.unsendMessage({ matchId, messageId });
@@ -262,12 +281,11 @@ class MessageServiceV2 {
 
   /**
    * Mark messages as read via the backend `markMessagesRead` callable.
+   * Returns the count of messages marked.
    */
-  async markMessagesRead(
-    matchId: string,
-    upToTimestamp: number = Date.now()
-  ): Promise<void> {
-    await callables.markMessagesRead({ matchId, upToTimestamp });
+  async markMessagesRead(matchId: string): Promise<number> {
+    const result = await callables.markMessagesRead({ matchId });
+    return result.markedCount;
   }
 
   /**
@@ -305,7 +323,9 @@ class MessageServiceV2 {
   }
 
   /**
-   * Add a reaction via the backend `addReaction` callable.
+   * Add a reaction via the backend `addReaction` callable. The backend stores
+   * a single reaction per user ({ [uid]: emoji }), so adding replaces any prior
+   * reaction by the same user.
    */
   async addReaction(
     matchId: string,
@@ -316,21 +336,18 @@ class MessageServiceV2 {
   }
 
   /**
-   * Remove a reaction via the backend `removeReaction` callable.
+   * Remove the current user's reaction via the backend `removeReaction`
+   * callable. No emoji is needed — the backend removes the caller's reaction.
    */
-  async removeReaction(
-    matchId: string,
-    messageId: string,
-    emoji: MessageReactionType
-  ): Promise<void> {
-    await callables.removeReaction({ matchId, messageId, emoji });
+  async removeReaction(matchId: string, messageId: string): Promise<void> {
+    await callables.removeReaction({ matchId, messageId });
   }
 
   /**
    * Resolve a signed URL for chat media via the backend callable.
    */
-  async getMediaSignedUrl(matchId: string, mediaPath: string): Promise<string> {
-    const result = await callables.getChatMediaSignedUrl({ matchId, mediaPath });
+  async getMediaSignedUrl(matchId: string, filePath: string): Promise<string> {
+    const result = await callables.getChatMediaSignedUrl({ matchId, filePath });
     return result.url;
   }
 }

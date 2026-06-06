@@ -99,12 +99,14 @@ export { messageServiceV2, MessageServiceV2 } from './services/message_v2';
 // Backend callable bindings (typed wrappers over Cloud Functions).
 export { callables, invokeCallable } from './api/callables';
 export type {
-  BackendMatchDTO,
+  BackendMatchDoc,
   CallableMessageType,
+  OkResponse,
   SendMessageRequest,
   SendMessageResponse,
-  SwipeRequest,
-  SwipeResponse,
+  SwipeRightRequest,
+  SwipeRightResponse,
+  SwipeLeftRequest,
   UnmatchRequest,
 } from './api/callables';
 export { storageService } from './services/storage';

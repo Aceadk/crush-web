@@ -1,19 +1,23 @@
 /**
  * Typed Cloud Functions callable wrappers.
  *
- * These wrap the backend callables documented in the shared backend contract
- * matrix (my_first_project/docs/reports/shared_backend_contract_matrix_2026-06-05.md).
+ * These wrap the backend callables in my_first_project/functions/src/index.ts.
+ * Request/response shapes were verified directly against the backend source on
+ * 2026-06-05 (see docs/reports/shared_backend_contract_matrix_2026-06-05.md and
+ * web_chat_match_migration_plan_2026-06-05.md).
  *
  * Web mutations MUST go through these callables instead of writing directly to
  * Firestore. The Firestore security rules reject direct client writes to
  * matches/, messages/, and other backend-managed collections.
+ *
+ * NOTE: the backend returns `{ ok: true, ... }` for success (NOT `{ success }`).
  */
 
 import { httpsCallable, HttpsCallableResult } from 'firebase/functions';
 import { getFirebaseFunctions } from '../firebase/config';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Request/Response contracts (mirror functions/src/index.ts)
+// Request/Response contracts (verified against functions/src/index.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type CallableMessageType =
@@ -24,37 +28,43 @@ export type CallableMessageType =
   | 'voice'
   | 'gift';
 
-// Discovery & Matching
-export interface SwipeRequest {
-  candidateId: string;
-  message?: string;
+/** Standard backend success envelope. */
+export interface OkResponse {
+  ok: boolean;
 }
 
-export interface SwipeResponse {
-  success: boolean;
-  match?: BackendMatchDTO;
+// Discovery & Matching
+export interface SwipeRightRequest {
+  targetUserId: string;
+  attachedMessage?: string;
+}
+
+export interface SwipeRightResponse {
+  matched: boolean;
+  matchId?: string;
+}
+
+export interface SwipeLeftRequest {
+  targetUserId: string;
 }
 
 export interface UnmatchRequest {
   matchId: string;
 }
 
-export interface UnmatchResponse {
-  success: boolean;
-}
-
 // Chat & Messages
 export interface SendMessageRequest {
   matchId: string;
-  type: CallableMessageType;
-  content: string;
+  /** The other participant's uid — required by the backend. */
+  toUserId: string;
+  content?: string;
+  type?: CallableMessageType;
   mediaUrl?: string;
 }
 
 export interface SendMessageResponse {
-  success: boolean;
+  ok: boolean;
   messageId: string;
-  timestamp: number;
 }
 
 export interface UnsendMessageRequest {
@@ -70,7 +80,11 @@ export interface EditMessageRequest {
 
 export interface MarkMessagesReadRequest {
   matchId: string;
-  upToTimestamp: number;
+}
+
+export interface MarkMessagesReadResponse {
+  ok: boolean;
+  markedCount: number;
 }
 
 export interface SetTypingRequest {
@@ -88,15 +102,16 @@ export interface AddReactionRequest {
   emoji: string;
 }
 
+/** removeReaction takes NO emoji — the backend stores one reaction per user. */
 export interface RemoveReactionRequest {
   matchId: string;
   messageId: string;
-  emoji: string;
 }
 
 export interface GetChatMediaSignedUrlRequest {
   matchId: string;
-  mediaPath: string;
+  /** Storage path of the media object (backend param name: `filePath`). */
+  filePath: string;
 }
 
 export interface GetChatMediaSignedUrlResponse {
@@ -105,38 +120,32 @@ export interface GetChatMediaSignedUrlResponse {
 
 // Safety & Moderation
 export interface ReportUserRequest {
-  userId: string;
+  reportedId: string;
   reason: string;
   context?: string;
 }
 
 export interface BlockUserRequest {
-  userId: string;
+  targetUserId: string;
 }
 
-export interface SimpleSuccessResponse {
-  success: boolean;
-}
-
-// Backend match DTO as returned by callables (canonical shape).
-export interface BackendMatchDTO {
-  id: string;
-  userIds: [string, string];
-  status: 'active' | 'archived' | 'cancelled';
-  createdAt: number | string;
-  updatedAt: number | string;
-  participants?: Record<
-    string,
-    {
-      swipedAt?: number | string;
-      lastMessageAt?: number | string;
-      unreadCount?: number;
-      lastReadTimestamp?: number | string;
-    }
-  >;
-  settings?: {
-    extendedRetention?: boolean;
-  };
+/**
+ * Canonical match document shape as stored in Firestore (matches/{matchId}).
+ * Used by read paths (getMatch / subscribeToMatches), NOT returned by swipeRight.
+ */
+export interface BackendMatchDoc {
+  userIds: string[];
+  status: 'active' | 'unmatched';
+  preMatchRequests?: Record<string, number>;
+  pinnedForUser?: Record<string, boolean>;
+  createdAt?: unknown;
+  lastMessageAt?: unknown;
+  lastMessageContent?: string | null;
+  lastMessageType?: string;
+  lastMessageFromUserId?: string;
+  readBy?: Record<string, unknown>;
+  typing?: Record<string, boolean>;
+  isSuperLike?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,48 +172,36 @@ async function invokeCallable<TRequest, TResponse>(
 
 export const callables = {
   // Discovery & Matching
-  swipeRight: (data: SwipeRequest) =>
-    invokeCallable<SwipeRequest, SwipeResponse>('swipeRight', data),
-  swipeLeft: (data: SwipeRequest) =>
-    invokeCallable<SwipeRequest, SimpleSuccessResponse>('swipeLeft', data),
+  swipeRight: (data: SwipeRightRequest) =>
+    invokeCallable<SwipeRightRequest, SwipeRightResponse>('swipeRight', data),
+  swipeLeft: (data: SwipeLeftRequest) =>
+    invokeCallable<SwipeLeftRequest, OkResponse>('swipeLeft', data),
   unmatch: (data: UnmatchRequest) =>
-    invokeCallable<UnmatchRequest, UnmatchResponse>('unmatch', data),
+    invokeCallable<UnmatchRequest, OkResponse>('unmatch', data),
 
   // Chat & Messages
   sendMessage: (data: SendMessageRequest) =>
     invokeCallable<SendMessageRequest, SendMessageResponse>('sendMessage', data),
   unsendMessage: (data: UnsendMessageRequest) =>
-    invokeCallable<UnsendMessageRequest, SimpleSuccessResponse>(
-      'unsendMessage',
-      data
-    ),
+    invokeCallable<UnsendMessageRequest, OkResponse>('unsendMessage', data),
   editMessage: (data: EditMessageRequest) =>
-    invokeCallable<EditMessageRequest, SimpleSuccessResponse>(
-      'editMessage',
-      data
-    ),
+    invokeCallable<EditMessageRequest, OkResponse>('editMessage', data),
   markMessagesRead: (data: MarkMessagesReadRequest) =>
-    invokeCallable<MarkMessagesReadRequest, SimpleSuccessResponse>(
+    invokeCallable<MarkMessagesReadRequest, MarkMessagesReadResponse>(
       'markMessagesRead',
       data
     ),
   setTyping: (data: SetTypingRequest) =>
-    invokeCallable<SetTypingRequest, SimpleSuccessResponse>('setTyping', data),
+    invokeCallable<SetTypingRequest, OkResponse>('setTyping', data),
   setPresenceStatus: (data: SetPresenceStatusRequest) =>
-    invokeCallable<SetPresenceStatusRequest, SimpleSuccessResponse>(
+    invokeCallable<SetPresenceStatusRequest, OkResponse>(
       'setPresenceStatus',
       data
     ),
   addReaction: (data: AddReactionRequest) =>
-    invokeCallable<AddReactionRequest, SimpleSuccessResponse>(
-      'addReaction',
-      data
-    ),
+    invokeCallable<AddReactionRequest, OkResponse>('addReaction', data),
   removeReaction: (data: RemoveReactionRequest) =>
-    invokeCallable<RemoveReactionRequest, SimpleSuccessResponse>(
-      'removeReaction',
-      data
-    ),
+    invokeCallable<RemoveReactionRequest, OkResponse>('removeReaction', data),
   getChatMediaSignedUrl: (data: GetChatMediaSignedUrlRequest) =>
     invokeCallable<GetChatMediaSignedUrlRequest, GetChatMediaSignedUrlResponse>(
       'getChatMediaSignedUrl',
@@ -213,11 +210,11 @@ export const callables = {
 
   // Safety & Moderation
   reportUser: (data: ReportUserRequest) =>
-    invokeCallable<ReportUserRequest, SimpleSuccessResponse>('reportUser', data),
+    invokeCallable<ReportUserRequest, OkResponse>('reportUser', data),
   blockUser: (data: BlockUserRequest) =>
-    invokeCallable<BlockUserRequest, SimpleSuccessResponse>('blockUser', data),
+    invokeCallable<BlockUserRequest, OkResponse>('blockUser', data),
   unblockUser: (data: BlockUserRequest) =>
-    invokeCallable<BlockUserRequest, SimpleSuccessResponse>('unblockUser', data),
+    invokeCallable<BlockUserRequest, OkResponse>('unblockUser', data),
 } as const;
 
 export { invokeCallable };
