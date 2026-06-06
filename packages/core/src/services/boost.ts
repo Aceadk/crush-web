@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
 import { BoostStatus } from '../types/boost';
+import { isPremiumUser } from './entitlement';
 
 const USERS_COLLECTION = 'users';
 const PREMIUM_BOOST_DURATION_MINUTES = 30;
@@ -72,7 +73,8 @@ class BoostService {
     }
 
     const nowMs = Date.now();
-    const isPremium = Boolean(data.isPremium);
+    // Derive from canonical `plan` (backend never writes `isPremium`).
+    const isPremium = isPremiumUser(data);
     const boost = (data.boost ?? {}) as BoostDoc;
 
     const expiresAtMs = toMillis(boost.expiresAt);

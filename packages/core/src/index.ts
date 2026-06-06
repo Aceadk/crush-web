@@ -127,6 +127,18 @@ export type {
   LocationPermissionStatus,
 } from './services/location';
 
+export {
+  resolveEntitlement,
+  resolvePlan,
+  resolveTier,
+  isPremiumUser,
+} from './services/entitlement';
+export type {
+  CanonicalPlan,
+  Entitlement,
+  SubscriptionTier as EntitlementSubscriptionTier,
+} from './services/entitlement';
+
 export { boostService } from './services/boost';
 export { deviceSecurityService } from './services/device-security';
 export type { DeviceTrustResult, TrustedDevice } from './services/device-security';

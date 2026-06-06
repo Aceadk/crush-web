@@ -5,6 +5,7 @@ import {
   type UserPrompt,
   type UserSettings,
 } from '../types/user';
+import { resolveEntitlement } from './entitlement';
 
 type FirestoreUserData = Record<string, unknown>;
 
@@ -533,9 +534,18 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
     prompts,
     lifestyle: (data.lifestyle as UserProfile['lifestyle']) ?? undefined,
     isVerified: toBoolean(data.isVerified) ?? toBoolean(profile.isVerified) ?? false,
-    subscriptionTier: (data.subscriptionTier as UserProfile['subscriptionTier']) ?? 'free',
+    // Entitlement is derived from the canonical backend `plan` field (with
+    // legacy fallback) so web premium gating matches the backend + rules.
+    // See services/entitlement.ts (P1 #7 alignment).
+    ...(() => {
+      const entitlement = resolveEntitlement(data);
+      return {
+        subscriptionTier: entitlement.tier,
+        isPremium: entitlement.isPremium,
+        premiumExpiresAt: entitlement.expiresAt ?? toString(data.premiumExpiresAt),
+      };
+    })(),
     billingPeriod: data.billingPeriod as UserProfile['billingPeriod'],
-    premiumExpiresAt: toString(data.premiumExpiresAt),
     premiumAutoRenew: toBoolean(data.premiumAutoRenew),
     stripeCustomerId: toString(data.stripeCustomerId),
     stripeSubscriptionId: toString(data.stripeSubscriptionId),

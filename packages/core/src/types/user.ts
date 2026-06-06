@@ -21,7 +21,11 @@ export interface UserProfile {
   prompts?: UserPrompt[];
   lifestyle?: LifestyleInfo;
   isVerified: boolean;
-  isPremium?: never; // Deprecated, use subscriptionTier
+  // Derived convenience boolean (true when subscriptionTier !== 'free').
+  // Populated by mapUserDocumentToUserProfile from the canonical backend `plan`
+  // field via resolveEntitlement(). Do NOT persist this directly — `plan` is the
+  // source of truth. See services/entitlement.ts.
+  isPremium?: boolean;
   premiumPlan?: never; // Deprecated, use billingPeriod
   subscriptionTier: 'free' | 'plus' | 'platinum';
   billingPeriod?: 'monthly' | 'quarterly' | 'yearly';
