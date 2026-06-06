@@ -86,14 +86,24 @@ function allowRoute(rawRoute?: string): string | null {
     if (!trimmed.startsWith('/')) return null;
   }
 
+  // Map mobile/backend route names to their canonical web equivalents.
+  // Every targetRoute emitted by functions/src/index.ts (+ calls signaling) is
+  // covered here so notification taps land on a real web page. See
+  // my_first_project/docs/reports/route_deeplink_matrix_2026-06-05.md.
   const [pathname, search = ''] = path.split('?');
   const mappedPath = pathname
     .replace(/^\/chat\//, '/messages/')
     .replace(/^\/likes-you$/, '/likes')
     .replace(/^\/weekly-picks$/, '/weekly-picks')
     .replace(/^\/call-history$/, '/messages')
+    // Web has no calling UI yet; route call notifications to messages.
+    .replace(/^\/incoming-call$/, '/messages')
+    // Backend sends /notifications (e.g. match_ended); web has no inbox.
+    .replace(/^\/notifications$/, '/messages')
     .replace(/^\/safety$/, '/date-safety')
-    .replace(/^\/settings\/account-actions$/, '/settings/account');
+    .replace(/^\/settings\/account-actions$/, '/settings/account')
+    // Subscription management lives under /settings/account on web.
+    .replace(/^\/settings\/subscription$/, '/settings/account');
 
   const allowed =
     [
@@ -108,6 +118,9 @@ function allowRoute(rawRoute?: string): string | null {
       '/settings/notifications',
       '/settings/account',
       '/settings/privacy',
+      '/settings/blocked',
+      '/settings/discovery',
+      '/settings/incognito',
     ].includes(mappedPath) ||
     mappedPath.startsWith('/messages/') ||
     mappedPath.startsWith('/profile/');
@@ -125,10 +138,16 @@ export function resolveNotificationRoute(data?: Record<string, string>): string 
   const type = (payload.type || payload.notificationType || '').toLowerCase();
   const targetId = payload.targetId || payload.matchId || payload.conversationId;
 
+  // Type values mirror the backend notification `data.type` fields emitted by
+  // functions/src/index.ts (message, match, match_ended, like, subscription,
+  // data_export_ready) plus calls/safety variants.
   switch (type) {
     case 'message':
     case 'match':
       return targetId ? `/messages/${encodeURIComponent(targetId)}` : '/messages';
+    case 'match_ended':
+      // Unmatch — the conversation is gone; land on the messages list.
+      return '/messages';
     case 'message_request':
       return '/messages/requests';
     case 'like':
@@ -140,6 +159,11 @@ export function resolveNotificationRoute(data?: Record<string, string>): string 
       return '/settings/account';
     case 'data_export_ready':
       return '/settings/account';
+    case 'call':
+    case 'incoming_call':
+    case 'call_missed':
+      // No web calling UI yet; route to messages.
+      return '/messages';
     case 'call_safety_alert':
     case 'safety_alert':
       return '/date-safety';
