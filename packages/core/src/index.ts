@@ -125,6 +125,8 @@ export type {
   PromoRequest,
   ValidatePromoResponse,
   RedeemPromoResponse,
+  StreakStatusResponse,
+  RecordStreakResponse,
 } from './api/callables';
 export { storageService } from './services/storage';
 export type { UploadProgress } from './services/storage';

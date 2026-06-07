@@ -178,6 +178,32 @@ export interface RedeemPromoResponse {
   discountPercent: number;
 }
 
+export interface StreakStatusResponse {
+  ok: boolean;
+  isPremium: boolean;
+  currentStreak: number;
+  longestStreak: number;
+  baseLikes: number;
+  streakBonus: number;
+  totalAllowed: number; // -1 = unlimited (premium)
+  used: number;
+  remaining: number; // -1 = unlimited
+  nextMilestoneDays: number | null;
+  nextMilestoneBonus: number | null;
+  maintainedToday: boolean;
+  lastActivityDate: string | null;
+  streakStartDate: string | null;
+}
+
+export interface RecordStreakResponse {
+  ok: boolean;
+  currentStreak: number;
+  longestStreak: number;
+  streakBonus: number;
+  incremented: boolean;
+  isNewRecord: boolean;
+}
+
 /**
  * Canonical match document shape as stored in Firestore (matches/{matchId}).
  * Used by read paths (getMatch / subscribeToMatches), NOT returned by swipeRight.
@@ -282,6 +308,16 @@ export const callables = {
     invokeCallable<PromoRequest, ValidatePromoResponse>('validatePromoCode', data),
   redeemPromoCode: (data: PromoRequest) =>
     invokeCallable<PromoRequest, RedeemPromoResponse>('redeemPromoCode', data),
+  getStreakStatus: () =>
+    invokeCallable<Record<string, never>, StreakStatusResponse>(
+      'getStreakStatus',
+      {}
+    ),
+  recordStreakActivity: () =>
+    invokeCallable<Record<string, never>, RecordStreakResponse>(
+      'recordStreakActivity',
+      {}
+    ),
 } as const;
 
 export { invokeCallable };
