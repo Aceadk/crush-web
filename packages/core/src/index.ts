@@ -122,6 +122,9 @@ export type {
   BlockedUser,
   GetBlockedUsersResponse,
   ActivateBoostResponse,
+  PromoRequest,
+  ValidatePromoResponse,
+  RedeemPromoResponse,
 } from './api/callables';
 export { storageService } from './services/storage';
 export type { UploadProgress } from './services/storage';

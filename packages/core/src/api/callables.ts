@@ -159,6 +159,25 @@ export interface ActivateBoostResponse {
   cooldownHours: number;
 }
 
+export interface PromoRequest {
+  code: string;
+  planId?: string;
+}
+
+export interface ValidatePromoResponse {
+  ok: boolean;
+  isValid: boolean;
+  error?: string;
+  discountPercent?: number;
+  isFreeAccess?: boolean;
+}
+
+export interface RedeemPromoResponse {
+  ok: boolean;
+  isFreeAccess: boolean;
+  discountPercent: number;
+}
+
 /**
  * Canonical match document shape as stored in Firestore (matches/{matchId}).
  * Used by read paths (getMatch / subscribeToMatches), NOT returned by swipeRight.
@@ -259,6 +278,10 @@ export const callables = {
       'activateBoost',
       {}
     ),
+  validatePromoCode: (data: PromoRequest) =>
+    invokeCallable<PromoRequest, ValidatePromoResponse>('validatePromoCode', data),
+  redeemPromoCode: (data: PromoRequest) =>
+    invokeCallable<PromoRequest, RedeemPromoResponse>('redeemPromoCode', data),
 } as const;
 
 export { invokeCallable };
