@@ -16,7 +16,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "migrate:conversations": "node scripts/migrate-conversations-to-matches.mjs",
-    "migrate:conversations:execute": "node scripts/migrate-conversations-to-matches.mjs --execute"
+    "migrate:conversations:execute": "node scripts/migrate-conversations-to-matches.mjs --execute",
+    "migrate:flat-profile": "node scripts/migrate-flat-profile.mjs",
+    "migrate:flat-profile:execute": "node scripts/migrate-flat-profile.mjs --execute"
   },
   "dependencies": {
     "@crush/core": "workspace:*",

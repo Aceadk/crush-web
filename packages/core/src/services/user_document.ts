@@ -289,19 +289,16 @@ export function buildUserProfileCreateData(
     phoneNumber: data.phoneNumber,
     displayName,
     username: data.username,
-    bio: data.bio ?? '',
-    birthDate: data.birthDate,
-    age: data.age,
-    gender: normalizeGender(data.gender),
-    sexualOrientation: data.sexualOrientation,
+    // Canonical demographic/profile data lives ONLY under profile.* — the
+    // Firestore rules reject legacy flat root keys (bio, birthDate, age, gender,
+    // sexualOrientation, interests, isVerified, …). See firestore.rules
+    // legacyFlatProfileKeys() and docs/contracts/canonical_user_document.fixture.json.
     interestedIn,
     photos,
     profilePhotoUrl: data.profilePhotoUrl ?? photos[0],
     location,
-    interests: data.interests ?? [],
     prompts,
     lifestyle: data.lifestyle,
-    isVerified: data.isVerified ?? false,
     subscriptionTier: data.subscriptionTier ?? 'free',
     billingPeriod: data.billingPeriod,
     premiumExpiresAt: data.premiumExpiresAt,
@@ -341,25 +338,22 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
     updates.displayName = data.displayName.trim();
     updates['profile.name'] = data.displayName.trim();
   }
+  // Canonical demographic fields are written under profile.* ONLY. Writing the
+  // legacy flat root keys (bio/birthDate/age/gender/sexualOrientation/interests/
+  // isVerified) is rejected by the Firestore rules.
   if (data.bio !== undefined) {
-    updates.bio = data.bio.trim();
     updates['profile.bio'] = data.bio.trim();
   }
   if (data.birthDate !== undefined) {
-    updates.birthDate = data.birthDate;
     updates['profile.birthDate'] = data.birthDate;
   }
   if (data.age !== undefined) {
-    updates.age = data.age;
     updates['profile.age'] = data.age;
   }
   if (data.gender !== undefined) {
-    const normalizedGender = normalizeGender(data.gender);
-    updates.gender = normalizedGender;
-    updates['profile.gender'] = normalizedGender;
+    updates['profile.gender'] = normalizeGender(data.gender);
   }
   if (data.sexualOrientation !== undefined) {
-    updates.sexualOrientation = data.sexualOrientation;
     updates['profile.sexualOrientation'] = data.sexualOrientation;
   }
   if (interestedIn !== undefined) {
@@ -384,7 +378,6 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
     }
   }
   if (data.interests !== undefined) {
-    updates.interests = data.interests;
     updates['profile.interests'] = data.interests;
   }
   if (prompts !== undefined) {
@@ -410,7 +403,6 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
     }
   }
   if (data.isVerified !== undefined) {
-    updates.isVerified = data.isVerified;
     updates['profile.isVerified'] = data.isVerified;
   }
   if (data.onboardingComplete !== undefined) {
