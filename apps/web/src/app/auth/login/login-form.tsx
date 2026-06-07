@@ -8,8 +8,10 @@ import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescriptio
 import { Mail, Lock, Eye, EyeOff, Chrome, Phone } from 'lucide-react';
 import { useAnalytics } from '@/components/analytics';
 import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
+import { useTranslations } from '@/i18n';
 
 export default function LoginForm() {
+  const { t } = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = sanitizeRedirectPath(searchParams.get('redirect'));
@@ -61,14 +63,14 @@ export default function LoginForm() {
 
   useEffect(() => {
     if (timeoutReason === 'timeout') {
-      setValidationError('Your session expired due to inactivity. Please sign in again.');
+      setValidationError(t('auth.sessionExpired'));
       return;
     }
 
     if (timeoutReason === 'device') {
-      setValidationError('Please verify this new device from your email link before continuing.');
+      setValidationError(t('auth.deviceVerifyNeeded'));
     }
-  }, [timeoutReason]);
+  }, [timeoutReason, t]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +79,7 @@ export default function LoginForm() {
     clearError();
 
     if (!email || !password) {
-      setValidationError('Please fill in all fields');
+      setValidationError(t('auth.fillAllFields'));
       return;
     }
 
@@ -130,7 +132,7 @@ export default function LoginForm() {
     clearError();
 
     if (!email) {
-      setValidationError('Enter your email address first to receive a sign-in link.');
+      setValidationError(t('auth.enterEmailFirst'));
       return;
     }
 
@@ -138,7 +140,7 @@ export default function LoginForm() {
       setIsSendingEmailLink(true);
       funnelStep('auth', 'email_link_requested', 'started', { method: 'email_link' });
       await sendEmailSignInLink(email, redirect);
-      setEmailLinkSuccess(`Sign-in link sent to ${email}. Check your inbox.`);
+      setEmailLinkSuccess(t('auth.emailLinkSent', { email }));
       funnelStep('auth', 'email_link_requested', 'completed', { method: 'email_link' });
     } catch {
       funnelStep('auth', 'email_link_requested', 'failed', { method: 'email_link' });
@@ -153,8 +155,8 @@ export default function LoginForm() {
   return (
     <Card className="border-0 shadow-lg">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to continue to Crush</CardDescription>
+        <CardTitle className="text-2xl">{t('auth.welcomeBack')}</CardTitle>
+        <CardDescription>{t('auth.signInSubtitle')}</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-6">
@@ -167,13 +169,13 @@ export default function LoginForm() {
             disabled={isLoading}
           >
             <Chrome className="w-5 h-5 mr-2" />
-            Continue with Google
+            {t('auth.continueWithGoogle')}
           </Button>
 
           <Link href={phoneHref}>
             <Button variant="outline" className="w-full h-12" disabled={isLoading}>
               <Phone className="w-5 h-5 mr-2" />
-              Continue with Phone
+              {t('auth.continueWithPhone')}
             </Button>
           </Link>
         </div>
@@ -185,7 +187,7 @@ export default function LoginForm() {
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-card px-2 text-muted-foreground">
-              Or continue with email
+              {t('auth.orContinueWithEmail')}
             </span>
           </div>
         </div>
@@ -196,7 +198,7 @@ export default function LoginForm() {
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type="email"
-              placeholder="Email address"
+              placeholder={t('auth.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="pl-10"
@@ -208,7 +210,7 @@ export default function LoginForm() {
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
+              placeholder={t('auth.password')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="pl-10 pr-10"
@@ -242,19 +244,19 @@ export default function LoginForm() {
                 className="h-4 w-4 rounded border-input accent-primary"
                 disabled={isLoading}
               />
-              Remember me for 30 days
+              {t('auth.rememberMe')}
             </label>
 
             <Link
               href={forgotPasswordHref}
               className="text-sm text-primary hover:underline whitespace-nowrap"
             >
-              Forgot password?
+              {t('auth.forgotPassword')}
             </Link>
           </div>
 
           <Button type="submit" className="w-full h-12" loading={isLoading}>
-            {isSigningIn ? 'Signing in...' : 'Sign In'}
+            {isSigningIn ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
 
           <Button
@@ -265,15 +267,15 @@ export default function LoginForm() {
             loading={isSendingEmailLink}
             disabled={isLoading}
           >
-            Email me a sign-in link
+            {t('auth.emailMeLink')}
           </Button>
         </form>
 
         {/* Sign up link */}
         <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
+          {t('auth.noAccount')}{' '}
           <Link href={signupHref} className="text-primary hover:underline font-medium">
-            Sign up
+            {t('auth.signUp')}
           </Link>
         </p>
       </CardContent>

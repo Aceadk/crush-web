@@ -8,6 +8,8 @@
 
 import type { Locale } from '../locales';
 import { en, type Messages } from './en';
+import { es } from './es';
+import { ar } from './ar';
 
 /**
  * Registry of shipped catalogs. Partial<Messages> is allowed for non-English
@@ -16,7 +18,9 @@ import { en, type Messages } from './en';
  */
 const CATALOGS: Partial<Record<Locale, Messages>> = {
   en,
-  // es: esCatalog,  // ← add locale catalogs here as they are translated
+  es, // Spanish (LTR)
+  ar, // Arabic (RTL) — also exercises directional layout
+  // ← add more locale catalogs here as they are translated
 };
 
 /** Returns the catalog for a locale, or the English catalog as a fallback. */

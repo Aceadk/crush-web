@@ -57,6 +57,19 @@ export const en = {
     verifyEmail: 'Verify your email',
     resendCode: 'Resend code',
     welcomeBack: 'Welcome back',
+    signInSubtitle: 'Sign in to continue to Crush',
+    continueWithPhone: 'Continue with Phone',
+    orContinueWithEmail: 'Or continue with email',
+    emailPlaceholder: 'Email address',
+    fillAllFields: 'Please fill in all fields.',
+    sessionExpired: 'Your session expired due to inactivity. Please sign in again.',
+    deviceVerifyNeeded:
+      'Please verify this new device from your email link before continuing.',
+    enterEmailFirst: 'Enter your email address first to receive a sign-in link.',
+    emailLinkSent: 'Sign-in link sent to {email}. Check your inbox.',
+    rememberMe: 'Remember me for 30 days',
+    signingIn: 'Signing in…',
+    emailMeLink: 'Email me a sign-in link',
   },
   discovery: {
     title: 'Discover',
@@ -96,6 +109,8 @@ export const en = {
     helpSupport: 'Help & support',
     deleteAccount: 'Delete account',
     manageSubscription: 'Manage subscription',
+    language: 'Language',
+    theme: 'Theme',
   },
   subscription: {
     upgradeTitle: 'Upgrade to Crush Plus',
@@ -111,6 +126,63 @@ export const en = {
     notFound: 'The requested item could not be found.',
     unauthorized: 'Please sign in to continue.',
     rateLimited: 'You have reached a limit. Please try again later.',
+    generic: 'Something went wrong. Please try again.',
+    offline: "You're offline. Reconnect to continue.",
+    permissionDenied: 'You do not have permission to do that.',
+  },
+  // Form validation messages ({field}/{min} interpolated by call sites).
+  validation: {
+    required: 'This field is required.',
+    invalidEmail: 'Please enter a valid email address.',
+    passwordTooShort: 'Password must be at least {min} characters.',
+    passwordsMismatch: 'Passwords do not match.',
+    nameRequired: 'Please enter your name.',
+    invalidPhone: 'Please enter a valid phone number.',
+    tooLong: 'Must be {max} characters or fewer.',
+    invalidCode: 'Enter the {length}-digit code.',
+  },
+  // Backend / Firebase auth error codes → friendly copy (mirrors auth_errors.ts).
+  // Keys are the normalized code (last path segment), kept identical across locales.
+  authErrors: {
+    'wrong-password': 'Incorrect email or password.',
+    'invalid-credential': 'Incorrect email or password.',
+    'user-not-found': 'No account found with that email.',
+    'invalid-email': 'Please enter a valid email address.',
+    'user-disabled': 'This account has been disabled. Please contact support.',
+    'email-already-in-use': 'An account with this email already exists.',
+    'weak-password': 'Password is too weak. Use at least 6 characters.',
+    'too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+    'network-request-failed': 'Network error. Check your connection and try again.',
+    'popup-closed-by-user': 'Sign-in was cancelled.',
+    'popup-blocked': 'Your browser blocked the sign-in popup. Allow popups and try again.',
+    'requires-recent-login': 'For your security, please sign in again to complete this action.',
+    'invalid-verification-code': 'The verification code is incorrect.',
+    'invalid-phone-number': 'Please enter a valid phone number.',
+    unauthenticated: 'Please sign in to continue.',
+    'permission-denied': 'You do not have permission to do that.',
+    'resource-exhausted': 'You have reached a limit. Please try again later.',
+    unavailable: 'Service is temporarily unavailable. Please try again.',
+  },
+  // Notification category labels (mirror backend NotificationCategory).
+  notifications: {
+    matches: 'New matches',
+    messages: 'Messages',
+    likes: 'Likes',
+    calls: 'Calls',
+    profileViews: 'Profile views',
+    promotions: 'Promotions',
+    subscriptions: 'Subscription',
+    safetyAlerts: 'Safety alerts',
+    pushChannel: 'Push notifications',
+    emailChannel: 'Email notifications',
+    newMatchBody: 'You matched with {name}!',
+    newMessageBody: '{name} sent you a message',
+  },
+  // Document/page metadata (for client title sync + future routed metadata).
+  meta: {
+    title: 'Crush — Find Your Match',
+    description:
+      'Crush is a modern dating app to help you find meaningful connections. Swipe, match, and chat with people who share your interests.',
   },
   // Plural example: resolved by tPlural('time.minutesAgo', count).
   time: {
@@ -143,5 +215,9 @@ export interface Messages {
   settings: Record<keyof typeof en.settings, string>;
   subscription: Record<keyof typeof en.subscription, string>;
   errors: Record<keyof typeof en.errors, string>;
+  validation: Record<keyof typeof en.validation, string>;
+  authErrors: Record<keyof typeof en.authErrors, string>;
+  notifications: Record<keyof typeof en.notifications, string>;
+  meta: Record<keyof typeof en.meta, string>;
   time: Record<keyof typeof en.time, string>;
 }

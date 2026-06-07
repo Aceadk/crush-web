@@ -104,6 +104,46 @@ function looksTechnical(message: string): boolean {
 }
 
 /**
+ * Auth/callable codes that have a localized message in the web `authErrors`
+ * i18n namespace (apps/web/src/i18n/messages). Kept in sync with that catalog so
+ * `getAuthErrorKey` only returns keys that resolve.
+ */
+const LOCALIZED_AUTH_ERROR_CODES = new Set<string>([
+  'wrong-password',
+  'invalid-credential',
+  'user-not-found',
+  'invalid-email',
+  'user-disabled',
+  'email-already-in-use',
+  'weak-password',
+  'too-many-requests',
+  'network-request-failed',
+  'popup-closed-by-user',
+  'popup-blocked',
+  'requires-recent-login',
+  'invalid-verification-code',
+  'invalid-phone-number',
+  'unauthenticated',
+  'permission-denied',
+  'resource-exhausted',
+  'unavailable',
+]);
+
+/**
+ * Resolve an error to an i18n key in the `authErrors` namespace (e.g.
+ * `authErrors.wrong-password`) for localized display, or `null` when no
+ * localized mapping exists (callers should fall back to `getAuthErrorMessage`
+ * or a generic key). Pure — no React/i18n dependency, so it stays in core.
+ */
+export function getAuthErrorKey(error: unknown): string | null {
+  const code = extractCode(error);
+  if (code && LOCALIZED_AUTH_ERROR_CODES.has(code)) {
+    return `authErrors.${code}`;
+  }
+  return null;
+}
+
+/**
  * Convert any auth/callable error into a friendly, user-facing message.
  */
 export function getAuthErrorMessage(

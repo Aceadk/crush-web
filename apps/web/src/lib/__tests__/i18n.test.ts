@@ -87,9 +87,20 @@ describe('catalog registry', () => {
   it('returns the en catalog and reports availability', () => {
     expect(getMessages('en')).toBe(en);
     expect(hasCatalog('en')).toBe(true);
-    // A known-but-unshipped locale falls back to en and reports no catalog.
-    expect(getMessages('es')).toBe(en);
-    expect(hasCatalog('es')).toBe(false);
+  });
+
+  it('returns shipped non-English catalogs', () => {
+    // es + ar are shipped (Phase 8 Step 18).
+    expect(hasCatalog('es')).toBe(true);
+    expect(hasCatalog('ar')).toBe(true);
+    expect(getMessages('es')).not.toBe(en);
+    expect(getMessages('ar')).not.toBe(en);
+  });
+
+  it('falls back to en for known-but-unshipped locales', () => {
+    // A locale on the roadmap whose catalog has not shipped yet.
+    expect(getMessages('fr')).toBe(en);
+    expect(hasCatalog('fr')).toBe(false);
   });
 });
 

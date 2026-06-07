@@ -17,14 +17,15 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { ThemeSwitcher } from '@/shared/components/theme';
+import { useTranslations, LocaleSwitcher } from '@/i18n';
 
 const navItems = [
-  { href: '/discover', label: 'Discover', icon: Compass },
-  { href: '/matches', label: 'Matches', icon: Heart },
-  { href: '/likes', label: 'Likes You', icon: Sparkles, premium: true },
-  { href: '/messages', label: 'Messages', icon: MessageCircle },
-  { href: '/profile', label: 'Profile', icon: User },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/discover', key: 'nav.discover', icon: Compass },
+  { href: '/matches', key: 'nav.matches', icon: Heart },
+  { href: '/likes', key: 'nav.likes', icon: Sparkles, premium: true },
+  { href: '/messages', key: 'nav.messages', icon: MessageCircle },
+  { href: '/profile', key: 'nav.profile', icon: User },
+  { href: '/settings', key: 'nav.settings', icon: Settings },
 ];
 
 export function Sidebar() {
@@ -32,6 +33,7 @@ export function Sidebar() {
   const { profile, signOut } = useAuthStore();
   const { sidebarOpen, setSidebarOpen, isMobile } = useUIStore();
   const { matches } = useMatchStore();
+  const { t } = useTranslations();
 
   // Count unread messages
   const unreadCount = matches.reduce((acc, m) => acc + m.unreadCount, 0);
@@ -102,7 +104,7 @@ export function Sidebar() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{profile.displayName}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {profile.isPremium ? 'Premium' : 'Free account'}
+                    {profile.isPremium ? t('nav.premium') : t('subscription.free')}
                   </p>
                 </div>
               </div>
@@ -114,7 +116,7 @@ export function Sidebar() {
                   className="mt-3 flex items-center justify-center gap-1.5 w-full py-2 bg-gradient-to-r from-primary to-secondary text-white rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  Upgrade to Premium
+                  {t('subscription.upgradeTitle')}
                 </Link>
               )}
             </div>
@@ -141,7 +143,7 @@ export function Sidebar() {
                   )}
                 >
                   <Icon className={cn('w-4 h-4', isPremiumItem && 'text-yellow-500')} />
-                  <span>{item.label}</span>
+                  <span>{t(item.key)}</span>
                   {isPremiumItem && !profile?.isPremium && (
                     <span className="ml-auto text-[10px] text-yellow-600 dark:text-yellow-500 font-medium bg-yellow-100 dark:bg-yellow-900/30 px-1.5 py-0.5 rounded">
                       PRO
@@ -161,8 +163,14 @@ export function Sidebar() {
           <div className="p-3 border-t border-sidebar-border space-y-2">
             {/* Theme switcher */}
             <div className="flex items-center justify-between px-1">
-              <span className="text-xs text-muted-foreground">Theme</span>
+              <span className="text-xs text-muted-foreground">{t('settings.theme')}</span>
               <ThemeSwitcher />
+            </div>
+
+            {/* Language switcher */}
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs text-muted-foreground">{t('settings.language')}</span>
+              <LocaleSwitcher />
             </div>
 
             {/* Sign out */}
@@ -171,7 +179,7 @@ export function Sidebar() {
               className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
+              <span>{t('auth.signOut')}</span>
             </button>
           </div>
         </div>

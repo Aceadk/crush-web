@@ -1,56 +1,96 @@
 'use client';
 
 /**
- * React i18n context + hook.
+ * React i18n context + hook (Phase 8 Step 18: globally mounted).
  *
- * Provides the active locale and a bound translator to client components.
- * Defaults to English; pass a `locale` to switch (e.g. resolved from a cookie or
- * the Accept-Language header at the layout level). No routing is involved.
+ * Resolves the active locale client-first from the `crush-locale` cookie (set by
+ * the pre-hydration init script and the LocaleSwitcher), falling back to the
+ * browser language and then English. Exposes `setLocale` for instant switching
+ * (updates cookie + state + `<html lang/dir>` with no full reload) and bound
+ * Intl formatters via `useFormatters`.
+ *
+ * An explicit `locale` prop still overrides resolution (used by tests / SSR).
  */
 
 import {
   createContext,
+  useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useState,
   type ReactNode,
 } from 'react';
-import { DEFAULT_LOCALE, isRtlLocale, type Locale } from './locales';
+import { DEFAULT_LOCALE, isRtlLocale, resolveLocale, type Locale } from './locales';
 import { getMessages } from './messages';
 import { createTranslator, type Translator, type TranslateVars } from './translate';
+import { readLocaleCookie, writeLocaleCookie } from './locale-cookie';
+import { createFormatters, type Formatters } from './format';
 
 interface I18nContextValue extends Translator {
   locale: Locale;
   isRtl: boolean;
+  setLocale: (locale: Locale) => void;
+  format: Formatters;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export interface I18nProviderProps {
+  /** Explicit override (tests/SSR). When omitted, resolves from cookie/browser. */
   locale?: Locale;
   children: ReactNode;
 }
 
-export function I18nProvider({
-  locale = DEFAULT_LOCALE,
-  children,
-}: I18nProviderProps) {
+function applyHtmlLangDir(locale: Locale) {
+  if (typeof document === 'undefined') return;
+  const el = document.documentElement;
+  el.setAttribute('lang', locale);
+  el.setAttribute('dir', isRtlLocale(locale) ? 'rtl' : 'ltr');
+}
+
+export function I18nProvider({ locale: localeProp, children }: I18nProviderProps) {
+  // SSR + first client render use the default (or prop) so markup matches; an
+  // effect then adopts the persisted cookie locale. `suppressHydrationWarning`
+  // on <html> (layout) covers the lang/dir attribute correction.
+  const [locale, setLocaleState] = useState<Locale>(localeProp ?? DEFAULT_LOCALE);
+
+  useEffect(() => {
+    if (localeProp) return; // explicit override wins
+    const fromCookie =
+      readLocaleCookie() ??
+      (typeof navigator !== 'undefined' ? resolveLocale(navigator.language) : null);
+    if (fromCookie && fromCookie !== locale) {
+      setLocaleState(fromCookie);
+      applyHtmlLangDir(fromCookie);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localeProp]);
+
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next);
+    writeLocaleCookie(next);
+    applyHtmlLangDir(next);
+  }, []);
+
   const value = useMemo<I18nContextValue>(() => {
     const translator = createTranslator(getMessages(locale));
     return {
       locale,
       isRtl: isRtlLocale(locale),
+      setLocale,
       t: translator.t,
       tPlural: translator.tPlural,
+      format: createFormatters(locale),
     };
-  }, [locale]);
+  }, [locale, setLocale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
 /**
- * Access the active translator. Falls back to an English translator if used
- * outside a provider, so components never crash for a missing provider during
- * incremental adoption.
+ * Access the active i18n context. Falls back to an English context if used
+ * outside a provider, so components never crash during incremental adoption.
  */
 export function useI18n(): I18nContextValue {
   const ctx = useContext(I18nContext);
@@ -59,8 +99,10 @@ export function useI18n(): I18nContextValue {
   return {
     locale: DEFAULT_LOCALE,
     isRtl: false,
+    setLocale: () => {},
     t: translator.t,
     tPlural: translator.tPlural,
+    format: createFormatters(DEFAULT_LOCALE),
   };
 }
 
@@ -79,4 +121,9 @@ export function useTranslations(namespace?: string): Translator {
         tPlural(prefix + key, count, vars),
     };
   }, [t, tPlural, namespace]);
+}
+
+/** Bound, locale-aware Intl formatters (dates, numbers, currency, relative). */
+export function useFormatters(): Formatters {
+  return useI18n().format;
 }

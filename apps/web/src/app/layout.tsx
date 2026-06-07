@@ -4,6 +4,7 @@ import '../styles/globals.css';
 import { Providers } from '@/shared/providers/app-providers';
 import { themeInitScript } from '@/shared/lib/theme';
 import { SkipLink } from '@/components/accessibility';
+import { localeInitScript } from '@/i18n/locale-cookie';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -142,6 +143,10 @@ export default function RootLayout({
         {/* No-flash theme initialization script */}
         <script
           dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
+        {/* No-flash locale init: sets <html lang/dir> from cookie/browser */}
+        <script
+          dangerouslySetInnerHTML={{ __html: localeInitScript }}
         />
         {/* Schema.org structured data */}
         <script
