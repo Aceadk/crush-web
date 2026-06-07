@@ -149,6 +149,16 @@ export interface GetBlockedUsersResponse {
   blocked: BlockedUser[];
 }
 
+export interface ActivateBoostResponse {
+  ok: boolean;
+  isActive: boolean;
+  activeUntil: string;
+  cooldownUntil: string;
+  lastActivatedAt: string;
+  durationMinutes: number;
+  cooldownHours: number;
+}
+
 /**
  * Canonical match document shape as stored in Firestore (matches/{matchId}).
  * Used by read paths (getMatch / subscribeToMatches), NOT returned by swipeRight.
@@ -240,6 +250,13 @@ export const callables = {
   getBlockedUsers: () =>
     invokeCallable<Record<string, never>, GetBlockedUsersResponse>(
       'getBlockedUsers',
+      {}
+    ),
+
+  // Entitlement-affecting actions (server-owned)
+  activateBoost: () =>
+    invokeCallable<Record<string, never>, ActivateBoostResponse>(
+      'activateBoost',
       {}
     ),
 } as const;

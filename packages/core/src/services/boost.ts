@@ -1,26 +1,12 @@
-import {
-  Timestamp,
-  doc,
-  getDoc,
-  increment,
-  runTransaction,
-  serverTimestamp,
-} from 'firebase/firestore';
+import { Timestamp, doc, getDoc } from 'firebase/firestore';
 import { getFirebaseDb } from '../firebase/config';
 import { BoostStatus } from '../types/boost';
 import { isPremiumUser } from './entitlement';
+import { callables } from '../api/callables';
 
 const USERS_COLLECTION = 'users';
 const PREMIUM_BOOST_DURATION_MINUTES = 30;
 const PREMIUM_BOOST_COOLDOWN_HOURS = 24 * 30; // 1 boost per 30 days
-
-const BOOST_ERROR_MESSAGES = {
-  premium_required: 'Boost is a Premium feature. Upgrade to activate boosts.',
-  boost_active: 'You already have an active boost.',
-  cooldown: 'Boost is on cooldown. Try again when your cooldown ends.',
-  missing_profile: 'User profile not found.',
-  unknown: 'Unable to activate boost right now.',
-} as const;
 
 type BoostDoc = Record<string, unknown>;
 
@@ -142,51 +128,24 @@ class BoostService {
     return this.computeStatusFromUserData(userSnapshot.data() as Record<string, unknown> | undefined);
   }
 
-  async activateBoost(userId: string): Promise<BoostStatus> {
-    const db = getFirebaseDb();
-    const userRef = doc(db, USERS_COLLECTION, userId);
-    const nowMs = Date.now();
-    const boostExpiresAtMs = nowMs + this.durationMinutes * 60 * 1000;
-    let statusFromTransaction: BoostStatus | null = null;
-
-    await runTransaction(db, async (transaction) => {
-      const userSnapshot = await transaction.get(userRef);
-      const userData = userSnapshot.data() as Record<string, unknown> | undefined;
-      const currentStatus = this.computeStatusFromUserData(userData);
-
-      if (!currentStatus.canBoost) {
-        const reason = currentStatus.unavailableReason ?? 'unknown';
-        throw new Error(BOOST_ERROR_MESSAGES[reason] ?? BOOST_ERROR_MESSAGES.unknown);
-      }
-
-      transaction.update(userRef, {
-        'boost.expiresAt': boostExpiresAtMs,
-        'boost.activatedAt': Timestamp.fromMillis(nowMs),
-        'boost.lastActivatedAt': Timestamp.fromMillis(nowMs),
-        'boost.totalActivations': increment(1),
-        'boost.updatedAt': serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      statusFromTransaction = {
-        canBoost: false,
-        isActive: true,
-        activeUntil: new Date(boostExpiresAtMs).toISOString(),
-        cooldownUntil: new Date(
-          nowMs + this.cooldownHours * 60 * 60 * 1000
-        ).toISOString(),
-        lastActivatedAt: new Date(nowMs).toISOString(),
-        unavailableReason: 'boost_active',
-        durationMinutes: this.durationMinutes,
-        cooldownHours: this.cooldownHours,
-      };
-    });
-
-    if (!statusFromTransaction) {
-      throw new Error(BOOST_ERROR_MESSAGES.unknown);
-    }
-
-    return statusFromTransaction;
+  /**
+   * Activate a boost via the backend activateBoost callable. The server owns
+   * eligibility (Plus check) and cooldown enforcement and writes the protected
+   * `boost.*` fields — the Firestore rules reject direct client writes to them,
+   * so a modified client cannot self-grant a boost or bypass the cooldown.
+   */
+  async activateBoost(_userId?: string): Promise<BoostStatus> {
+    const result = await callables.activateBoost();
+    return {
+      canBoost: false,
+      isActive: result.isActive,
+      activeUntil: result.activeUntil,
+      cooldownUntil: result.cooldownUntil,
+      lastActivatedAt: result.lastActivatedAt,
+      unavailableReason: 'boost_active',
+      durationMinutes: result.durationMinutes,
+      cooldownHours: result.cooldownHours,
+    };
   }
 }
 
