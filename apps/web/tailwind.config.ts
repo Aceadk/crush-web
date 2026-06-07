@@ -23,6 +23,9 @@ const config: Config = {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
+          // Darken token used for hover/gradient stops (button, hero).
+          // Mirrors Flutter DsColors.primaryDark.
+          dark: 'hsl(var(--primary-dark))',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -82,6 +85,18 @@ const config: Config = {
         online: 'hsl(var(--online))',
         offline: 'hsl(var(--offline))',
         busy: 'hsl(var(--busy))',
+        // Glassmorphism surfaces (mirror Flutter DsGlassColors). Alpha is baked
+        // into the CSS variable so opacity modifiers are not required.
+        glass: {
+          'light-surface': 'var(--glass-light-surface)',
+          'light-border': 'var(--glass-light-border)',
+          'dark-surface': 'var(--glass-dark-surface)',
+          'dark-border': 'var(--glass-dark-border)',
+        },
+      },
+      backdropBlur: {
+        // `backdrop-blur-glass` used by glass surfaces (button/card/dialog).
+        glass: '12px',
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],

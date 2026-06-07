@@ -28,6 +28,7 @@
     /* CRUSH Brand Colors */
     --primary: 340 82% 46%;
     --primary-foreground: 0 0% 100%;
+    --primary-dark: 340 82% 40%; /* hover/gradient darken (≈ Flutter primaryDark) */
 
     --secondary: 255 100% 65%;
     --secondary-foreground: 0 0% 100%;
@@ -73,6 +74,12 @@
     --online: 142 71% 45%;
     --offline: 240 4% 46%;
     --busy: 38 92% 50%;
+
+    /* Glassmorphism surfaces (alpha baked in; mirror Flutter DsGlassColors) */
+    --glass-light-surface: rgba(255, 255, 255, 0.72); /* 0xB8FFFFFF */
+    --glass-light-border: rgba(255, 255, 255, 0.25); /* 0x40FFFFFF */
+    --glass-dark-surface: rgba(20, 20, 27, 0.7); /* 0xB314141B */
+    --glass-dark-border: rgba(255, 255, 255, 0.15); /* 0x26FFFFFF */
 
     /* Radius Scale */
     --radius-sm: 4px;
