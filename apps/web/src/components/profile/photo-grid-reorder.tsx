@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@crush/ui';
+import { MAX_PROFILE_PHOTOS } from '@crush/core';
 import {
   closestCenter,
   DndContext,
@@ -68,7 +69,7 @@ export function PhotoGridReorder({
   onAddPhoto,
   onRemovePhoto,
   isUploading = false,
-  maxPhotos = 6,
+  maxPhotos = MAX_PROFILE_PHOTOS,
   className = '',
   onError,
 }: PhotoGridReorderProps) {

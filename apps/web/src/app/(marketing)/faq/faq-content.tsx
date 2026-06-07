@@ -120,7 +120,7 @@ const faqs = [
   {
     category: 'messaging',
     question: 'Can I video chat on Crush?',
-    answer: 'Yes! Once you\'ve been chatting for a bit, you can video call your matches directly in the app. Look for the video icon in the chat header. Video calls are a great way to get to know someone before meeting in person.',
+    answer: 'Yes — video calling is available in the Crush mobile app (iOS and Android). Once you\'ve been chatting for a bit, look for the video icon in the chat header to call your match. On the web app you can message your matches; for video calls, continue in the mobile app. Video calls are a great way to get to know someone before meeting in person.',
   },
 
   // Premium

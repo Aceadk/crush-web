@@ -177,6 +177,16 @@ export { useUIStore } from './stores/ui';
 
 // Config
 export { isV2ChatEnabled } from './config/features';
+export {
+  MAX_PROFILE_PHOTOS,
+  MIN_PROFILE_PHOTOS,
+  MAX_INTERESTS,
+  MAX_PROMPTS,
+  PROFILE_PHOTO_MAX_BYTES,
+  PROFILE_PHOTO_ALLOWED_MIME_TYPES,
+  VERIFICATION_IS_SERVER_OWNED,
+  PROFILE_CAPABILITIES,
+} from './config/profile_capabilities';
 export { BILLING_CONFIG } from './config/billing';
 export type {
   BillingFeature,

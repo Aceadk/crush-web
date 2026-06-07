@@ -2,7 +2,14 @@
 
 import { PhotoGridReorder } from '@/components/profile/photo-grid-reorder';
 import { buildProfileCompletionState } from '@/components/profile/profile-completion';
-import { storageService, useAuthStore, userService } from '@crush/core';
+import {
+  storageService,
+  useAuthStore,
+  userService,
+  MAX_PROFILE_PHOTOS,
+  MAX_INTERESTS,
+  MAX_PROMPTS,
+} from '@crush/core';
 import { Button, Card, cn, Input, Textarea } from '@crush/ui';
 import {
   AlertCircle,
@@ -215,7 +222,7 @@ export default function ProfileEditForm() {
       ...prev,
       interests: prev.interests.includes(interest)
         ? prev.interests.filter((i) => i !== interest)
-        : prev.interests.length < 10
+        : prev.interests.length < MAX_INTERESTS
           ? [...prev.interests, interest]
           : prev.interests,
     }));
@@ -223,7 +230,7 @@ export default function ProfileEditForm() {
   };
 
   const addPrompt = (question: string) => {
-    if (formData.prompts.length >= 3) return;
+    if (formData.prompts.length >= MAX_PROMPTS) return;
     if (formData.prompts.some((p) => p.question === question)) return;
 
     setFormData((prev) => ({
@@ -506,7 +513,7 @@ export default function ProfileEditForm() {
                 onAddPhoto={handlePhotoUpload}
                 onRemovePhoto={handleRemovePhoto}
                 isUploading={uploading}
-                maxPhotos={6}
+                maxPhotos={MAX_PROFILE_PHOTOS}
                 onError={setError}
               />
             </Card>

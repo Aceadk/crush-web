@@ -315,7 +315,7 @@ export function FeaturesContent() {
             <CommunicationCard
               icon={<Video className="w-8 h-8" />}
               title="Video Chat"
-              description="Video call your matches safely within the app"
+              description="Video call your matches safely in the Crush mobile app"
             />
             <CommunicationCard
               icon={<Gift className="w-8 h-8" />}

@@ -7,6 +7,7 @@ import {
     Gender,
     LocationDetails,
     locationService,
+    MAX_PROFILE_PHOTOS,
     SexualOrientation,
     storageService,
     useAuthStore,
@@ -825,7 +826,7 @@ export default function OnboardingFlow() {
                   onAddPhoto={handlePhotoUpload}
                   onRemovePhoto={handleRemovePhoto}
                   isUploading={uploading}
-                  maxPhotos={6}
+                  maxPhotos={MAX_PROFILE_PHOTOS}
                 />
 
                 <div className="mt-4 rounded-xl bg-primary/5 p-4">
