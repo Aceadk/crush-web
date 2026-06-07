@@ -7,12 +7,19 @@ const TOKEN_COLLECTION = 'fcmTokens';
 const USERS_COLLECTION = 'users';
 const SERVICE_WORKER_PATH = '/firebase-messaging-sw.js';
 
+// Channel toggles (push/email) + the canonical content categories. The category
+// keys MUST match the backend NotificationCategory union (functions/src/index.ts)
+// so a user's preference actually gates delivery. See
+// my_first_project/docs/contracts/notification_preferences_schema_2026-06-07.md.
 export interface WebNotificationPrefs {
+  // Channels
   push: boolean;
   email: boolean;
+  // Categories (mirror backend NotificationCategory)
   matches: boolean;
   messages: boolean;
   likes: boolean;
+  calls: boolean;
   profileViews: boolean;
   promotions: boolean;
   subscriptions: boolean;
@@ -25,9 +32,11 @@ export const WEB_NOTIFICATION_PREF_DEFAULTS: WebNotificationPrefs = {
   matches: true,
   messages: true,
   likes: true,
+  calls: true,
   profileViews: true,
   promotions: true,
   subscriptions: true,
+  // safetyAlerts are not user-disableable on the backend; default on.
   safetyAlerts: true,
 };
 
