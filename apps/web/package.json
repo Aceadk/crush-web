@@ -18,7 +18,9 @@
     "migrate:conversations": "node scripts/migrate-conversations-to-matches.mjs",
     "migrate:conversations:execute": "node scripts/migrate-conversations-to-matches.mjs --execute",
     "migrate:flat-profile": "node scripts/migrate-flat-profile.mjs",
-    "migrate:flat-profile:execute": "node scripts/migrate-flat-profile.mjs --execute"
+    "migrate:flat-profile:execute": "node scripts/migrate-flat-profile.mjs --execute",
+    "inventory:chat": "node scripts/inventory-legacy-chat.mjs",
+    "inventory:chat:verify": "node scripts/inventory-legacy-chat.mjs --verify"
   },
   "dependencies": {
     "@crush/core": "workspace:*",
