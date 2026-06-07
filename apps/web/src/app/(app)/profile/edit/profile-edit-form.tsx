@@ -23,61 +23,11 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-
-const AVAILABLE_INTERESTS = [
-  'Travel',
-  'Music',
-  'Movies',
-  'Reading',
-  'Cooking',
-  'Fitness',
-  'Gaming',
-  'Photography',
-  'Art',
-  'Dancing',
-  'Hiking',
-  'Yoga',
-  'Coffee',
-  'Wine',
-  'Food',
-  'Fashion',
-  'Tech',
-  'Sports',
-  'Pets',
-  'Nature',
-  'Beach',
-  'Mountains',
-  'Meditation',
-  'Writing',
-];
-
-const PROMPT_QUESTIONS = [
-  "I'm looking for...",
-  'My ideal first date would be...',
-  'Two truths and a lie...',
-  'The way to my heart is...',
-  'I geek out on...',
-  'My most controversial opinion is...',
-  'A life goal of mine is...',
-  "I'm known for...",
-  'My simple pleasures are...',
-  "I won't shut up about...",
-];
-
-interface FormData {
-  displayName: string;
-  bio: string;
-  interests: string[];
-  prompts: { question: string; answer: string }[];
-  location: { city: string; country: string };
-  lifestyle: {
-    height: string;
-    education: string;
-    drinking: 'yes' | 'no' | 'sometimes' | '';
-    smoking: 'yes' | 'no' | 'sometimes' | '';
-    workout: 'active' | 'sometimes' | 'never' | '';
-  };
-}
+import {
+  AVAILABLE_INTERESTS,
+  PROMPT_QUESTIONS,
+  type FormData,
+} from './profile-edit-constants';
 
 export default function ProfileEditForm() {
   const router = useRouter();
