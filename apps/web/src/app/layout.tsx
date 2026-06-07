@@ -99,7 +99,7 @@ const organizationSchema = {
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer support',
-    email: 'support@crushapp.com',
+    email: 'support@crush.app',
     availableLanguage: 'English',
   },
 };

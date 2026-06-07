@@ -174,7 +174,7 @@ const faqs = [
   {
     category: 'safety',
     question: 'What should I do if I feel unsafe?',
-    answer: 'If you feel unsafe, immediately block and report the user. If you\'re in immediate danger, contact local emergency services. You can also reach out to our Safety Team through the app or at safety@crushapp.com for support.',
+    answer: 'If you feel unsafe, immediately block and report the user. If you\'re in immediate danger, contact local emergency services. You can also reach out to our Safety Team through the app or at safety@crush.app for support.',
   },
 
   // Billing

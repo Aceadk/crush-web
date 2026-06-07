@@ -18,8 +18,8 @@ export interface BillingPlanConfig {
 }
 
 export const BILLING_CONFIG = {
-  successUrl: 'https://crushhour.app/pay/success',
-  cancelUrl: 'https://crushhour.app/pay/cancel',
+  successUrl: 'https://crush.app/pay/success',
+  cancelUrl: 'https://crush.app/pay/cancel',
   plans: [
     {
       tier: 'free' as SubscriptionTier,

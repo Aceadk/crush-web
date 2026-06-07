@@ -119,8 +119,8 @@ export function ContactContent() {
             <ContactCard
               icon={<Mail className="w-5 h-5" />}
               title="Email Us"
-              description="support@crushapp.com"
-              href="mailto:support@crushapp.com"
+              description="support@crush.app"
+              href="mailto:support@crush.app"
             />
             <ContactCard
               icon={<MessageCircle className="w-5 h-5" />}
@@ -336,7 +336,7 @@ export function ContactContent() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Mail className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    <p className="text-sm">hello@crushapp.com</p>
+                    <p className="text-sm">hello@crush.app</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Clock className="w-5 h-5 text-muted-foreground flex-shrink-0" />

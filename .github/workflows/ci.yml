@@ -31,6 +31,9 @@ jobs:
       - name: Run lint
         run: pnpm lint
 
+      - name: Deprecated-domain guard (canonical is crush.app)
+        run: pnpm check:domains
+
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest

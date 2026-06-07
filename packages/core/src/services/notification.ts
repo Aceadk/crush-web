@@ -79,7 +79,15 @@ function allowRoute(rawRoute?: string): string | null {
   let path = trimmed;
   try {
     const parsed = new URL(trimmed);
-    const allowedHosts = new Set(['crushhour.app', 'www.crushhour.app', 'crush.app']);
+    // crush.app is canonical; crushhour.app/www are accepted LEGACY-REDIRECT
+    // hosts (mobile/backend still emit crushhour.app deep links until the infra
+    // migration completes — see domain_deployment_decision_2026-06-07.md).
+    const allowedHosts = new Set([
+      'crush.app',
+      'www.crush.app',
+      'crushhour.app',
+      'www.crushhour.app',
+    ]);
     if (!allowedHosts.has(parsed.hostname)) return null;
     path = `${parsed.pathname}${parsed.search}`;
   } catch {
