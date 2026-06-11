@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCsrf } from '@/shared/lib/csrf';
 import { checkRateLimit, getRateLimitKey } from '@/shared/lib/rate-limit';
+import { verifySessionCookie } from '@/shared/lib/server-session';
 
-const AUTH_COOKIE_NAME = 'auth-token';
 const LAST_ACTIVE_COOKIE_NAME = 'session-last-active';
 const REMEMBER_ME_COOKIE_NAME = 'session-remember-me';
-const PERSISTENT_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+// Matches the Firebase session-cookie maximum lifetime (14 days).
+const PERSISTENT_SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60;
 
 function createActivityCookieOptions(rememberMe: boolean) {
   const baseOptions = {
@@ -46,8 +47,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const authToken = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-    if (!authToken) {
+    // Cryptographically verify the session cookie — presence is not enough.
+    const session = await verifySessionCookie(request);
+    if (!session) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 

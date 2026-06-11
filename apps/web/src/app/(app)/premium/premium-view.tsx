@@ -178,11 +178,10 @@ export default function PremiumView() {
         headers: {
           'Content-Type': 'application/json',
         },
+        // Identity is derived server-side from the verified session cookie.
         body: JSON.stringify({
           tier: selectedTier,
           period: selectedPeriod,
-          userId: user.uid,
-          userEmail: user.email,
         }),
       });
 

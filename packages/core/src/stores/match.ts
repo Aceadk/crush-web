@@ -5,7 +5,7 @@ import { isV2ChatEnabled } from '../config/features';
 import { Match, DiscoveryProfile, DiscoveryFilters, DEFAULT_DISCOVERY_FILTERS } from '../types/match';
 
 // Select the match backend once at module load (mirrors the message store).
-// Gated by NEXT_PUBLIC_USE_V2_CHAT (default OFF).
+// Gated by NEXT_PUBLIC_USE_V2_CHAT (default ON since the clean start).
 const matchService = isV2ChatEnabled()
   ? matchServiceV2Adapter
   : legacyMatchService;

@@ -112,6 +112,9 @@ cd apps/web && npx eslint src/         # web lint
 ## Feature flags
 
 - `NEXT_PUBLIC_USE_V2_CHAT` — routes the chat/match stores through the V2
-  backend-aligned services. **Default OFF.** Flip per-environment only after the
-  Phase 1.5 data migration (`apps/web/scripts/migrate-conversations-to-matches.mjs`)
-  has run and been verified. See the migration plan.
+  backend-aligned services. **Default ON** since the crush-f5352 clean start
+  (2026-06-11): the new project has no legacy data and the deployed rules
+  reject the legacy direct-Firestore chat writes, so V2 is the only working
+  production path. Set to `false` only for local debugging. The Phase 1.5
+  migration (`apps/web/scripts/migrate-conversations-to-matches.mjs`) is moot
+  on the clean-start project and retained for history only.

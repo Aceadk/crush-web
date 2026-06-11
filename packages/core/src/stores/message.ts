@@ -8,7 +8,7 @@ import { DocumentSnapshot } from 'firebase/firestore';
 // Select the chat backend once at module load. V2 routes mutations through
 // Cloud Functions callables + canonical matches/{matchId}/messages; legacy uses
 // direct-Firestore conversations/. Gated by NEXT_PUBLIC_USE_V2_CHAT (default
-// OFF). See docs/reports/web_chat_match_migration_plan_2026-06-05.md.
+// ON since the clean start). See docs/reports/web_chat_match_migration_plan_2026-06-05.md.
 const messageService = isV2ChatEnabled()
   ? messageServiceV2Adapter
   : legacyMessageService;

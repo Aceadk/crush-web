@@ -16,10 +16,14 @@ function readBooleanFlag(value: string | undefined, fallback = false): boolean {
  * services (Cloud Functions callables + canonical matches/{matchId}/messages),
  * instead of the legacy conversations/-based direct-Firestore services.
  *
- * Default: OFF. Flip per-environment after the Phase 1.5 data migration has run
- * and been verified. See:
- * my_first_project/docs/reports/web_chat_match_migration_plan_2026-06-05.md.
+ * Default: ON since the crush-f5352 clean start (2026-06-11). The new Firebase
+ * project launches with no legacy data, and the deployed Firestore rules
+ * reject the legacy direct-write paths, so V2 is the only path that works in
+ * production. Set NEXT_PUBLIC_USE_V2_CHAT=false only for local debugging
+ * against pre-migration data. The Phase 1.5 migration plan
+ * (my_first_project/docs/reports/web_chat_match_migration_plan_2026-06-05.md)
+ * is retained for history but is moot on the clean-start project.
  */
 export function isV2ChatEnabled(): boolean {
-  return readBooleanFlag(process.env.NEXT_PUBLIC_USE_V2_CHAT, false);
+  return readBooleanFlag(process.env.NEXT_PUBLIC_USE_V2_CHAT, true);
 }

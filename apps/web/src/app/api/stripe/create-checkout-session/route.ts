@@ -1,5 +1,6 @@
 import { verifyCsrf } from '@/shared/lib/csrf';
 import { checkRateLimit, getRateLimitKey } from '@/shared/lib/rate-limit';
+import { verifySessionCookie } from '@/shared/lib/server-session';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
@@ -39,16 +40,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify auth token exists (middleware guards the route, but double-check here)
-    const authToken = request.cookies.get('auth-token')?.value;
-    if (!authToken) {
+    // Verify the session cookie cryptographically and derive the acting user
+    // from it. The middleware matcher excludes /api, so this route is the only
+    // guard — client-supplied userId/userEmail must never be trusted.
+    const authSession = await verifySessionCookie(request);
+    if (!authSession) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    const userId = authSession.uid;
+    const userEmail = authSession.email ?? undefined;
 
     const body = await request.json();
-    const { tier, period, userId, userEmail } = body;
+    const { tier, period } = body;
 
-    if (!tier || !period || !userId) {
+    if (!tier || !period) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 

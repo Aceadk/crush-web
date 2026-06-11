@@ -27,10 +27,18 @@ const authRoutes = [
   '/auth/forgot-password',
 ];
 
+// NOTE: middleware runs on the Edge runtime and cannot use firebase-admin, so
+// it only checks cookie presence/idle-timeout as a UX-level guard. Real
+// authentication is enforced where data is accessed: Firestore security rules
+// for client reads/writes, and `verifySessionCookie`
+// (shared/lib/server-session.ts) in API routes — the matcher below excludes
+// /api, so API routes MUST verify the session themselves.
 const AUTH_COOKIE_NAME = 'auth-token';
 const LAST_ACTIVE_COOKIE_NAME = 'session-last-active';
 const REMEMBER_ME_COOKIE_NAME = 'session-remember-me';
-const PERSISTENT_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+// Matches the Firebase session-cookie maximum lifetime (14 days) used by
+// /api/auth/session for remembered sessions.
+const PERSISTENT_SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60;
 
 const parsedIdleTimeout = Number(process.env.SESSION_IDLE_TIMEOUT_SECONDS);
 const SESSION_IDLE_TIMEOUT_SECONDS =
