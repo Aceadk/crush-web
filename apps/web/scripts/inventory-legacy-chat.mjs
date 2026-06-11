@@ -14,8 +14,8 @@
  *
  * USAGE (auth via GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT):
  *   cd crush-web/apps/web
- *   node scripts/inventory-legacy-chat.mjs --project crush-265f7-staging
- *   node scripts/inventory-legacy-chat.mjs --project crush-265f7-staging --verify
+ *   node scripts/inventory-legacy-chat.mjs --project crush-f5352
+ *   node scripts/inventory-legacy-chat.mjs --project crush-f5352 --verify
  *
  * --verify cross-checks that every conversation is migrated and that each
  * migrated conversation's message count matches its destination match.

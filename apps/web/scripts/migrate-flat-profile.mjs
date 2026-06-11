@@ -19,8 +19,8 @@
  *
  * USAGE (auth via GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT):
  *   cd crush-web/apps/web
- *   node scripts/migrate-flat-profile.mjs --project crush-265f7-staging            # dry run
- *   node scripts/migrate-flat-profile.mjs --project crush-265f7-staging --execute  # apply
+ *   node scripts/migrate-flat-profile.mjs --project crush-f5352            # dry run
+ *   node scripts/migrate-flat-profile.mjs --project crush-f5352 --execute  # apply
  *
  * See docs/reports/crush_web_mobile_alignment_reaudit_2026-06-06.md (P0.3 / Step 5).
  */

@@ -1,14 +1,5 @@
 {
   "projects": {
-    "default": "crush-265f7"
-  },
-  "targets": {
-    "crush-265f7": {
-      "hosting": {
-        "crushapp": [
-          "crushapp"
-        ]
-      }
-    }
+    "default": "crush-f5352"
   }
 }

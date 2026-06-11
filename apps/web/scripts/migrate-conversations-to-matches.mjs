@@ -27,8 +27,8 @@
  * USAGE:
  *   # Auth: set GOOGLE_APPLICATION_CREDENTIALS to a service-account JSON path,
  *   # or FIREBASE_SERVICE_ACCOUNT to the JSON contents.
- *   node scripts/migrate-conversations-to-matches.mjs --project crush-265f7-staging          # dry run
- *   node scripts/migrate-conversations-to-matches.mjs --project crush-265f7-staging --execute # write
+ *   node scripts/migrate-conversations-to-matches.mjs --project crush-f5352          # dry run
+ *   node scripts/migrate-conversations-to-matches.mjs --project crush-f5352 --execute # write
  *
  * See docs/reports/web_chat_match_migration_plan_2026-06-05.md (Phase 1.5).
  */

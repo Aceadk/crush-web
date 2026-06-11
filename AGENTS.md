@@ -4,7 +4,7 @@
 
 | Repo | Role |
 |------|------|
-| [`my_first_project`](../my_first_project) | Flutter mobile/iPad app **and the Firebase backend** (Cloud Functions, Firestore rules, Storage) — the **source of truth** for all backend contracts and data schema. |
+| [`Crush App`](../Crush%20App) | Flutter mobile/iPad app **and the Firebase backend** (Cloud Functions, Firestore rules, Storage) — the **source of truth** for all backend contracts and data schema. (Folder was formerly `my_first_project`.) |
 | `crush-web` (this repo) | Next.js web app + marketing site. Consumes the same Firebase backend. |
 
 ## Canonical workflow & tracking lives in `my_first_project/docs`
@@ -12,8 +12,8 @@
 Do **not** create duplicate task boards or change logs here. All cross-repo
 alignment work is tracked centrally:
 
-- **Task log:** `my_first_project/docs/Developer_agent_chat.md`
-- **Workboard / status:** `my_first_project/docs/ai_workboard.md`
+- **Task log:** `../Crush App/docs/Developer_agent_chat.md`
+- **Workboard / status:** `../Crush App/docs/ai_workboard.md`
 
 When you make a web change that is part of the alignment effort, record it in
 those files (the same commit that touches web code, mirrored as a docs commit in
@@ -21,7 +21,7 @@ those files (the same commit that touches web code, mirrored as a docs commit in
 
 ## Alignment reference docs (read before changing backend-facing code)
 
-All under `my_first_project/docs/reports/`:
+All under `../Crush App/docs/reports/`:
 
 - **`shared_backend_contract_matrix_2026-06-05.md`** — every Cloud Functions
   callable + REST endpoint + Firestore schema. **Verified against
