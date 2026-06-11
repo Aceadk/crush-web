@@ -36,7 +36,7 @@ vi.mock('@/shared/lib/rate-limit', () => ({
   getRateLimitKey: vi.fn(() => 'test-key'),
 }));
 
-const stripeSessionCreate = vi.fn(async () => ({
+const stripeSessionCreate = vi.fn(async (_params: Record<string, unknown>) => ({
   id: 'cs_test_123',
   url: 'https://checkout.stripe.com/test',
 }));
@@ -163,7 +163,7 @@ describe('POST /api/stripe/create-checkout-session', () => {
 
     expect(response.status).toBe(200);
     expect(stripeSessionCreate).toHaveBeenCalledTimes(1);
-    const params = stripeSessionCreate.mock.calls[0][0] as Record<string, unknown>;
+    const params = stripeSessionCreate.mock.calls[0][0];
     expect(params.client_reference_id).toBe('session-uid');
     expect(params.customer_email).toBe('session@example.com');
     expect((params.metadata as Record<string, string>).userId).toBe('session-uid');
