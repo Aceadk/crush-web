@@ -8,13 +8,13 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="min-h-screen bg-white dark:bg-gray-900 pt-14">
       <div className="max-w-3xl mx-auto px-4 py-16">
         <Link
-          href="/settings"
+          href="/"
           className="inline-flex items-center gap-2 text-primary hover:underline mb-6"
         >
-          &larr; Back to Settings
+          &larr; Back to Home
         </Link>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           Privacy Policy

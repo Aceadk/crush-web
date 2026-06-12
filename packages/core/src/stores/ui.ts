@@ -124,7 +124,14 @@ export const useUIStore = create<UIState>()(
 
       // Mobile
       isMobile: false,
-      setIsMobile: (isMobile) => set({ isMobile }),
+      // Close the sidebar drawer when entering mobile so it never starts open
+      // over the page content (sidebarOpen defaults to true and is persisted
+      // for the desktop layout).
+      setIsMobile: (isMobile) =>
+        set((state) => ({
+          isMobile,
+          sidebarOpen: isMobile ? false : state.sidebarOpen,
+        })),
     }),
     {
       name: 'crush-ui',

@@ -301,6 +301,12 @@ export function AuthInitializer({ children }: AuthInitializerProps) {
           loading: false,
           error: null,
           initialized: true,
+          // The app layout gates rendering on device trust; mark the E2E
+          // device as trusted so checkDeviceTrust() (real backend) never runs
+          // and the shell doesn't hang on AuthLoadingShell.
+          deviceTrustChecked: true,
+          deviceTrusted: true,
+          deviceTrustLoading: false,
         });
 
         seedMatchStoreForE2E(scenario);

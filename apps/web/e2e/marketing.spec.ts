@@ -81,20 +81,20 @@ test.describe('Marketing Pages', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/');
 
-    // Look for mobile menu button (hamburger icon)
-    const menuButton = page.getByRole('button', { name: /menu/i }).or(
-      page.locator('[aria-label*="menu"]')
-    ).or(
-      page.locator('button').filter({ has: page.locator('svg') }).first()
-    );
+    // The public header exposes a real mobile menu toggle.
+    const menuButton = page.getByRole('button', { name: /open menu/i });
+    await expect(menuButton).toBeVisible();
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'false');
 
-    // If mobile menu exists, test it
-    if (await menuButton.isVisible()) {
-      await menuButton.click();
-      // Menu should now be visible
-      const navMenu = page.locator('nav, [role="navigation"]');
-      await expect(navMenu.first()).toBeVisible();
-    }
+    await menuButton.click();
+    const navMenu = page.locator('#public-mobile-nav');
+    await expect(navMenu).toBeVisible();
+    await expect(navMenu.getByRole('link', { name: 'Features' })).toBeVisible();
+    await expect(navMenu.getByRole('link', { name: 'Download' })).toBeVisible();
+
+    // Escape closes the menu again (keyboard support).
+    await page.keyboard.press('Escape');
+    await expect(navMenu).toBeHidden();
   });
 });
 

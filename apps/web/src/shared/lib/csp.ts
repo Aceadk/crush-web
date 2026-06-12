@@ -12,8 +12,20 @@
  * script-src/frame-src include the reCAPTCHA + Stripe origins; worker-src allows
  * the firebase-messaging service worker. The policy is environment-specific:
  * development additionally allows local emulator origins (localhost/127.0.0.1
- * over http + ws); staging/production stay restrictive (HTTPS origins only, no
- * unsafe-eval/unsafe-inline in script-src).
+ * over http + ws) and webpack's unsafe-eval; staging/production stay
+ * restrictive otherwise (HTTPS origins only, object-src 'none', base-uri 'self').
+ *
+ * Why script-src uses 'unsafe-inline' instead of a nonce (CR-AUD-025 revision):
+ * almost every route in this app is statically prerendered, and Next.js embeds
+ * its bootstrap/flight data as inline <script> tags in that static HTML. Those
+ * scripts cannot carry a per-request nonce, and per the CSP spec the presence
+ * of a nonce makes browsers IGNORE 'unsafe-inline' — so the previous
+ * nonce-based policy blocked React hydration (and the theme/locale init
+ * scripts) on every static page in production. A meaningful-but-working policy
+ * beats a strict-but-breaking one. To return to a strict nonce +
+ * 'strict-dynamic' policy, the affected routes must become dynamically
+ * rendered (read the nonce via headers()) — see
+ * https://nextjs.org/docs/app/guides/content-security-policy
  *
  * See docs/reports/crush_web_mobile_alignment_reaudit_2026-06-06.md (P0.2) and
  * domain_environment_matrix (canonical API origin).
@@ -21,7 +33,6 @@
 
 export interface CspOptions {
   isDevelopment: boolean;
-  nonce: string;
   /**
    * Canonical REST API origin (e.g. https://api.crush.app) added once the domain
    * decision is made. Supplied from NEXT_PUBLIC_API_ORIGIN. Optional/unset is
@@ -46,21 +57,16 @@ function sanitizeApiOrigin(apiOrigin?: string | null): string | null {
   return trimmed.replace(/\/$/, '');
 }
 
-export function buildCspHeader(
-  isDevelopmentOrOptions: boolean | CspOptions,
-  nonceArg?: string
-): string {
-  // Back-compat: accept either (options) or (isDevelopment, nonce).
-  const options: CspOptions =
-    typeof isDevelopmentOrOptions === 'boolean'
-      ? { isDevelopment: isDevelopmentOrOptions, nonce: nonceArg ?? '' }
-      : isDevelopmentOrOptions;
-  const { isDevelopment, nonce } = options;
+export function buildCspHeader(options: CspOptions): string {
+  const { isDevelopment } = options;
   const apiOrigin = sanitizeApiOrigin(options.apiOrigin);
 
   const scriptSrc = [
     "'self'",
-    `'nonce-${nonce}'`,
+    // Required for Next.js inline bootstrap scripts on statically prerendered
+    // routes and the theme/locale init scripts (see header comment — a nonce
+    // here would make browsers ignore 'unsafe-inline' and break hydration).
+    "'unsafe-inline'",
     'https://apis.google.com',
     'https://*.firebaseio.com',
     'https://*.googleapis.com',
@@ -68,8 +74,8 @@ export function buildCspHeader(
     // App Check reCAPTCHA v3/Enterprise load their script from google/gstatic.
     'https://www.google.com',
     'https://www.gstatic.com',
-    // Next.js webpack dev runtime needs eval/inline during local dev & E2E.
-    ...(isDevelopment ? ["'unsafe-eval'", "'unsafe-inline'"] : []),
+    // Next.js webpack dev runtime needs eval during local dev & E2E.
+    ...(isDevelopment ? ["'unsafe-eval'"] : []),
   ].join(' ');
 
   const connectSrc = [

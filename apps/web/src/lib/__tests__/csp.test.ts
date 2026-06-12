@@ -5,6 +5,13 @@
  * app needs (Firebase callables, discovery REST, Storage, Stripe, web push/FCM,
  * App Check/reCAPTCHA), stays environment-specific (dev emulator origins; strict
  * prod), and supports the canonical REST API origin once the domain lands.
+ *
+ * Note (CR-AUD-025 revision): script-src deliberately includes 'unsafe-inline'
+ * and NO nonce. Statically prerendered routes embed Next.js bootstrap/flight
+ * data as inline scripts that cannot carry a per-request nonce, and a nonce in
+ * script-src makes browsers ignore 'unsafe-inline' — the old nonce policy
+ * therefore blocked hydration on every static page in production. See
+ * shared/lib/csp.ts for the path back to a strict nonce + strict-dynamic policy.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -19,7 +26,7 @@ function directive(csp: string, name: string): string {
 }
 
 describe('CSP — required backend origins (production)', () => {
-  const csp = buildCspHeader({ isDevelopment: false, nonce: 'test-nonce' });
+  const csp = buildCspHeader({ isDevelopment: false });
 
   it('Firebase callables + discovery REST (cloudfunctions)', () => {
     expect(directive(csp, 'connect-src')).toContain('https://*.cloudfunctions.net');
@@ -30,11 +37,10 @@ describe('CSP — required backend origins (production)', () => {
   });
 
   it('Firebase Storage', () => {
-    const csp2 = csp;
-    expect(directive(csp2, 'connect-src')).toContain(
+    expect(directive(csp, 'connect-src')).toContain(
       'https://firebasestorage.googleapis.com'
     );
-    expect(directive(csp2, 'img-src')).toContain(
+    expect(directive(csp, 'img-src')).toContain(
       'https://firebasestorage.googleapis.com'
     );
   });
@@ -62,8 +68,7 @@ describe('CSP — required backend origins (production)', () => {
     expect(directive(csp, 'connect-src')).toContain('wss://*.firebaseio.com');
   });
 
-  it('embeds the nonce and locks down object/base/default', () => {
-    expect(directive(csp, 'script-src')).toContain("'nonce-test-nonce'");
+  it('locks down object/base/default', () => {
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
@@ -71,16 +76,21 @@ describe('CSP — required backend origins (production)', () => {
 });
 
 describe('CSP — environment-specific behavior', () => {
-  it('production is restrictive: no unsafe-eval/inline in script-src, no localhost', () => {
-    const prod = buildCspHeader({ isDevelopment: false, nonce: 'n' });
+  it('production: no unsafe-eval, no nonce (would break static hydration), no localhost', () => {
+    const prod = buildCspHeader({ isDevelopment: false });
     expect(directive(prod, 'script-src')).not.toContain("'unsafe-eval'");
-    expect(directive(prod, 'script-src')).not.toContain("'unsafe-inline'");
+    expect(directive(prod, 'script-src')).not.toContain("'nonce-");
     expect(directive(prod, 'connect-src')).not.toContain('localhost');
     expect(directive(prod, 'connect-src')).not.toContain('127.0.0.1');
   });
 
-  it('development allows webpack eval/inline and local emulator origins', () => {
-    const dev = buildCspHeader({ isDevelopment: true, nonce: 'n' });
+  it('script-src allows inline scripts (Next.js static bootstrap + theme/locale init)', () => {
+    const prod = buildCspHeader({ isDevelopment: false });
+    expect(directive(prod, 'script-src')).toContain("'unsafe-inline'");
+  });
+
+  it('development allows webpack eval and local emulator origins', () => {
+    const dev = buildCspHeader({ isDevelopment: true });
     expect(directive(dev, 'script-src')).toContain("'unsafe-eval'");
     const connect = directive(dev, 'connect-src');
     expect(connect).toContain('http://localhost:*');
@@ -93,7 +103,6 @@ describe('CSP — canonical REST API origin', () => {
   it('adds a valid https apiOrigin to connect-src', () => {
     const csp = buildCspHeader({
       isDevelopment: false,
-      nonce: 'n',
       apiOrigin: 'https://api.crush.app',
     });
     expect(directive(csp, 'connect-src')).toContain('https://api.crush.app');
@@ -102,7 +111,6 @@ describe('CSP — canonical REST API origin', () => {
   it('strips a trailing slash from apiOrigin', () => {
     const csp = buildCspHeader({
       isDevelopment: false,
-      nonce: 'n',
       apiOrigin: 'https://api.crush.app/',
     });
     const connect = directive(csp, 'connect-src');
@@ -113,7 +121,6 @@ describe('CSP — canonical REST API origin', () => {
   it('ignores an invalid/malicious apiOrigin', () => {
     const csp = buildCspHeader({
       isDevelopment: false,
-      nonce: 'n',
       apiOrigin: "https://evil.example' 'unsafe-inline",
     });
     expect(directive(csp, 'connect-src')).not.toContain('evil.example');
@@ -121,15 +128,7 @@ describe('CSP — canonical REST API origin', () => {
   });
 
   it('is a no-op when apiOrigin is absent', () => {
-    const withOut = buildCspHeader({ isDevelopment: false, nonce: 'n' });
+    const withOut = buildCspHeader({ isDevelopment: false });
     expect(directive(withOut, 'connect-src')).toContain('https://*.cloudfunctions.net');
-  });
-});
-
-describe('CSP — back-compat positional signature', () => {
-  it('still accepts (isDevelopment, nonce)', () => {
-    const csp = buildCspHeader(false, 'legacy-nonce');
-    expect(directive(csp, 'script-src')).toContain("'nonce-legacy-nonce'");
-    expect(directive(csp, 'connect-src')).toContain('https://*.cloudfunctions.net');
   });
 });

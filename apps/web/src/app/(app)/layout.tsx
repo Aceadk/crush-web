@@ -143,12 +143,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex bg-background">
       <Sidebar />
 
-      {/* Main content */}
-      <main
-        className={`flex-1 transition-all duration-300 ${
-          !isMobile ? 'lg:ml-64' : ''
-        }`}
-      >
+      {/* Main content. md:ml-64 matches the useIsMobile (768px) breakpoint that
+          controls sidebar visibility — lg: left the sidebar overlapping content
+          between 768–1023px. No transition: animating the margin on viewport
+          resize caused a transient horizontal overflow. */}
+      <main className={`flex-1 ${!isMobile ? 'md:ml-64' : ''}`}>
         <div className="min-h-screen">{children}</div>
       </main>
     </div>

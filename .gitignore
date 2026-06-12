@@ -46,6 +46,16 @@ coverage
 *.pem
 *.log
 
+# Credentials / secrets (never commit)
+*serviceAccount*.json
+*-adminsdk-*.json
+*firebase-adminsdk*.json
+*.p8
+*.p12
+*.jks
+*.keystore
+key.properties
+
 # Vercel
 .vercel
 .env*.local

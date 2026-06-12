@@ -206,7 +206,7 @@ export function HelpContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-14">
       {/* Hero */}
       <div className="bg-gradient-to-br from-primary to-secondary py-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
@@ -247,6 +247,8 @@ export function HelpContent() {
                     <li key={key}>
                       <button
                         onClick={() => toggleItem(key)}
+                        aria-expanded={isOpen}
+                        aria-controls={`help-answer-${key}`}
                         className="w-full text-left px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg flex items-center justify-between group"
                       >
                         <span className="pr-2">{item.question}</span>
@@ -257,7 +259,7 @@ export function HelpContent() {
                         />
                       </button>
                       {isOpen && (
-                        <div className="px-3 pb-2">
+                        <div id={`help-answer-${key}`} className="px-3 pb-2">
                           <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed pl-0.5">
                             {item.answer}
                           </p>

@@ -95,11 +95,12 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isDevelopment = process.env.NODE_ENV !== 'production';
 
-  // Generate a nonce for CSP (CR-AUD-025)
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  // CSP (CR-AUD-025). Nonce-free: most routes are statically prerendered, and
+  // Next.js inline bootstrap scripts in static HTML cannot carry a per-request
+  // nonce (a nonce in script-src would block them and break hydration) — see
+  // the rationale in shared/lib/csp.ts.
   const cspHeader = buildCspHeader({
     isDevelopment,
-    nonce,
     // Canonical REST API origin once the domain decision lands (optional;
     // *.cloudfunctions.net covers the default backend until then).
     apiOrigin: process.env.NEXT_PUBLIC_API_ORIGIN,
@@ -157,13 +158,8 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // For all other requests, set CSP header and pass nonce via request header
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  // For all other requests, set the CSP header
+  const response = NextResponse.next();
 
   if (sessionExpired) {
     clearAuthCookies(response);
