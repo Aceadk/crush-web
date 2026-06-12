@@ -3,12 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore, userService } from '@crush/core';
-import { Button, Card } from '@crush/ui';
+import { Card } from '@crush/ui';
 import { cn } from '@crush/ui';
 import {
   ArrowLeft,
   Eye,
-  EyeOff,
   MapPin,
   User,
   Clock,
@@ -108,7 +107,6 @@ function SettingRow({ icon, title, description, enabled, onChange, loading, disa
 export default function PrivacySettingsPage() {
   const router = useRouter();
   const { user, profile, refreshProfile } = useAuthStore();
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loadingField, setLoadingField] = useState<string | null>(null);
 

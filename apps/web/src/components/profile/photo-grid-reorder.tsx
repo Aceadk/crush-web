@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@crush/ui';
+import { MAX_PROFILE_PHOTOS } from '@crush/core';
 import {
   closestCenter,
   DndContext,
@@ -22,10 +23,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Camera, Crown, GripVertical, Loader2, Plus, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, Crown, GripVertical, Loader2, Plus, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 const PhotoCropModal = dynamic(
   () => import('./photo-crop-modal').then((mod) => mod.PhotoCropModal),
@@ -45,6 +46,21 @@ interface PhotoGridReorderProps {
   isUploading?: boolean;
   maxPhotos?: number;
   className?: string;
+  onError?: (message: string) => void;
+}
+
+const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+
+function createStablePhotoId(url: string, index: number, allPhotos: string[]): string {
+  const duplicateIndex =
+    allPhotos.slice(0, index + 1).filter((candidate) => candidate === url).length - 1;
+  let hash = 0;
+  for (let i = 0; i < url.length; i += 1) {
+    hash = (hash * 31 + url.charCodeAt(i)) | 0;
+  }
+
+  return `photo-${Math.abs(hash).toString(36)}-${duplicateIndex}`;
 }
 
 export function PhotoGridReorder({
@@ -53,10 +69,12 @@ export function PhotoGridReorder({
   onAddPhoto,
   onRemovePhoto,
   isUploading = false,
-  maxPhotos = 6,
+  maxPhotos = MAX_PROFILE_PHOTOS,
   className = '',
+  onError,
 }: PhotoGridReorderProps) {
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   // Cropping State
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -64,11 +82,22 @@ export function PhotoGridReorder({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Convert photos array to objects with IDs for @dnd-kit
-  const photoItems: Photo[] = photos.map((url, index) => ({
-    id: `photo-${index}-${url.slice(-10)}`,
-    url,
-  }));
+  const photoItems: Photo[] = useMemo(
+    () =>
+      photos.map((url, index) => ({
+        id: createStablePhotoId(url, index, photos),
+        url,
+      })),
+    [photos]
+  );
+
+  const setPickerError = useCallback(
+    (message: string) => {
+      setLocalError(message);
+      onError?.(message);
+    },
+    [onError]
+  );
 
   // Configure sensors for both pointer (mouse) and touch
   const sensors = useSensors(
@@ -118,10 +147,33 @@ export function PhotoGridReorder({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setLocalError(null);
+
+    if (photos.length >= maxPhotos) {
+      setPickerError(`You can upload up to ${maxPhotos} profile photos.`);
+      e.target.value = '';
+      return;
+    }
+
+    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+      setPickerError('Choose a JPG, PNG, or WebP image.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setPickerError('Choose an image smaller than 10 MB.');
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       setCropImageSrc(reader.result as string);
       setCropModalOpen(true);
+    };
+    reader.onerror = () => {
+      setPickerError('Could not read that image. Try another photo.');
     };
     reader.readAsDataURL(file);
 
@@ -130,12 +182,33 @@ export function PhotoGridReorder({
   };
 
   const handleCropComplete = (croppedFile: File) => {
+    if (photos.length >= maxPhotos) {
+      setPickerError(`You can upload up to ${maxPhotos} profile photos.`);
+      return;
+    }
+
+    setLocalError(null);
     onAddPhoto(croppedFile);
   };
 
   const handleAddClick = () => {
+    if (photos.length >= maxPhotos) {
+      setPickerError(`You can upload up to ${maxPhotos} profile photos.`);
+      return;
+    }
+
+    setLocalError(null);
     fileInputRef.current?.click();
   };
+
+  const movePhoto = useCallback(
+    (index: number, direction: -1 | 1) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= photos.length) return;
+      onPhotosChange(arrayMove(photos, index, nextIndex));
+    },
+    [photos, onPhotosChange]
+  );
 
   const activePhoto = photoItems.find((item) => item.id === activeId);
 
@@ -149,14 +222,19 @@ export function PhotoGridReorder({
         onDragCancel={handleDragCancel}
       >
         <SortableContext items={photoItems.map((p) => p.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-4">
             {photoItems.map((photo, index) => (
               <SortablePhotoItem
                 key={photo.id}
                 photo={photo}
                 index={index}
+                photoCount={photoItems.length}
                 isMain={index === 0}
                 onRemove={() => onRemovePhoto(index)}
+                onMoveEarlier={index === 0 ? undefined : () => movePhoto(index, -1)}
+                onMoveLater={
+                  index === photoItems.length - 1 ? undefined : () => movePhoto(index, 1)
+                }
                 isDragging={activeId === photo.id}
               />
             ))}
@@ -174,7 +252,7 @@ export function PhotoGridReorder({
             type="file"
             ref={fileInputRef}
             onChange={handleFileSelect}
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             className="hidden"
           />
         </SortableContext>
@@ -190,9 +268,14 @@ export function PhotoGridReorder({
       {/* Helper text */}
       <p className="mt-3 text-center text-xs text-muted-foreground">
         {photos.length === 0
-          ? 'Add photos to get started'
-          : 'Drag photos to reorder. First photo is your main profile picture.'}
+          ? 'Add a clear first photo before your profile is visible.'
+          : 'Drag photos or use the move buttons to reorder. First photo is your main profile picture.'}
       </p>
+      {localError && (
+        <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-300">
+          {localError}
+        </p>
+      )}
 
       <PhotoCropModal
         isOpen={cropModalOpen}
@@ -211,12 +294,24 @@ export function PhotoGridReorder({
 interface SortablePhotoItemProps {
   photo: Photo;
   index: number;
+  photoCount: number;
   isMain: boolean;
   onRemove: () => void;
+  onMoveEarlier?: () => void;
+  onMoveLater?: () => void;
   isDragging: boolean;
 }
 
-function SortablePhotoItem({ photo, index, isMain, onRemove, isDragging }: SortablePhotoItemProps) {
+function SortablePhotoItem({
+  photo,
+  index,
+  photoCount,
+  isMain,
+  onRemove,
+  onMoveEarlier,
+  onMoveLater,
+  isDragging,
+}: SortablePhotoItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: photo.id,
   });
@@ -247,7 +342,7 @@ function SortablePhotoItem({ photo, index, isMain, onRemove, isDragging }: Sorta
         />
       </div>
 
-      {/* Drag handle overlay - covers the entire photo */}
+      {/* Drag handle overlay - covers the entire photo for pointer and keyboard sorting */}
       <div
         {...attributes}
         {...listeners}
@@ -255,10 +350,39 @@ function SortablePhotoItem({ photo, index, isMain, onRemove, isDragging }: Sorta
         aria-label={`Reorder photo ${index + 1}`}
       >
         {/* Drag handle indicator */}
-        <div className="absolute left-2 top-2 rounded-lg bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+        <div className="absolute left-2 top-2 rounded-lg bg-black/50 p-1.5 text-white opacity-100 backdrop-blur-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
           <GripVertical className="h-4 w-4" />
         </div>
       </div>
+
+      {photoCount > 1 && (
+        <div className="absolute bottom-2 right-2 z-10 flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveEarlier?.();
+            }}
+            disabled={!onMoveEarlier}
+            className="rounded-lg bg-black/55 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label={`Move photo ${index + 1} earlier`}
+            type="button"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveLater?.();
+            }}
+            disabled={!onMoveLater}
+            className="rounded-lg bg-black/55 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label={`Move photo ${index + 1} later`}
+            type="button"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Remove button - positioned outside drag handle area */}
       <button
@@ -267,6 +391,7 @@ function SortablePhotoItem({ photo, index, isMain, onRemove, isDragging }: Sorta
           onRemove();
         }}
         className="absolute right-2 top-2 z-10 rounded-lg bg-black/50 p-1.5 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-red-500 group-hover:opacity-100"
+        aria-label={`Remove photo ${index + 1}`}
         type="button"
       >
         <X className="h-4 w-4" />
@@ -340,6 +465,7 @@ function AddPhotoButton({ onClick, isUploading, isEmpty }: AddPhotoButtonProps) 
         isEmpty ? 'col-span-2 row-span-2' : ''
       )}
       type="button"
+      aria-label={isEmpty ? 'Add your first profile photo' : 'Add profile photo'}
     >
       {isUploading ? (
         <>

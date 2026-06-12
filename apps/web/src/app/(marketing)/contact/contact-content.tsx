@@ -3,12 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
-  Heart,
   ArrowRight,
   Mail,
   MessageCircle,
   MapPin,
-  Phone,
   Clock,
   Send,
   HelpCircle,
@@ -17,7 +15,6 @@ import {
   Building,
   Loader2
 } from 'lucide-react';
-import { ThemeToggle } from '@/shared/components/theme';
 
 type ContactReason = 'general' | 'support' | 'billing' | 'partnership' | 'press' | 'safety';
 
@@ -41,12 +38,17 @@ export function ContactContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate form submission
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // There is no form backend yet, so hand the message to the visitor's
+    // email client instead of faking a sent state.
+    const reasonLabel =
+      contactReasons.find((r) => r.value === formData.reason)?.label ?? 'General Inquiry';
+    const subject = `[${reasonLabel}] ${formData.subject}`;
+    const body = `Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`;
+    window.location.href = `mailto:support@crush.app?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
     setIsSubmitting(false);
     setIsSubmitted(true);
@@ -60,42 +62,6 @@ export function ContactContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
-            <Link href="/" className="flex items-center gap-2">
-              <Heart className="w-6 h-6 text-primary fill-primary" />
-              <span className="text-lg font-semibold text-gradient">Crush</span>
-            </Link>
-
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Features
-              </Link>
-              <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Pricing
-              </Link>
-              <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                About
-              </Link>
-              <Link href="/safety" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Safety
-              </Link>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <ThemeToggle />
-              <Link href="/auth/login" className="hidden sm:inline-flex text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                Log in
-              </Link>
-              <Link href="/auth/signup" className="btn-primary text-sm">
-                Get Started
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
 
       {/* Hero Section */}
       <section className="pt-28 pb-12 px-4 sm:px-6 lg:px-8">
@@ -120,13 +86,13 @@ export function ContactContent() {
             <ContactCard
               icon={<Mail className="w-5 h-5" />}
               title="Email Us"
-              description="support@crushapp.com"
-              href="mailto:support@crushapp.com"
+              description="support@crush.app"
+              href="mailto:support@crush.app"
             />
             <ContactCard
               icon={<MessageCircle className="w-5 h-5" />}
-              title="Live Chat"
-              description="Available in-app"
+              title="In-App Support"
+              description="Get help inside Crush"
               href="/help"
             />
             <ContactCard
@@ -160,9 +126,14 @@ export function ContactContent() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">Message Sent!</h3>
+                    <h3 className="text-lg font-semibold mb-2">Almost There!</h3>
                     <p className="text-muted-foreground mb-6">
-                      Thank you for reaching out. We'll get back to you within 24 hours.
+                      We've opened your email app with the message prefilled — just hit
+                      send. If it didn't open, email us directly at{' '}
+                      <a href="mailto:support@crush.app" className="text-primary hover:underline">
+                        support@crush.app
+                      </a>
+                      .
                     </p>
                     <button
                       onClick={() => {
@@ -337,7 +308,7 @@ export function ContactContent() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Mail className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    <p className="text-sm">hello@crushapp.com</p>
+                    <p className="text-sm">hello@crush.app</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Clock className="w-5 h-5 text-muted-foreground flex-shrink-0" />
@@ -418,55 +389,6 @@ export function ContactContent() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <Link href="/" className="flex items-center gap-2 mb-4">
-                <Heart className="w-5 h-5 text-primary fill-primary" />
-                <span className="font-semibold text-gradient">Crush</span>
-              </Link>
-              <p className="text-xs text-muted-foreground">
-                Find meaningful connections with people who share your interests.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-medium mb-3">Product</h4>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li><Link href="/features" className="hover:text-foreground transition-colors">Features</Link></li>
-                <li><Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
-                <li><Link href="/download" className="hover:text-foreground transition-colors">Download</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-medium mb-3">Company</h4>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li><Link href="/about" className="hover:text-foreground transition-colors">About</Link></li>
-                <li><Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
-                <li><Link href="/faq" className="hover:text-foreground transition-colors">FAQ</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-medium mb-3">Legal</h4>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li><Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
-                <li><Link href="/safety" className="hover:text-foreground transition-colors">Safety</Link></li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-border pt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-xs text-muted-foreground">
-              &copy; {new Date().getFullYear()} Crush. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

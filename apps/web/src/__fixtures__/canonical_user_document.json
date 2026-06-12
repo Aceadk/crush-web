@@ -1,0 +1,95 @@
+{
+  "_description": "Canonical user-document contract shared by mobile (Dart) and web (TypeScript). SOURCE OF TRUTH. The crush-web mirror at apps/web/src/__fixtures__/canonical_user_document.json must stay in sync. See firestore.rules legacyFlatProfileKeys() and docs/reports/crush_web_mobile_alignment_reaudit_2026-06-06.md (P0.3 / Step 5).",
+
+  "rejectedFlatRootKeys": [
+    "name", "lastName", "age", "gender", "sexualOrientation", "birthDate",
+    "dateOfBirth", "lastDobChangeAt", "lastNameChangeAt", "bio", "photoUrls",
+    "videoUrls", "primaryPhotoIndex", "interests", "country", "city",
+    "latitude", "longitude", "livingIn", "isVerified", "heightCm",
+    "relationshipGoals", "languages", "zodiacSign", "educationLevel",
+    "familyPlans", "personalityType", "religion", "workout", "socialMedia",
+    "sleepingHabits", "smoking", "drinking", "pets", "favoriteSongs",
+    "favoriteSinger", "jobTitle", "company", "school", "preferences",
+    "privacySettings", "favourites"
+  ],
+
+  "protectedRootFields": [
+    "plan", "isIdVerified", "stripeCustomerId", "stripeSubscriptionId",
+    "isEmailVerified", "emailVerified", "createdAt", "kycVerificationStatus"
+  ],
+
+  "retainedRootFields": [
+    "id", "email", "phoneNumber", "username", "displayName", "photos",
+    "profilePhotoUrl", "location", "prompts", "lifestyle", "interestedIn",
+    "settings", "notificationPrefs", "notificationSettings", "subscriptionTier",
+    "billingPeriod", "premiumExpiresAt", "premiumAutoRenew", "updatedAt",
+    "lastActive", "isOnline", "onboardingComplete", "profileComplete",
+    "isPhoneVerified", "hasAcceptedTerms", "termsAcceptedAt", "boost",
+    "fcmTokens", "profile"
+  ],
+
+  "canonical": {
+    "id": "user-canonical-1",
+    "email": "alice@example.com",
+    "phoneNumber": null,
+    "username": "alice",
+    "displayName": "Alice Example",
+    "photos": ["https://img.example.com/alice-1.jpg"],
+    "profilePhotoUrl": "https://img.example.com/alice-1.jpg",
+    "location": { "city": "Austin", "country": "US", "latitude": 30.2672, "longitude": -97.7431 },
+    "interestedIn": ["male"],
+    "subscriptionTier": "free",
+    "onboardingComplete": true,
+    "profileComplete": true,
+    "createdAt": "2026-06-01T00:00:00.000Z",
+    "updatedAt": "2026-06-01T00:00:00.000Z",
+    "profile": {
+      "name": "Alice Example",
+      "birthDate": "1998-05-10",
+      "age": 28,
+      "gender": "female",
+      "sexualOrientation": "straight",
+      "bio": "Coffee and trails.",
+      "photoUrls": ["https://img.example.com/alice-1.jpg"],
+      "interests": ["Hiking", "Coffee"],
+      "city": "Austin",
+      "country": "US",
+      "latitude": 30.2672,
+      "longitude": -97.7431,
+      "isVerified": false,
+      "preferences": {
+        "minAge": 18,
+        "maxAge": 50,
+        "maxDistanceKm": 50,
+        "showMeGenders": ["male"]
+      }
+    }
+  },
+
+  "legacyInput": {
+    "id": "user-legacy-1",
+    "email": "ben@example.com",
+    "displayName": "Ben Legacy",
+    "name": "Ben Legacy",
+    "age": 30,
+    "gender": "male",
+    "bio": "Old flat doc",
+    "interests": ["Music"],
+    "birthDate": "1996-07-22",
+    "city": "Denver",
+    "country": "US",
+    "isVerified": true
+  },
+
+  "legacyInputExpectedProfile": {
+    "name": "Ben Legacy",
+    "age": 30,
+    "gender": "male",
+    "bio": "Old flat doc",
+    "interests": ["Music"],
+    "birthDate": "1996-07-22",
+    "city": "Denver",
+    "country": "US",
+    "isVerified": true
+  }
+}

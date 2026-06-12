@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { FAQContent } from './faq-content';
+import { faqs } from './faq-data';
 
 export const metadata: Metadata = {
   title: 'FAQ - Crush Dating App Help Center',
@@ -21,52 +22,19 @@ export const metadata: Metadata = {
   },
 };
 
-// FAQ Schema.org structured data
+// FAQ Schema.org structured data — generated from faq-data so every
+// published question is included (previously only 5 of 31 were).
 const faqSchema = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
-  mainEntity: [
-    {
-      '@type': 'Question',
-      name: 'Is Crush free to use?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Yes! Crush is free to download and use. You can create a profile, swipe on potential matches, and chat with your matches without paying anything.',
-      },
+  mainEntity: faqs.map((faq) => ({
+    '@type': 'Question',
+    name: faq.question,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: faq.answer,
     },
-    {
-      '@type': 'Question',
-      name: 'How does matching work?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: "When you and another person both swipe right (like) on each other, it's a match! You'll both be notified and can start chatting.",
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'What features do I get with Crush+?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Crush+ includes: See who likes you, unlimited rewinds, 5 Super Likes per day, Passport mode, 1 profile boost per month, and no ads.',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'How do I report someone?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'To report a user, go to their profile or your conversation with them, tap the "..." menu, and select "Report."',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Can I cancel my subscription anytime?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: "Yes, you can cancel anytime. You'll keep your premium features until the end of your current billing period.",
-      },
-    },
-  ],
+  })),
 };
 
 export default function FAQPage() {

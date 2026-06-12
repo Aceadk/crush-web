@@ -1,43 +1,63 @@
 'use client';
 
+import { buildProfileCompletionStateFromProfile } from '@/components/profile/profile-completion';
 import {
-    calculateAge,
-    locationService,
-    storageService,
-    useAuthStore,
-    userService,
+  calculateAge,
+  locationService,
+  storageService,
+  useAuthStore,
+  userService,
 } from '@crush/core';
 import { Badge, Button, Card, cn } from '@crush/ui';
 import {
-    Calendar,
-    Camera,
-    Cigarette,
-    Dumbbell,
-    Eye,
-    GraduationCap,
-    Heart,
-    MapPin,
-    Plus,
-    Ruler,
-    Settings,
-    Share2,
-    Shield,
-    Sparkles,
-    Wine,
-    X,
+  AlertCircle,
+  Calendar,
+  Camera,
+  Cigarette,
+  Dumbbell,
+  Eye,
+  GraduationCap,
+  Heart,
+  MapPin,
+  Plus,
+  Ruler,
+  Settings,
+  Share2,
+  Shield,
+  Sparkles,
+  Wine,
+  X,
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 
+const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+
 export default function ProfileView() {
   const { user, profile, refreshProfile } = useAuthStore();
   const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
+
+    setPhotoError(null);
+
+    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+      setPhotoError('Choose a JPG, PNG, or WebP image.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setPhotoError('Choose an image smaller than 10 MB.');
+      e.target.value = '';
+      return;
+    }
 
     setUploading(true);
     try {
@@ -50,8 +70,10 @@ export default function ProfileView() {
       await refreshProfile();
     } catch (error) {
       console.error('Failed to upload photo:', error);
+      setPhotoError('Failed to upload photo. Please try again.');
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -82,7 +104,8 @@ export default function ProfileView() {
     await refreshProfile();
   };
 
-  const completeness = profile ? userService.calculateProfileCompleteness(profile) : 0;
+  const completionState = buildProfileCompletionStateFromProfile(profile);
+  const completeness = completionState.percent;
 
   if (!profile) {
     return (
@@ -102,17 +125,27 @@ export default function ProfileView() {
         <div className="absolute inset-0 bg-black/20" />
         <div className="absolute right-4 top-4 flex gap-2">
           <Link href="/settings">
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              aria-label="Open settings"
+            >
               <Settings className="h-5 w-5" />
             </Button>
           </Link>
-          <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-white/20"
+            aria-label="Share profile"
+          >
             <Share2 className="h-5 w-5" />
           </Button>
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto -mt-24 max-w-2xl px-4 pb-20">
+      <div className="relative z-10 mx-auto -mt-24 max-w-6xl px-4 pb-20">
         {/* Profile header */}
         <div className="mb-6 text-center">
           {/* Main photo */}
@@ -135,13 +168,15 @@ export default function ProfileView() {
             <button
               onClick={() => fileInputRef.current?.click()}
               className="hover:bg-primary-dark absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-colors"
+              aria-label="Upload profile photo"
+              type="button"
             >
               <Camera className="h-5 w-5" />
             </button>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={handlePhotoUpload}
               className="hidden"
             />
@@ -187,250 +222,286 @@ export default function ProfileView() {
           </div>
         </div>
 
-        {/* Profile completion card */}
-        {completeness < 100 && (
-          <Card className="mb-6 border-primary/20 bg-primary/5 p-4">
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                  <Sparkles className="h-6 w-6 text-primary" />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start">
+          <aside className="space-y-6 lg:sticky lg:top-24">
+            {/* Profile completion card */}
+            {completeness < 100 && (
+              <Card className="border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                      <Sparkles className="h-6 w-6 text-primary" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                      Complete your profile
+                    </h3>
+                    <p className="text-sm text-gray-500">{completionState.primaryMessage}</p>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
+                        style={{ width: `${completeness}%` }}
+                      />
+                    </div>
+                  </div>
+                  <Link href="/profile/edit">
+                    <Button size="sm">Complete</Button>
+                  </Link>
                 </div>
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-900 dark:text-white">
-                  Complete your profile
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Get up to 3x more matches with a complete profile
-                </p>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                  <div
-                    className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
-                    style={{ width: `${completeness}%` }}
-                  />
-                </div>
-              </div>
-              <Link href="/profile/edit">
-                <Button size="sm">Complete</Button>
-              </Link>
-            </div>
-          </Card>
-        )}
-
-        {/* Photo grid */}
-        <Card className="mb-6 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Photos</h2>
-            <Link href="/profile/edit" className="text-sm text-primary hover:underline">
-              Edit
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {profile.photos.map((photo, index) => (
-              <div
-                key={index}
-                className={cn(
-                  'group relative aspect-[3/4] overflow-hidden rounded-xl',
-                  index === 0 && 'col-span-2 row-span-2'
+                {(completionState.missingRequired.length > 0 ||
+                  completionState.missingRecommended.length > 0) && (
+                  <div className="mt-4 space-y-2 border-t border-primary/10 pt-4">
+                    {[...completionState.missingRequired, ...completionState.missingRecommended]
+                      .slice(0, 4)
+                      .map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex gap-2 text-sm text-gray-600 dark:text-gray-300"
+                        >
+                          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                          <span>{item.label}</span>
+                        </div>
+                      ))}
+                  </div>
                 )}
-              >
-                <Image
-                  src={photo}
-                  alt={`Profile photo ${index + 1}`}
-                  fill
-                  className="object-cover"
-                  sizes={
-                    index === 0
-                      ? '(max-width: 640px) 66vw, 400px'
-                      : '(max-width: 640px) 33vw, 200px'
-                  }
-                />
+              </Card>
+            )}
 
-                {/* Hover overlay */}
-                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                  {index !== 0 && (
-                    <button
-                      onClick={() => handleSetMainPhoto(index)}
-                      className="rounded-full bg-white p-2 text-gray-800 hover:bg-gray-100"
-                      title="Set as main photo"
-                    >
-                      <Heart className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleRemovePhoto(index)}
-                    className="rounded-full bg-white p-2 text-red-500 hover:bg-gray-100"
-                    title="Remove photo"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+            {/* Photo grid */}
+            <Card className="p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900 dark:text-white">Photos</h2>
+                <Link href="/profile/edit" className="text-sm text-primary hover:underline">
+                  Edit
+                </Link>
+              </div>
+              {photoError && (
+                <div className="mb-3 flex gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-300">
+                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span>{photoError}</span>
                 </div>
+              )}
 
-                {/* Main photo badge */}
-                {index === 0 && (
-                  <div className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-1 text-xs text-white">
-                    Main photo
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+                {profile.photos.map((photo, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      'group relative aspect-[3/4] overflow-hidden rounded-xl',
+                      index === 0 && 'col-span-2 row-span-2'
+                    )}
+                  >
+                    <Image
+                      src={photo}
+                      alt={`Profile photo ${index + 1}`}
+                      fill
+                      className="object-cover"
+                      sizes={
+                        index === 0
+                          ? '(max-width: 640px) 66vw, 400px'
+                          : '(max-width: 640px) 33vw, 200px'
+                      }
+                    />
+
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                      {index !== 0 && (
+                        <button
+                          onClick={() => handleSetMainPhoto(index)}
+                          className="rounded-full bg-white p-2 text-gray-800 hover:bg-gray-100"
+                          title="Set as main photo"
+                          aria-label={`Set photo ${index + 1} as main photo`}
+                          type="button"
+                        >
+                          <Heart className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleRemovePhoto(index)}
+                        className="rounded-full bg-white p-2 text-red-500 hover:bg-gray-100"
+                        title="Remove photo"
+                        aria-label={`Remove photo ${index + 1}`}
+                        type="button"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Main photo badge */}
+                    {index === 0 && (
+                      <div className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-1 text-xs text-white">
+                        Main photo
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add photo button */}
+                {profile.photos.length < 6 && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className={cn(
+                      'aspect-[3/4] rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600',
+                      'flex flex-col items-center justify-center gap-2 text-gray-500',
+                      'transition-colors hover:border-primary hover:text-primary',
+                      uploading && 'cursor-not-allowed opacity-50'
+                    )}
+                    aria-label="Add profile photo"
+                    type="button"
+                  >
+                    {uploading ? (
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    ) : (
+                      <>
+                        <Plus className="h-8 w-8" />
+                        <span className="text-xs">Add Photo</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </Card>
+          </aside>
+
+          <section className="space-y-6">
+            {/* About section */}
+            <Card className="p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900 dark:text-white">About</h2>
+                <Link href="/profile/edit" className="text-sm text-primary hover:underline">
+                  Edit
+                </Link>
+              </div>
+
+              {profile.bio ? (
+                <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                  {profile.bio}
+                </p>
+              ) : (
+                <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
+                  + Add a bio to tell others about yourself
+                </Link>
+              )}
+            </Card>
+
+            {/* Details section */}
+            <Card className="p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900 dark:text-white">Details</h2>
+                <Link href="/profile/edit" className="text-sm text-primary hover:underline">
+                  Edit
+                </Link>
+              </div>
+
+              <div className="space-y-3">
+                {profile.location && (profile.location.city || profile.location.country) && (
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <MapPin className="h-5 w-5 text-gray-500" />
+                    <span>{locationService.formatLocationForDisplay(profile.location)}</span>
+                  </div>
+                )}
+                {profile.birthDate && (
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <Calendar className="h-5 w-5 text-gray-500" />
+                    <span>{calculateAge(profile.birthDate) ?? profile.age} years old</span>
+                  </div>
+                )}
+                {profile.lifestyle?.height && (
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <Ruler className="h-5 w-5 text-gray-500" />
+                    <span>{profile.lifestyle.height}</span>
+                  </div>
+                )}
+                {profile.lifestyle?.education && (
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <GraduationCap className="h-5 w-5 text-gray-500" />
+                    <span>{profile.lifestyle.education}</span>
+                  </div>
+                )}
+                {profile.lifestyle?.drinking && (
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <Wine className="h-5 w-5 text-gray-500" />
+                    <span className="capitalize">{profile.lifestyle.drinking}</span>
+                  </div>
+                )}
+                {profile.lifestyle?.smoking && (
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <Cigarette className="h-5 w-5 text-gray-500" />
+                    <span className="capitalize">{profile.lifestyle.smoking}</span>
+                  </div>
+                )}
+                {profile.lifestyle?.workout && (
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <Dumbbell className="h-5 w-5 text-gray-500" />
+                    <span className="capitalize">{profile.lifestyle.workout}</span>
                   </div>
                 )}
               </div>
-            ))}
+            </Card>
 
-            {/* Add photo button */}
-            {profile.photos.length < 6 && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className={cn(
-                  'aspect-[3/4] rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600',
-                  'flex flex-col items-center justify-center gap-2 text-gray-500',
-                  'transition-colors hover:border-primary hover:text-primary',
-                  uploading && 'cursor-not-allowed opacity-50'
-                )}
-              >
-                {uploading ? (
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                ) : (
-                  <>
-                    <Plus className="h-8 w-8" />
-                    <span className="text-xs">Add Photo</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </Card>
-
-        {/* About section */}
-        <Card className="mb-6 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 dark:text-white">About</h2>
-            <Link href="/profile/edit" className="text-sm text-primary hover:underline">
-              Edit
-            </Link>
-          </div>
-
-          {profile.bio ? (
-            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{profile.bio}</p>
-          ) : (
-            <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
-              + Add a bio to tell others about yourself
-            </Link>
-          )}
-        </Card>
-
-        {/* Details section */}
-        <Card className="mb-6 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Details</h2>
-            <Link href="/profile/edit" className="text-sm text-primary hover:underline">
-              Edit
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {profile.location && (profile.location.city || profile.location.country) && (
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <MapPin className="h-5 w-5 text-gray-500" />
-                <span>{locationService.formatLocationForDisplay(profile.location)}</span>
+            {/* Interests section */}
+            <Card className="p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900 dark:text-white">Interests</h2>
+                <Link href="/profile/edit" className="text-sm text-primary hover:underline">
+                  Edit
+                </Link>
               </div>
-            )}
-            {profile.birthDate && (
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <Calendar className="h-5 w-5 text-gray-500" />
-                <span>{calculateAge(profile.birthDate) ?? profile.age} years old</span>
-              </div>
-            )}
-            {profile.lifestyle?.height && (
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <Ruler className="h-5 w-5 text-gray-500" />
-                <span>{profile.lifestyle.height}</span>
-              </div>
-            )}
-            {profile.lifestyle?.education && (
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <GraduationCap className="h-5 w-5 text-gray-500" />
-                <span>{profile.lifestyle.education}</span>
-              </div>
-            )}
-            {profile.lifestyle?.drinking && (
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <Wine className="h-5 w-5 text-gray-500" />
-                <span className="capitalize">{profile.lifestyle.drinking}</span>
-              </div>
-            )}
-            {profile.lifestyle?.smoking && (
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <Cigarette className="h-5 w-5 text-gray-500" />
-                <span className="capitalize">{profile.lifestyle.smoking}</span>
-              </div>
-            )}
-            {profile.lifestyle?.workout && (
-              <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
-                <Dumbbell className="h-5 w-5 text-gray-500" />
-                <span className="capitalize">{profile.lifestyle.workout}</span>
-              </div>
-            )}
-          </div>
-        </Card>
 
-        {/* Interests section */}
-        <Card className="mb-6 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Interests</h2>
-            <Link href="/profile/edit" className="text-sm text-primary hover:underline">
-              Edit
-            </Link>
-          </div>
-
-          {profile.interests && profile.interests.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {profile.interests.map((interest) => (
-                <Badge key={interest} variant="secondary" className="px-3 py-1.5">
-                  {interest}
-                </Badge>
-              ))}
-            </div>
-          ) : (
-            <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
-              + Add interests to find better matches
-            </Link>
-          )}
-        </Card>
-
-        {/* Prompts section */}
-        <Card className="mb-6 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Prompts</h2>
-            <Link href="/profile/edit" className="text-sm text-primary hover:underline">
-              Edit
-            </Link>
-          </div>
-
-          {profile.prompts && profile.prompts.length > 0 ? (
-            <div className="space-y-4">
-              {profile.prompts.map((prompt, index) => (
-                <div key={index} className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
-                  <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">{prompt.question}</p>
-                  <p className="text-gray-900 dark:text-white">{prompt.answer}</p>
+              {profile.interests && profile.interests.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {profile.interests.map((interest) => (
+                    <Badge key={interest} variant="secondary" className="px-3 py-1.5">
+                      {interest}
+                    </Badge>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
-              + Add prompts to show your personality
-            </Link>
-          )}
-        </Card>
+              ) : (
+                <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
+                  + Add interests to find better matches
+                </Link>
+              )}
+            </Card>
 
-        {/* Preview profile button */}
-        <div className="flex justify-center">
-          <Link href="/profile/preview">
-            <Button variant="outline" className="gap-2">
-              <Eye className="h-4 w-4" />
-              Preview Profile
-            </Button>
-          </Link>
+            {/* Prompts section */}
+            <Card className="p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900 dark:text-white">Prompts</h2>
+                <Link href="/profile/edit" className="text-sm text-primary hover:underline">
+                  Edit
+                </Link>
+              </div>
+
+              {profile.prompts && profile.prompts.length > 0 ? (
+                <div className="space-y-4">
+                  {profile.prompts.map((prompt, index) => (
+                    <div key={index} className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800">
+                      <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">
+                        {prompt.question}
+                      </p>
+                      <p className="text-gray-900 dark:text-white">{prompt.answer}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Link href="/profile/edit" className="text-gray-500 hover:text-primary">
+                  + Add prompts to show your personality
+                </Link>
+              )}
+            </Card>
+
+            {/* Preview profile button */}
+            <div className="flex justify-center">
+              <Link href="/profile/preview">
+                <Button variant="outline" className="gap-2">
+                  <Eye className="h-4 w-4" />
+                  Preview Profile
+                </Button>
+              </Link>
+            </div>
+          </section>
         </div>
       </div>
     </div>

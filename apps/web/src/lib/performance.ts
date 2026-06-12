@@ -162,6 +162,8 @@ export function getWebVitals(): Promise<PerformanceMetrics> {
 export function reportWebVitals(metric: { name: string; value: number; id: string }): void {
   // Send to analytics
   if (process.env.NODE_ENV === 'development') {
+    // Intentional dev-only web-vitals output.
+    // eslint-disable-next-line no-console
     console.log('[Performance]', metric.name, metric.value);
   }
 

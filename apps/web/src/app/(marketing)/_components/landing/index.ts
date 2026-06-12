@@ -1,0 +1,12 @@
+export { PublicHeader } from './public-header';
+export { CrushHero } from './crush-hero';
+export { FloatingMatchScene } from './floating-match-scene';
+export { SocialProofStrip } from './social-proof-strip';
+export { FeatureStoryGrid } from './feature-story-grid';
+export { HowItWorksJourney } from './how-it-works-journey';
+export { LoveStoriesSection } from './love-stories-section';
+export { PricingPreviewSection } from './pricing-preview-section';
+export { DownloadSection } from './download-section';
+export { FinalCTASection } from './final-cta-section';
+export { PublicFooter } from './public-footer';
+export { Reveal } from './reveal';

@@ -127,6 +127,19 @@ async function updateSubscriptionState(params: {
       : null;
 
   const updates: Record<string, unknown> = {
+    // Canonical entitlement fields (source of truth for rules + mobile).
+    // Without these, a web Stripe purchase would NOT grant premium under the
+    // Firestore rules (plan == 'plus') or on the mobile client. See
+    // my_first_project/docs/reports/shared_backend_contract_matrix_2026-06-05.md.
+    plan: isPremium ? 'plus' : 'free',
+    subscriptionExpiresAt: premiumExpiresAt,
+    subscriptionLifecycle: {
+      provider: 'stripe',
+      status: params.status,
+      currentPeriodEnd: premiumExpiresAt,
+      cancelAtPeriodEnd: params.cancelAtPeriodEnd,
+    },
+    // Legacy web fields (kept for backward compatibility).
     isPremium,
     stripeSubscriptionId: params.subscriptionId,
     stripeCustomerId: params.customerId,
@@ -158,6 +171,16 @@ async function updateSubscriptionDeleted(params: {
     .doc(params.userId)
     .set(
       {
+        // Canonical entitlement fields — revoke premium across rules + mobile.
+        plan: 'free',
+        subscriptionExpiresAt: null,
+        subscriptionLifecycle: {
+          provider: 'stripe',
+          status: 'canceled',
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false,
+        },
+        // Legacy web fields (kept for backward compatibility).
         isPremium: false,
         premiumPlan: null,
         premiumExpiresAt: null,

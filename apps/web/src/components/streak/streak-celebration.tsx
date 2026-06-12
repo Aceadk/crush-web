@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Star, Rocket, Crown, Diamond, Sparkles, X } from 'lucide-react';
-import { useStreakStore, StreakMilestone } from '@crush/core';
+import { useStreakStore } from '@crush/core';
 import confetti from 'canvas-confetti';
 
 const MILESTONE_ICONS = {
@@ -79,6 +79,11 @@ export function StreakCelebration({ onClose }: StreakCelebrationProps) {
     }
   }, [celebrationData]);
 
+  const handleClose = useCallback(() => {
+    hideCelebration();
+    onClose?.();
+  }, [hideCelebration, onClose]);
+
   useEffect(() => {
     if (showCelebration) {
       fireConfetti();
@@ -90,12 +95,7 @@ export function StreakCelebration({ onClose }: StreakCelebrationProps) {
 
       return () => clearTimeout(timer);
     }
-  }, [showCelebration, fireConfetti]);
-
-  const handleClose = () => {
-    hideCelebration();
-    onClose?.();
-  };
+  }, [showCelebration, fireConfetti, handleClose]);
 
   if (!celebrationData) return null;
 

@@ -234,6 +234,8 @@ class Analytics {
    */
   private log(...args: unknown[]) {
     if (this.debugMode) {
+      // Intentional debug output, opt-in via debugMode only.
+      // eslint-disable-next-line no-console
       console.log('[Analytics]', ...args);
     }
   }

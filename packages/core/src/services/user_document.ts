@@ -1,4 +1,11 @@
-import { DEFAULT_USER_SETTINGS, type Gender, type UserProfile, type UserPrompt, type UserSettings } from '../types/user';
+import {
+  DEFAULT_USER_SETTINGS,
+  type Gender,
+  type UserProfile,
+  type UserPrompt,
+  type UserSettings,
+} from '../types/user';
+import { resolveEntitlement } from './entitlement';
 
 type FirestoreUserData = Record<string, unknown>;
 
@@ -35,7 +42,10 @@ function toStringArray(value: unknown): string[] {
 
 function normalizeGender(value: unknown): Gender | undefined {
   if (typeof value !== 'string') return undefined;
-  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
   switch (normalized) {
     case 'male':
     case 'man':
@@ -60,7 +70,10 @@ function normalizeInterestedIn(value: unknown): Gender[] {
   const normalized = new Set<Gender>();
   for (const entry of Array.isArray(value) ? value : typeof value === 'string' ? [value] : []) {
     if (typeof entry !== 'string') continue;
-    const token = entry.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const token = entry
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
     switch (token) {
       case 'male':
       case 'man':
@@ -175,13 +188,15 @@ function buildCanonicalPreferences(
         : (toStringArray(existingProfilePreferences?.showMeGenders) as Gender[]).length > 0
           ? toStringArray(existingProfilePreferences?.showMeGenders)
           : ['male', 'female'],
-    showMyDistance: settings?.showDistance ?? toBoolean(existingProfilePreferences?.showMyDistance) ?? true,
+    showMyDistance:
+      settings?.showDistance ?? toBoolean(existingProfilePreferences?.showMyDistance) ?? true,
     showMyAge: settings?.showAge ?? toBoolean(existingProfilePreferences?.showMyAge) ?? true,
     hideFromDiscovery:
       settings && 'showInDiscovery' in settings
         ? (settings as UserSettings & { showInDiscovery?: boolean }).showInDiscovery === false
-        : toBoolean(existingProfilePreferences?.hideFromDiscovery) ?? false,
-    incognitoMode: settings?.incognitoMode ?? toBoolean(existingProfilePreferences?.incognitoMode) ?? false,
+        : (toBoolean(existingProfilePreferences?.hideFromDiscovery) ?? false),
+    incognitoMode:
+      settings?.incognitoMode ?? toBoolean(existingProfilePreferences?.incognitoMode) ?? false,
   };
 }
 
@@ -274,19 +289,16 @@ export function buildUserProfileCreateData(
     phoneNumber: data.phoneNumber,
     displayName,
     username: data.username,
-    bio: data.bio ?? '',
-    birthDate: data.birthDate,
-    age: data.age,
-    gender: normalizeGender(data.gender),
-    sexualOrientation: data.sexualOrientation,
+    // Canonical demographic/profile data lives ONLY under profile.* — the
+    // Firestore rules reject legacy flat root keys (bio, birthDate, age, gender,
+    // sexualOrientation, interests, isVerified, …). See firestore.rules
+    // legacyFlatProfileKeys() and docs/contracts/canonical_user_document.fixture.json.
     interestedIn,
     photos,
     profilePhotoUrl: data.profilePhotoUrl ?? photos[0],
     location,
-    interests: data.interests ?? [],
     prompts,
     lifestyle: data.lifestyle,
-    isVerified: data.isVerified ?? false,
     subscriptionTier: data.subscriptionTier ?? 'free',
     billingPeriod: data.billingPeriod,
     premiumExpiresAt: data.premiumExpiresAt,
@@ -298,6 +310,7 @@ export function buildUserProfileCreateData(
     lastActive: data.lastActive ?? nowIso,
     isOnline: data.isOnline,
     settings,
+    notificationPrefs: data.notificationPrefs ?? data.notificationSettings,
     notificationSettings: data.notificationSettings,
     hasAcceptedTerms: data.hasAcceptedTerms ?? false,
     termsAcceptedAt: data.termsAcceptedAt,
@@ -310,15 +323,12 @@ export function buildUserProfileCreateData(
   };
 }
 
-export function buildUserProfileUpdateData(
-  data: Partial<UserProfile>
-): Record<string, unknown> {
+export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<string, unknown> {
   const updates: Record<string, unknown> = {};
   const settingsPatch = data.settings;
   const interestedIn =
     data.interestedIn !== undefined ? normalizeInterestedIn(data.interestedIn) : undefined;
-  const location =
-    data.location !== undefined ? normalizeLocation(data.location) : undefined;
+  const location = data.location !== undefined ? normalizeLocation(data.location) : undefined;
   const prompts =
     data.prompts !== undefined
       ? data.prompts.filter((prompt) => prompt.answer.trim().length > 0)
@@ -328,25 +338,22 @@ export function buildUserProfileUpdateData(
     updates.displayName = data.displayName.trim();
     updates['profile.name'] = data.displayName.trim();
   }
+  // Canonical demographic fields are written under profile.* ONLY. Writing the
+  // legacy flat root keys (bio/birthDate/age/gender/sexualOrientation/interests/
+  // isVerified) is rejected by the Firestore rules.
   if (data.bio !== undefined) {
-    updates.bio = data.bio.trim();
     updates['profile.bio'] = data.bio.trim();
   }
   if (data.birthDate !== undefined) {
-    updates.birthDate = data.birthDate;
     updates['profile.birthDate'] = data.birthDate;
   }
   if (data.age !== undefined) {
-    updates.age = data.age;
     updates['profile.age'] = data.age;
   }
   if (data.gender !== undefined) {
-    const normalizedGender = normalizeGender(data.gender);
-    updates.gender = normalizedGender;
-    updates['profile.gender'] = normalizedGender;
+    updates['profile.gender'] = normalizeGender(data.gender);
   }
   if (data.sexualOrientation !== undefined) {
-    updates.sexualOrientation = data.sexualOrientation;
     updates['profile.sexualOrientation'] = data.sexualOrientation;
   }
   if (interestedIn !== undefined) {
@@ -371,7 +378,6 @@ export function buildUserProfileUpdateData(
     }
   }
   if (data.interests !== undefined) {
-    updates.interests = data.interests;
     updates['profile.interests'] = data.interests;
   }
   if (prompts !== undefined) {
@@ -397,7 +403,6 @@ export function buildUserProfileUpdateData(
     }
   }
   if (data.isVerified !== undefined) {
-    updates.isVerified = data.isVerified;
     updates['profile.isVerified'] = data.isVerified;
   }
   if (data.onboardingComplete !== undefined) {
@@ -411,7 +416,7 @@ export function buildUserProfileUpdateData(
     const canonicalPreferences = buildCanonicalPreferences(
       interestedIn ?? normalizeInterestedIn([]),
       settingsPatch,
-      {},
+      {}
     );
     if ('maxDistanceKm' in canonicalPreferences) {
       updates['profile.preferences.maxDistanceKm'] = canonicalPreferences.maxDistanceKm;
@@ -439,13 +444,13 @@ export function buildUserProfileUpdateData(
   return updates;
 }
 
-export function mapUserDocumentToUserProfile(
-  id: string,
-  data: FirestoreUserData
-): UserProfile {
+export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData): UserProfile {
   const profile = asRecord(data.profile);
   const canonicalBirthDate = toString(data.birthDate) ?? toString(profile.birthDate);
-  const photos = toStringArray(data.photos).length > 0 ? toStringArray(data.photos) : toStringArray(profile.photoUrls);
+  const photos =
+    toStringArray(data.photos).length > 0
+      ? toStringArray(data.photos)
+      : toStringArray(profile.photoUrls);
   const interestedIn =
     normalizeInterestedIn(data.interestedIn).length > 0
       ? normalizeInterestedIn(data.interestedIn)
@@ -464,11 +469,26 @@ export function mapUserDocumentToUserProfile(
   const settings: UserSettings = {
     ...DEFAULT_USER_SETTINGS,
     ...settingsFromDoc,
-    maxDistance: toNumber(profilePreferences.maxDistanceKm) ?? settingsFromDoc.maxDistance ?? DEFAULT_USER_SETTINGS.maxDistance,
-    ageRangeMin: toNumber(profilePreferences.minAge) ?? settingsFromDoc.ageRangeMin ?? DEFAULT_USER_SETTINGS.ageRangeMin,
-    ageRangeMax: toNumber(profilePreferences.maxAge) ?? settingsFromDoc.ageRangeMax ?? DEFAULT_USER_SETTINGS.ageRangeMax,
-    showDistance: toBoolean(profilePreferences.showMyDistance) ?? settingsFromDoc.showDistance ?? DEFAULT_USER_SETTINGS.showDistance,
-    showAge: toBoolean(profilePreferences.showMyAge) ?? settingsFromDoc.showAge ?? DEFAULT_USER_SETTINGS.showAge,
+    maxDistance:
+      toNumber(profilePreferences.maxDistanceKm) ??
+      settingsFromDoc.maxDistance ??
+      DEFAULT_USER_SETTINGS.maxDistance,
+    ageRangeMin:
+      toNumber(profilePreferences.minAge) ??
+      settingsFromDoc.ageRangeMin ??
+      DEFAULT_USER_SETTINGS.ageRangeMin,
+    ageRangeMax:
+      toNumber(profilePreferences.maxAge) ??
+      settingsFromDoc.ageRangeMax ??
+      DEFAULT_USER_SETTINGS.ageRangeMax,
+    showDistance:
+      toBoolean(profilePreferences.showMyDistance) ??
+      settingsFromDoc.showDistance ??
+      DEFAULT_USER_SETTINGS.showDistance,
+    showAge:
+      toBoolean(profilePreferences.showMyAge) ??
+      settingsFromDoc.showAge ??
+      DEFAULT_USER_SETTINGS.showAge,
     incognitoMode: toBoolean(profilePreferences.incognitoMode) ?? settingsFromDoc.incognitoMode,
   };
   const displayName = toString(data.displayName) ?? toString(profile.name) ?? '';
@@ -493,18 +513,31 @@ export function mapUserDocumentToUserProfile(
     birthDate: canonicalBirthDate,
     age: toNumber(data.age) ?? toNumber(profile.age) ?? deriveAgeFromBirthDate(canonicalBirthDate),
     gender: normalizeGender(data.gender) ?? normalizeGender(profile.gender),
-    sexualOrientation: (toString(data.sexualOrientation) ?? toString(profile.sexualOrientation)) as UserProfile['sexualOrientation'],
+    sexualOrientation: (toString(data.sexualOrientation) ??
+      toString(profile.sexualOrientation)) as UserProfile['sexualOrientation'],
     interestedIn,
     photos,
     profilePhotoUrl: toString(data.profilePhotoUrl) ?? photos[0],
     location,
-    interests: toStringArray(data.interests).length > 0 ? toStringArray(data.interests) : toStringArray(profile.interests),
+    interests:
+      toStringArray(data.interests).length > 0
+        ? toStringArray(data.interests)
+        : toStringArray(profile.interests),
     prompts,
     lifestyle: (data.lifestyle as UserProfile['lifestyle']) ?? undefined,
     isVerified: toBoolean(data.isVerified) ?? toBoolean(profile.isVerified) ?? false,
-    subscriptionTier: (data.subscriptionTier as UserProfile['subscriptionTier']) ?? 'free',
+    // Entitlement is derived from the canonical backend `plan` field (with
+    // legacy fallback) so web premium gating matches the backend + rules.
+    // See services/entitlement.ts (P1 #7 alignment).
+    ...(() => {
+      const entitlement = resolveEntitlement(data);
+      return {
+        subscriptionTier: entitlement.tier,
+        isPremium: entitlement.isPremium,
+        premiumExpiresAt: entitlement.expiresAt ?? toString(data.premiumExpiresAt),
+      };
+    })(),
     billingPeriod: data.billingPeriod as UserProfile['billingPeriod'],
-    premiumExpiresAt: toString(data.premiumExpiresAt),
     premiumAutoRenew: toBoolean(data.premiumAutoRenew),
     stripeCustomerId: toString(data.stripeCustomerId),
     stripeSubscriptionId: toString(data.stripeSubscriptionId),
@@ -513,6 +546,9 @@ export function mapUserDocumentToUserProfile(
     lastActive: normalizeTimestampToString(data.lastActive),
     isOnline: toBoolean(data.isOnline),
     settings,
+    notificationPrefs:
+      (data.notificationPrefs as UserProfile['notificationPrefs']) ??
+      (data.notificationSettings as UserProfile['notificationSettings']),
     notificationSettings: data.notificationSettings as UserProfile['notificationSettings'],
     hasAcceptedTerms: toBoolean(data.hasAcceptedTerms) ?? false,
     termsAcceptedAt: toString(data.termsAcceptedAt),

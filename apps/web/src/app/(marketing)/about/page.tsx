@@ -35,7 +35,9 @@ const values = [
 ];
 
 const stats = [
-  { value: '10M+', label: 'Users Worldwide' },
+  // Aligned with the home-page claims (this page previously said 10M+ users
+  // while home said 1M+ downloads). Verify against real data before launch.
+  { value: '1M+', label: 'Downloads' },
   { value: '50K+', label: 'Daily Matches' },
   { value: '4.8', label: 'App Store Rating' },
   { value: '150+', label: 'Countries' },
@@ -43,7 +45,7 @@ const stats = [
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="min-h-screen bg-white dark:bg-gray-900 pt-14">
       {/* Hero */}
       <div className="bg-gradient-to-br from-primary to-secondary py-20 px-4">
         <div className="max-w-4xl mx-auto text-center">

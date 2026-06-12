@@ -1,6 +1,5 @@
 'use client';
 
-import { ThemeToggle } from '@/shared/components/theme';
 import { BILLING_CONFIG, BillingPeriod, BillingPlanConfig } from '@crush/core';
 import {
     ArrowRight,
@@ -8,7 +7,6 @@ import {
     Crown,
     Eye,
     Globe,
-    Heart,
     Shield,
     Sparkles,
     Star,
@@ -16,7 +14,7 @@ import {
     Zap,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 export function PricingContent() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
@@ -32,56 +30,16 @@ export function PricingContent() {
   const getSavings = (plan: BillingPlanConfig) =>
     BILLING_CONFIG.getSavingsPercentage(plan, billingPeriod);
 
+  // Computed from billing config: the badge was hardcoded to -33% while
+  // Platinum's yearly saving is 37%.
+  const maxYearlySavings = Math.max(
+    ...[plusPlan, platinumPlan].map((plan) =>
+      BILLING_CONFIG.getSavingsPercentage(plan, 'yearly')
+    )
+  );
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="glass fixed left-0 right-0 top-0 z-50 border-b border-border/50">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-14 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <Heart className="h-6 w-6 fill-primary text-primary" />
-              <span className="text-gradient text-lg font-semibold">Crush</span>
-            </Link>
-
-            <div className="hidden items-center gap-6 md:flex">
-              <Link
-                href="/features"
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Features
-              </Link>
-              <Link href="/pricing" className="text-sm font-medium text-foreground">
-                Pricing
-              </Link>
-              <Link
-                href="/about"
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                About
-              </Link>
-              <Link
-                href="/safety"
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Safety
-              </Link>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <ThemeToggle />
-              <Link
-                href="/auth/login"
-                className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
-              >
-                Log in
-              </Link>
-              <Link href="/auth/signup" className="btn-primary text-sm">
-                Get Started
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
 
       {/* Hero Section */}
       <section className="px-4 pb-12 pt-28 sm:px-6 lg:px-8">
@@ -101,8 +59,14 @@ export function PricingContent() {
             </p>
 
             {/* Billing Toggle */}
-            <div className="inline-flex items-center rounded-full bg-muted p-1">
+            <div
+              role="radiogroup"
+              aria-label="Billing period"
+              className="inline-flex items-center rounded-full bg-muted p-1"
+            >
               <button
+                role="radio"
+                aria-checked={billingPeriod === 'monthly'}
                 onClick={() => setBillingPeriod('monthly')}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   billingPeriod === 'monthly'
@@ -113,6 +77,8 @@ export function PricingContent() {
                 Monthly
               </button>
               <button
+                role="radio"
+                aria-checked={billingPeriod === 'quarterly'}
                 onClick={() => setBillingPeriod('quarterly')}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   billingPeriod === 'quarterly'
@@ -123,6 +89,8 @@ export function PricingContent() {
                 Quarterly
               </button>
               <button
+                role="radio"
+                aria-checked={billingPeriod === 'yearly'}
                 onClick={() => setBillingPeriod('yearly')}
                 className={`relative rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   billingPeriod === 'yearly'
@@ -132,7 +100,7 @@ export function PricingContent() {
               >
                 Yearly
                 <span className="absolute -right-2 -top-2 rounded-full bg-success px-1.5 py-0.5 text-[10px] font-semibold text-success-foreground">
-                  -33%
+                  Up to -{maxYearlySavings}%
                 </span>
               </button>
             </div>
@@ -359,91 +327,6 @@ export function PricingContent() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-8 grid grid-cols-2 gap-8 md:grid-cols-4">
-            <div>
-              <Link href="/" className="mb-4 flex items-center gap-2">
-                <Heart className="h-5 w-5 fill-primary text-primary" />
-                <span className="text-gradient font-semibold">Crush</span>
-              </Link>
-              <p className="text-xs text-muted-foreground">
-                Find meaningful connections with people who share your interests.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="mb-3 text-sm font-medium">Product</h4>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li>
-                  <Link href="/features" className="transition-colors hover:text-foreground">
-                    Features
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/pricing" className="transition-colors hover:text-foreground">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#download" className="transition-colors hover:text-foreground">
-                    Download
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="mb-3 text-sm font-medium">Company</h4>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li>
-                  <Link href="/about" className="transition-colors hover:text-foreground">
-                    About
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/contact" className="transition-colors hover:text-foreground">
-                    Contact
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/faq" className="transition-colors hover:text-foreground">
-                    FAQ
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="mb-3 text-sm font-medium">Legal</h4>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li>
-                  <Link href="/privacy" className="transition-colors hover:text-foreground">
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/terms" className="transition-colors hover:text-foreground">
-                    Terms of Service
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/safety" className="transition-colors hover:text-foreground">
-                    Safety
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-center justify-between gap-4 border-t border-border pt-6 sm:flex-row">
-            <p className="text-xs text-muted-foreground">
-              &copy; {new Date().getFullYear()} Crush. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
@@ -581,11 +464,14 @@ function BenefitCard({
 
 function FAQItem({ question, answer }: { question: string; answer: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const contentId = useId();
 
   return (
     <div className="rounded-lg border border-border bg-card">
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        aria-controls={contentId}
         className="flex w-full items-center justify-between px-6 py-4 text-left"
       >
         <span className="font-medium">{question}</span>
@@ -599,7 +485,7 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
         </svg>
       </button>
       {isOpen && (
-        <div className="px-6 pb-4">
+        <div id={contentId} className="px-6 pb-4">
           <p className="text-sm text-muted-foreground">{answer}</p>
         </div>
       )}

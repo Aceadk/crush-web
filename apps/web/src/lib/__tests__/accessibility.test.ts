@@ -3,7 +3,7 @@
  * Tests pure functions only (no React hooks, which require renderHook).
  * CR-AUD-040
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   generateId,
   describeElement,

@@ -8,6 +8,9 @@ export default defineConfig({
   // Test directory
   testDir: './e2e',
 
+  // Warm lazily-compiled dev-server routes before tests (see e2e/global-setup.ts)
+  globalSetup: './e2e/global-setup',
+
   // Run tests in files in parallel
   fullyParallel: true,
 

@@ -23,7 +23,6 @@ import {
   Dog,
   Cat,
   Mountain,
-  Waves,
   Palette,
   Gamepad2,
   Trophy,
@@ -228,7 +227,7 @@ const COMPATIBILITY_RESULTS: Record<string, CompatibilityResult> = {
 
 export default function CompatibilityQuizPage() {
   const router = useRouter();
-  const { user, profile } = useAuthStore();
+  const { user } = useAuthStore();
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});

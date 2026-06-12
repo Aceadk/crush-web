@@ -2,6 +2,7 @@
 
 import { monitoring } from '@/lib/sentry';
 import {
+    initializeWebAppCheck,
     useAuthStore,
     useMatchStore,
     useMessageStore,
@@ -236,6 +237,14 @@ export function AuthInitializer({ children }: AuthInitializerProps) {
 
   useEffect(() => {
     monitoring.init();
+    // Initialize App Check before any protected backend call so attestation
+    // tokens attach to callable/REST/Firestore requests. No-op when unconfigured
+    // or outside the browser. See packages/core/src/firebase/config.ts.
+    try {
+      initializeWebAppCheck();
+    } catch {
+      // App Check init is best-effort at bootstrap; failures are logged inside.
+    }
   }, []);
 
   useEffect(() => {
@@ -292,6 +301,12 @@ export function AuthInitializer({ children }: AuthInitializerProps) {
           loading: false,
           error: null,
           initialized: true,
+          // The app layout gates rendering on device trust; mark the E2E
+          // device as trusted so checkDeviceTrust() (real backend) never runs
+          // and the shell doesn't hang on AuthLoadingShell.
+          deviceTrustChecked: true,
+          deviceTrusted: true,
+          deviceTrustLoading: false,
         });
 
         seedMatchStoreForE2E(scenario);

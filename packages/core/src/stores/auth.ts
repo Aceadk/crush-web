@@ -1,12 +1,16 @@
 import { create } from 'zustand';
 import { User } from 'firebase/auth';
 import { authService } from '../services/auth';
+import { getAuthErrorMessage } from '../services/auth_errors';
 import { userService } from '../services/user';
 import { deviceSecurityService, TrustedDevice } from '../services/device-security';
 import { UserProfile } from '../types/user';
 import { isFirebaseConfigured } from '../firebase/config';
 
 const REMEMBER_ME_STORAGE_KEY = 'crush.rememberMe';
+const AUTH_COOKIE_NAME = 'auth-token';
+const LAST_ACTIVE_COOKIE_NAME = 'session-last-active';
+const REMEMBER_ME_COOKIE_NAME = 'session-remember-me';
 const DEFAULT_REMEMBER_ME = true;
 
 let pendingRememberMePreference: boolean | null = null;
@@ -33,8 +37,10 @@ const clearAuthCookie = async () => {
   try {
     await fetch('/api/auth/session', { method: 'DELETE' });
   } catch {
-    // Fallback: clear via document.cookie (non-HttpOnly legacy)
-    document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    // Fallback: clear via document.cookie for non-HttpOnly legacy cookies.
+    for (const name of [AUTH_COOKIE_NAME, LAST_ACTIVE_COOKIE_NAME, REMEMBER_ME_COOKIE_NAME]) {
+      document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    }
   }
 };
 
@@ -252,7 +258,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: false });
     } catch (error) {
       pendingRememberMePreference = null;
-      const message = error instanceof Error ? error.message : 'Sign in failed';
+      const message = getAuthErrorMessage(error, 'Sign in failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -279,7 +285,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       set({ profile, loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Sign up failed';
+      const message = getAuthErrorMessage(error, 'Sign up failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -297,7 +303,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({ loading: false });
     } catch (error) {
       pendingRememberMePreference = null;
-      const message = error instanceof Error ? error.message : 'Google sign in failed';
+      const message = getAuthErrorMessage(error, 'Google sign in failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -310,7 +316,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       await authService.sendEmailSignInLink(email, { redirectPath });
       set({ loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Email link sign in failed';
+      const message = getAuthErrorMessage(error, 'Email link sign in failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -430,7 +436,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       await authService.startPhoneVerification(phoneNumber, recaptchaContainerId);
       set({ loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Phone verification failed';
+      const message = getAuthErrorMessage(error, 'Phone verification failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -461,7 +467,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
     } catch (error) {
       pendingRememberMePreference = null;
-      const message = error instanceof Error ? error.message : 'Code verification failed';
+      const message = getAuthErrorMessage(error, 'Code verification failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -501,7 +507,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       await authService.sendPasswordReset(email);
       set({ loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Password reset failed';
+      const message = getAuthErrorMessage(error, 'Password reset failed');
       set({ error: message, loading: false });
       throw error;
     }

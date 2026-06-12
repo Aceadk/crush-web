@@ -4,6 +4,7 @@ import '../styles/globals.css';
 import { Providers } from '@/shared/providers/app-providers';
 import { themeInitScript } from '@/shared/lib/theme';
 import { SkipLink } from '@/components/accessibility';
+import { localeInitScript } from '@/i18n/locale-cookie';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -79,7 +80,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#FFFFFF' },
-    { media: '(prefers-color-scheme: dark)', color: '#0F0F10' },
+    // Canonical brand dark background (matches mobile splash + adaptive icon).
+    { media: '(prefers-color-scheme: dark)', color: '#0D0E12' },
   ],
 };
 
@@ -98,7 +100,7 @@ const organizationSchema = {
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer support',
-    email: 'support@crushapp.com',
+    email: 'support@crush.app',
     availableLanguage: 'English',
   },
 };
@@ -141,6 +143,10 @@ export default function RootLayout({
         {/* No-flash theme initialization script */}
         <script
           dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
+        {/* No-flash locale init: sets <html lang/dir> from cookie/browser */}
+        <script
+          dangerouslySetInnerHTML={{ __html: localeInitScript }}
         />
         {/* Schema.org structured data */}
         <script

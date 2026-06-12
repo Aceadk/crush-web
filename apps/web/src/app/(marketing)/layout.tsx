@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { PublicHeader } from './_components/landing/public-header';
+import { PublicFooter } from './_components/landing/public-footer';
 
 export const metadata: Metadata = {
   title: 'Crush - Find Your Perfect Match | Modern Dating App',
@@ -36,5 +38,14 @@ export default function MarketingLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <main id="main-content">{children}</main>;
+  // One shared public shell for every marketing page: previously the header
+  // and footer were duplicated per page (with drifting link sets) and six
+  // public pages had no header/footer or mobile navigation at all.
+  return (
+    <>
+      <PublicHeader />
+      <main id="main-content">{children}</main>
+      <PublicFooter />
+    </>
+  );
 }

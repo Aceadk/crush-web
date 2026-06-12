@@ -14,9 +14,10 @@
     "typecheck": "turbo typecheck",
     "clean": "turbo clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "check:domains": "node scripts/check-deprecated-domains.mjs",
     "prepare": "husky",
-    "deploy": "pnpm build && firebase deploy --only hosting:crushapp",
-    "deploy:preview": "firebase hosting:channel:deploy preview --only crushapp"
+    "deploy": "vercel deploy --prod",
+    "deploy:preview": "vercel deploy"
   },
   "devDependencies": {
     "@crush/config": "workspace:*",

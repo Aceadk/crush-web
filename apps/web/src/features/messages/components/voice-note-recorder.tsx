@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@crush/ui';
-import { cn } from '@crush/ui';
 import {
   Mic,
   Square,
@@ -36,6 +35,9 @@ export function VoiceNoteRecorder({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // Holds the latest stopRecording so the recording timer can auto-stop at max
+  // duration without creating a startRecording → stopRecording dependency cycle.
+  const stopRecordingRef = useRef<() => void>(() => {});
 
   // Cleanup on unmount
   useEffect(() => {
@@ -86,7 +88,7 @@ export function VoiceNoteRecorder({
       timerRef.current = setInterval(() => {
         setRecordingTime((prev) => {
           if (prev >= maxDuration - 1) {
-            stopRecording();
+            stopRecordingRef.current();
             return prev;
           }
           return prev + 1;
@@ -109,6 +111,11 @@ export function VoiceNoteRecorder({
       }
     }
   }, [isRecording]);
+
+  // Keep the timer's stop reference current.
+  useEffect(() => {
+    stopRecordingRef.current = stopRecording;
+  }, [stopRecording]);
 
   const handlePlayPause = useCallback(() => {
     if (!audioRef.current || !audioUrl) return;

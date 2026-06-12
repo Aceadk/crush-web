@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { buildCspHeader } from '@/shared/lib/csp';
 
 // Routes that require authentication
 const protectedRoutes = [
@@ -26,45 +27,24 @@ const authRoutes = [
   '/auth/forgot-password',
 ];
 
+// NOTE: middleware runs on the Edge runtime and cannot use firebase-admin, so
+// it only checks cookie presence/idle-timeout as a UX-level guard. Real
+// authentication is enforced where data is accessed: Firestore security rules
+// for client reads/writes, and `verifySessionCookie`
+// (shared/lib/server-session.ts) in API routes — the matcher below excludes
+// /api, so API routes MUST verify the session themselves.
 const AUTH_COOKIE_NAME = 'auth-token';
 const LAST_ACTIVE_COOKIE_NAME = 'session-last-active';
 const REMEMBER_ME_COOKIE_NAME = 'session-remember-me';
-const PERSISTENT_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+// Matches the Firebase session-cookie maximum lifetime (14 days) used by
+// /api/auth/session for remembered sessions.
+const PERSISTENT_SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60;
 
 const parsedIdleTimeout = Number(process.env.SESSION_IDLE_TIMEOUT_SECONDS);
 const SESSION_IDLE_TIMEOUT_SECONDS =
   Number.isFinite(parsedIdleTimeout) && parsedIdleTimeout > 0
     ? parsedIdleTimeout
     : 30 * 60; // 30 minutes
-
-function buildCspHeader(isDevelopment: boolean, nonce: string): string {
-  const scriptSrc = [
-    "'self'",
-    `'nonce-${nonce}'`,
-    'https://apis.google.com',
-    'https://*.firebaseio.com',
-    'https://*.googleapis.com',
-    'https://js.stripe.com',
-    // Next.js webpack dev runtime needs eval/inline during local dev & E2E.
-    ...(isDevelopment ? ["'unsafe-eval'", "'unsafe-inline'"] : []),
-  ].join(' ');
-
-  // Build CSP header with nonce instead of 'unsafe-inline' for script-src
-  return [
-    "default-src 'self'",
-    `script-src ${scriptSrc}`,
-    // style-src keeps 'unsafe-inline' — required for Tailwind CSS inline styles and Google Fonts
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.stripe.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebase.google.com https://api.stripe.com https://firebasestorage.googleapis.com https://nominatim.openstreetmap.org wss://*.firebaseio.com",
-    "frame-src 'self' https://*.firebaseapp.com https://js.stripe.com https://hooks.stripe.com",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    'upgrade-insecure-requests',
-  ].join('; ');
-}
 
 function applyCspHeader(response: NextResponse, cspHeader: string) {
   response.headers.set('Content-Security-Policy', cspHeader);
@@ -115,9 +95,16 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isDevelopment = process.env.NODE_ENV !== 'production';
 
-  // Generate a nonce for CSP (CR-AUD-025)
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
-  const cspHeader = buildCspHeader(isDevelopment, nonce);
+  // CSP (CR-AUD-025). Nonce-free: most routes are statically prerendered, and
+  // Next.js inline bootstrap scripts in static HTML cannot carry a per-request
+  // nonce (a nonce in script-src would block them and break hydration) — see
+  // the rationale in shared/lib/csp.ts.
+  const cspHeader = buildCspHeader({
+    isDevelopment,
+    // Canonical REST API origin once the domain decision lands (optional;
+    // *.cloudfunctions.net covers the default backend until then).
+    apiOrigin: process.env.NEXT_PUBLIC_API_ORIGIN,
+  });
 
   const authToken = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const lastActiveRaw = request.cookies.get(LAST_ACTIVE_COOKIE_NAME)?.value;
@@ -171,13 +158,8 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // For all other requests, set CSP header and pass nonce via request header
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  // For all other requests, set the CSP header
+  const response = NextResponse.next();
 
   if (sessionExpired) {
     clearAuthCookies(response);

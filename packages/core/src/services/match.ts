@@ -14,10 +14,16 @@ import {
   onSnapshot,
   Unsubscribe,
 } from 'firebase/firestore';
-import { firebaseConfig, getFirebaseAuth, getFirebaseDb } from '../firebase/config';
+import {
+  firebaseConfig,
+  getFirebaseAuth,
+  getFirebaseDb,
+  getAppCheckHeaders,
+} from '../firebase/config';
 import { Match, MatchStatus, DiscoveryProfile, DiscoveryFilters, ReceivedLike, MessageRequest, WeeklyPick } from '../types/match';
 import { buildDiscoveryRestUrl, mapDiscoveryRestProfiles } from './discovery_rest';
 import { streakService } from './streak';
+import { isPremiumUser } from './entitlement';
 
 const MATCHES_COLLECTION = 'matches';
 const SWIPES_COLLECTION = 'swipes';
@@ -235,7 +241,7 @@ class MatchService {
     // Enforce daily like limits for first-time positive swipes only.
     if (isPositiveAction && !alreadyCountedLike) {
       const swiperDoc = await getDoc(doc(db, USERS_COLLECTION, swiperId));
-      const isPremium = Boolean(swiperDoc.data()?.isPremium);
+      const isPremium = isPremiumUser(swiperDoc.data());
       const likeResult = await streakService.useLike(swiperId, isPremium);
 
       if (!likeResult.success) {
@@ -345,10 +351,14 @@ class MatchService {
     }
 
     const token = await currentUser.getIdToken();
+    // REST calls (unlike Firestore/callable SDKs) must attach the App Check
+    // token manually; the backend enforces it in production.
+    const appCheckHeaders = await getAppCheckHeaders();
     const response = await fetch(buildDiscoveryRestUrl(projectId, filters, pageSize), {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
+        ...appCheckHeaders,
       },
     });
 

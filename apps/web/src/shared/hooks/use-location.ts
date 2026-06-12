@@ -93,13 +93,6 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
     };
   }, [profile?.location]);
 
-  // Auto request location if enabled
-  useEffect(() => {
-    if (autoRequest && isLocationEnabled && !location && permissionStatus !== 'denied') {
-      requestLocation();
-    }
-  }, [autoRequest, isLocationEnabled, permissionStatus]);
-
   // Watch position if enabled
   useEffect(() => {
     if (watchPosition && isLocationEnabled && permissionStatus === 'granted') {
@@ -167,6 +160,14 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
       }
     }
   }, [isLoading, updateProfile, user, refreshProfile]);
+
+  // Auto request location if enabled (declared after requestLocation so it can
+  // depend on it without a temporal-dead-zone reference).
+  useEffect(() => {
+    if (autoRequest && isLocationEnabled && !location && permissionStatus !== 'denied') {
+      requestLocation();
+    }
+  }, [autoRequest, isLocationEnabled, location, permissionStatus, requestLocation]);
 
   const refreshLocation = useCallback(async () => {
     locationService.clearCache();

@@ -1,10 +1,12 @@
 import 'server-only';
 
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
+import { Auth, getAuth } from 'firebase-admin/auth';
 import { Firestore, getFirestore } from 'firebase-admin/firestore';
 
 let adminApp: App | null = null;
 let adminDb: Firestore | null = null;
+let adminAuth: Auth | null = null;
 
 interface ServiceAccountLike {
   project_id?: string;
@@ -70,4 +72,12 @@ export function getAdminDb(): Firestore {
   }
   adminDb = getFirestore(getAdminApp());
   return adminDb;
+}
+
+export function getAdminAuth(): Auth {
+  if (adminAuth) {
+    return adminAuth;
+  }
+  adminAuth = getAuth(getAdminApp());
+  return adminAuth;
 }

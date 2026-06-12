@@ -96,7 +96,7 @@ describe('web user document compatibility helpers', () => {
 describe('web discovery REST helpers', () => {
   it('builds the canonical discovery deck URL', () => {
     const url = buildDiscoveryRestUrl(
-      'crush-265f7',
+      'crush-f5352',
       {
         ...DEFAULT_DISCOVERY_FILTERS,
         genders: ['female'],

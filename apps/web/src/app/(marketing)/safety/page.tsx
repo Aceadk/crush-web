@@ -4,7 +4,6 @@ import {
   Shield,
   Eye,
   AlertTriangle,
-  MessageSquare,
   MapPin,
   Phone,
   UserX,
@@ -106,7 +105,7 @@ const safetyTips = [
 
 export default function SafetyPage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen pt-14">
       {/* Hero */}
       <section className="relative py-20 sm:py-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -205,7 +204,11 @@ export default function SafetyPage() {
             <div className="rounded-xl border border-border bg-card p-6 text-center">
               <Phone className="w-6 h-6 text-red-500 mx-auto mb-3" />
               <h3 className="font-semibold mb-1">Emergency</h3>
-              <p className="text-2xl font-bold text-primary">911</p>
+              <p className="text-2xl font-bold">
+                <a href="tel:911" className="text-primary hover:underline">
+                  911
+                </a>
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
                 For immediate danger
               </p>
@@ -213,8 +216,10 @@ export default function SafetyPage() {
             <div className="rounded-xl border border-border bg-card p-6 text-center">
               <Heart className="w-6 h-6 text-red-500 mx-auto mb-3" />
               <h3 className="font-semibold mb-1">Domestic Violence</h3>
-              <p className="text-lg font-bold text-primary">
-                1-800-799-7233
+              <p className="text-lg font-bold">
+                <a href="tel:18007997233" className="text-primary hover:underline">
+                  1-800-799-7233
+                </a>
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 National Hotline (24/7)
@@ -223,8 +228,10 @@ export default function SafetyPage() {
             <div className="rounded-xl border border-border bg-card p-6 text-center">
               <AlertTriangle className="w-6 h-6 text-red-500 mx-auto mb-3" />
               <h3 className="font-semibold mb-1">Sexual Assault</h3>
-              <p className="text-lg font-bold text-primary">
-                1-800-656-4673
+              <p className="text-lg font-bold">
+                <a href="tel:18006564673" className="text-primary hover:underline">
+                  1-800-656-4673
+                </a>
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 RAINN Hotline (24/7)

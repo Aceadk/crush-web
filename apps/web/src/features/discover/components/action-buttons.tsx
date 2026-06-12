@@ -24,7 +24,8 @@ export function ActionButtons({
   canUndo,
 }: ActionButtonsProps) {
   return (
-    <div className="flex items-center justify-center gap-4">
+    // gap-3 below xs keeps the row's min-content within a 320px viewport
+    <div className="flex items-center justify-center gap-3 xs:gap-4">
       {/* Undo button */}
       {onUndo && (
         <motion.button

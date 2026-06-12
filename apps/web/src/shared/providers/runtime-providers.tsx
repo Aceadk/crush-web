@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import { UserAnalyticsProvider } from '@/components/analytics';
 import { AuthInitializer } from './auth-initializer';
+import { NotificationInitializer } from './notification-initializer';
 
 interface RuntimeProvidersProps {
   children: ReactNode;
@@ -29,7 +30,9 @@ export function RuntimeProviders({ children }: RuntimeProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthInitializer>
-        <UserAnalyticsProvider>{children}</UserAnalyticsProvider>
+        <NotificationInitializer>
+          <UserAnalyticsProvider>{children}</UserAnalyticsProvider>
+        </NotificationInitializer>
       </AuthInitializer>
       <Toaster
         position="top-center"
@@ -37,9 +40,7 @@ export function RuntimeProviders({ children }: RuntimeProvidersProps) {
           className: 'bg-card text-card-foreground border border-border shadow-lg',
         }}
       />
-      {process.env.NODE_ENV === 'development' && (
-        <ReactQueryDevtools initialIsOpen={false} />
-      )}
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

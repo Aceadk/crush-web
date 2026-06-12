@@ -23,6 +23,9 @@ const config: Config = {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
+          // Darken token used for hover/gradient stops (button, hero).
+          // Mirrors Flutter DsColors.primaryDark.
+          dark: 'hsl(var(--primary-dark))',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -82,6 +85,18 @@ const config: Config = {
         online: 'hsl(var(--online))',
         offline: 'hsl(var(--offline))',
         busy: 'hsl(var(--busy))',
+        // Glassmorphism surfaces (mirror Flutter DsGlassColors). Alpha is baked
+        // into the CSS variable so opacity modifiers are not required.
+        glass: {
+          'light-surface': 'var(--glass-light-surface)',
+          'light-border': 'var(--glass-light-border)',
+          'dark-surface': 'var(--glass-dark-surface)',
+          'dark-border': 'var(--glass-dark-border)',
+        },
+      },
+      backdropBlur: {
+        // `backdrop-blur-glass` used by glass surfaces (button/card/dialog).
+        glass: '12px',
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
@@ -120,6 +135,16 @@ const config: Config = {
         'slide-down': 'slideDown 0.3s ease-out',
         'scale-in': 'scaleIn 0.2s ease-out',
         'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
+        // Marketing/landing ambient motion (pair with `motion-safe:`)
+        'float': 'float 7s ease-in-out infinite',
+        'float-slow': 'float 11s ease-in-out infinite',
+        'orbit': 'orbit 18s linear infinite',
+        'orbit-reverse': 'orbitReverse 26s linear infinite',
+        'gradient-pan': 'gradientPan 6s ease infinite',
+        'scroll-hint': 'scrollHint 2.2s ease-in-out infinite',
+        'pulse-glow': 'pulseGlow 5s ease-in-out infinite',
+        // CSS-only entrance for above-the-fold hero content (runs without JS).
+        'hero-in': 'heroIn 0.9s cubic-bezier(0.21, 0.47, 0.32, 0.98) both',
       },
       keyframes: {
         fadeIn: {
@@ -145,6 +170,34 @@ const config: Config = {
         pulseSoft: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.5' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-14px)' },
+        },
+        orbit: {
+          from: { transform: 'rotate(0deg)' },
+          to: { transform: 'rotate(360deg)' },
+        },
+        orbitReverse: {
+          from: { transform: 'rotate(360deg)' },
+          to: { transform: 'rotate(0deg)' },
+        },
+        gradientPan: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
+        },
+        scrollHint: {
+          '0%, 100%': { transform: 'translateY(0)', opacity: '0.5' },
+          '50%': { transform: 'translateY(8px)', opacity: '1' },
+        },
+        pulseGlow: {
+          '0%, 100%': { opacity: '0.5' },
+          '50%': { opacity: '0.9' },
+        },
+        heroIn: {
+          from: { opacity: '0', transform: 'translateY(28px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
         },
       },
       screens: {

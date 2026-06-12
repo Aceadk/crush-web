@@ -7,12 +7,11 @@ import {
   WifiOff,
   RefreshCw,
   Search,
-  Inbox,
   Heart,
   MessageCircle,
   Users,
   Settings,
-  Image,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Button } from '@crush/ui';
 
@@ -236,7 +235,7 @@ export function NoLikes() {
 export function NoPhotos() {
   return (
     <EmptyState
-      icon={<Image className="w-8 h-8 text-muted-foreground" />}
+      icon={<ImageIcon className="w-8 h-8 text-muted-foreground" />}
       title="No photos yet"
       description="Add photos to show off your personality and get more matches."
     />

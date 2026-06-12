@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Flame, Clock, Infinity, Crown } from 'lucide-react';
-import { useStreakStore, useAuthStore, LikeLimitInfo, StreakInfo } from '@crush/core';
+import { useStreakStore, useAuthStore } from '@crush/core';
 
 interface LikeLimitIndicatorProps {
   variant?: 'compact' | 'full';

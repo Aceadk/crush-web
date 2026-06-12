@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCsrf } from '@/shared/lib/csrf';
 import { checkRateLimit, getRateLimitKey } from '@/shared/lib/rate-limit';
+import { getAdminAuth } from '@/lib/firebase-admin';
 
 /**
- * POST /api/auth/session — Set HttpOnly auth cookie (called from client after Firebase sign-in)
+ * POST /api/auth/session — Exchange a verified Firebase ID token for an
+ * HttpOnly session cookie (called from client after Firebase sign-in).
  * DELETE /api/auth/session — Clear the auth cookie (called on sign-out)
+ *
+ * The cookie stores a Firebase *session cookie* JWT (minted server-side after
+ * verifying the ID token), never the raw client-supplied value. Server code
+ * must validate it via `verifySessionCookie` (shared/lib/server-session.ts).
  */
 
 const AUTH_COOKIE_NAME = 'auth-token';
 const LAST_ACTIVE_COOKIE_NAME = 'session-last-active';
 const REMEMBER_ME_COOKIE_NAME = 'session-remember-me';
-const PERSISTENT_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
+// Firebase session cookies support a maximum lifetime of 14 days.
+const REMEMBER_SESSION_LIFETIME_MS = 14 * 24 * 60 * 60 * 1000;
+// Non-remembered sessions use a browser-session cookie; the JWT itself is
+// valid for 1 day (the 30-minute idle timeout signs users out far earlier).
+const DEFAULT_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 function createSessionCookieOptions(rememberMe: boolean) {
   const baseOptions = {
@@ -23,7 +34,7 @@ function createSessionCookieOptions(rememberMe: boolean) {
   if (rememberMe) {
     return {
       ...baseOptions,
-      maxAge: PERSISTENT_SESSION_MAX_AGE_SECONDS,
+      maxAge: Math.floor(REMEMBER_SESSION_LIFETIME_MS / 1000),
     };
   }
 
@@ -69,12 +80,33 @@ export async function POST(request: NextRequest) {
     }
 
     const rememberSession = typeof rememberMe === 'boolean' ? rememberMe : true;
+    const lifetimeMs = rememberSession
+      ? REMEMBER_SESSION_LIFETIME_MS
+      : DEFAULT_SESSION_LIFETIME_MS;
+
+    // Verify the ID token and mint a server-signed session cookie. An
+    // attacker-supplied string fails verification here and never becomes a
+    // session.
+    let sessionCookie: string;
+    try {
+      const adminAuth = getAdminAuth();
+      await adminAuth.verifyIdToken(token);
+      sessionCookie = await adminAuth.createSessionCookie(token, {
+        expiresIn: lifetimeMs,
+      });
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid or expired authentication token' },
+        { status: 401 }
+      );
+    }
+
     const sessionCookieOptions = createSessionCookieOptions(rememberSession);
     const now = Date.now();
     const response = NextResponse.json({ success: true, rememberMe: rememberSession });
 
     // Set HttpOnly cookies — not accessible via document.cookie
-    response.cookies.set(AUTH_COOKIE_NAME, token, sessionCookieOptions);
+    response.cookies.set(AUTH_COOKIE_NAME, sessionCookie, sessionCookieOptions);
     response.cookies.set(LAST_ACTIVE_COOKIE_NAME, String(now), sessionCookieOptions);
     response.cookies.set(
       REMEMBER_ME_COOKIE_NAME,

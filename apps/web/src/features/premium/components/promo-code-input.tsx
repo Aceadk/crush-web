@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore, usePromoCodeStore, useUIStore } from '@crush/core';
-import { Button, Card, Input } from '@crush/ui';
+import { Button, Card } from '@crush/ui';
 import { cn } from '@crush/ui';
 import {
   Tag,
@@ -36,7 +36,6 @@ export function PromoCodeInput({
   const { user, refreshProfile } = useAuthStore();
   const { addToast } = useUIStore();
   const {
-    promoCode,
     setPromoCode,
     validationResult,
     applyResult,
