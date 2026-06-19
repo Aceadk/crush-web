@@ -29,6 +29,21 @@ export interface AuthState {
   error: string | null;
 }
 
+function getAuthenticatedGoogleUser(user: User | null): User | null {
+  const signedInWithGoogle = user?.providerData.some(
+    ({ providerId }) => providerId === GoogleAuthProvider.PROVIDER_ID
+  );
+  return signedInWithGoogle ? user : null;
+}
+
+export function reconcileGooglePopupError(error: unknown, currentUser: User | null): User {
+  const authenticatedUser = getAuthenticatedGoogleUser(currentUser);
+  if (authenticatedUser) {
+    return authenticatedUser;
+  }
+  throw error;
+}
+
 class AuthService {
   private confirmationResult: ConfirmationResult | null = null;
 
@@ -77,8 +92,15 @@ class AuthService {
     provider.addScope('email');
     provider.addScope('profile');
 
-    const result = await signInWithPopup(auth, provider);
-    return result.user;
+    try {
+      const result = await signInWithPopup(auth, provider);
+      return result.user;
+    } catch (error) {
+      // Browsers can report a popup close/cancel after Firebase has already
+      // committed the authenticated user. In that case, auth state is the
+      // authoritative result and the UI must not surface a false failure.
+      return reconcileGooglePopupError(error, auth.currentUser);
+    }
   }
 
   /**
