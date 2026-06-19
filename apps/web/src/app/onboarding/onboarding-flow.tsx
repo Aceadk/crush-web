@@ -91,6 +91,35 @@ interface OnboardingData {
   useAutoLocation: boolean;
 }
 
+/**
+ * Turn a photo-upload failure into a clear, actionable message. Firebase Storage
+ * surfaces the real cause via `error.code`; the most common production failure is
+ * a permission/App Check rejection (storage/unauthorized), which otherwise looks
+ * like "nothing happened" to the user.
+ */
+function describePhotoUploadError(error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : '';
+
+  switch (code) {
+    case 'storage/unauthorized':
+    case 'storage/unauthenticated':
+      return "We couldn't save that photo because the upload was rejected. Please sign out and back in, then try again. If it keeps happening, the app's photo storage permissions need attention.";
+    case 'storage/quota-exceeded':
+      return 'Photo storage is temporarily full. Please try again later.';
+    case 'storage/retry-limit-exceeded':
+    case 'storage/canceled':
+      return 'The upload timed out. Check your connection and try again.';
+    default:
+      if (error instanceof Error && error.message) {
+        return `Couldn't upload that photo: ${error.message}`;
+      }
+      return "Couldn't upload that photo. Please try a different image or try again.";
+  }
+}
+
 export default function OnboardingFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -104,6 +133,7 @@ export default function OnboardingFlow() {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   // Location states
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -179,11 +209,13 @@ export default function OnboardingFlow() {
     if (!file || !user) return;
 
     setUploading(true);
+    setPhotoError(null);
     try {
       const photoUrl = await storageService.uploadProfilePhoto(user.uid, file);
       setData((prev) => ({ ...prev, photos: [...prev.photos, photoUrl] }));
     } catch (error) {
       console.error('Failed to upload photo:', error);
+      setPhotoError(describePhotoUploadError(error));
     } finally {
       setUploading(false);
     }
@@ -828,6 +860,15 @@ export default function OnboardingFlow() {
                   isUploading={uploading}
                   maxPhotos={MAX_PROFILE_PHOTOS}
                 />
+
+                {photoError && (
+                  <p
+                    role="alert"
+                    className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-300"
+                  >
+                    {photoError}
+                  </p>
+                )}
 
                 <div className="mt-4 rounded-xl bg-primary/5 p-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
