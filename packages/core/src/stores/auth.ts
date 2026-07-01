@@ -156,6 +156,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       authService.onAuthStateChange(async (user) => {
         set({
           user,
+          error: user ? null : get().error,
           loading: true,
           deviceTrustChecked: !user,
           deviceTrustLoading: Boolean(user),

@@ -37,6 +37,16 @@ const nextConfig = {
   // Production source maps for error tracking
   productionBrowserSourceMaps: false,
 
+  // Strip console output from production client bundles so tokens, user data,
+  // endpoints, and internal logic are not leaked via the browser console
+  // (keep error/warn for Sentry + actionable diagnostics).
+  compiler: {
+    removeConsole:
+      process.env.NODE_ENV === 'production'
+        ? { exclude: ['error', 'warn'] }
+        : false,
+  },
+
   // Power PWA support with offline capabilities
   poweredByHeader: false,
 
@@ -65,6 +75,12 @@ const nextConfig = {
           {
             key: 'X-DNS-Prefetch-Control',
             value: 'on',
+          },
+          // Force HTTPS for 2 years incl. subdomains; eligible for the HSTS
+          // preload list. Prevents SSL-strip / downgrade MITM.
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
           },
           {
             key: 'X-Frame-Options',

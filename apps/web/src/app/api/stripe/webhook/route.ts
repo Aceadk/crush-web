@@ -98,6 +98,16 @@ async function resolveUserId(
   }
 
   const db = getAdminDb();
+
+  // H-2: prefer the server-only reverse map (works after stripeCustomerId leaves
+  // the public doc). Fall back to the legacy field query during the additive
+  // phase while the field still exists on the public user doc.
+  const mapSnap = await db.collection('stripe_customers').doc(customerId).get();
+  const mappedUid = mapSnap.exists ? mapSnap.get('uid') : null;
+  if (typeof mappedUid === 'string' && mappedUid) {
+    return mappedUid;
+  }
+
   const snapshot = await db
     .collection('users')
     .where('stripeCustomerId', '==', customerId)
@@ -108,6 +118,37 @@ async function resolveUserId(
     return null;
   }
   return snapshot.docs[0].id;
+}
+
+/**
+ * H-2: mirror sensitive billing/entitlement fields into the owner-only private
+ * doc (users/{uid}/private/account) and maintain the Stripe reverse-lookup map
+ * (stripe_customers/{customerId} -> uid). Called alongside the public write so
+ * the private store stays current before the cutover removes these fields from
+ * the public doc. Non-breaking during the additive phase.
+ */
+async function mirrorBillingToPrivate(
+  userId: string,
+  customerId: string | null,
+  fields: Record<string, unknown>
+): Promise<void> {
+  const db = getAdminDb();
+  await db
+    .collection('users')
+    .doc(userId)
+    .collection('private')
+    .doc('account')
+    .set({ ...fields, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+
+  if (customerId) {
+    await db
+      .collection('stripe_customers')
+      .doc(customerId)
+      .set(
+        { uid: userId, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+  }
 }
 
 async function updateSubscriptionState(params: {
@@ -158,6 +199,8 @@ async function updateSubscriptionState(params: {
   }
 
   await db.collection('users').doc(params.userId).set(updates, { merge: true });
+  // H-2: keep the owner-only private doc + Stripe map in sync with the public write.
+  await mirrorBillingToPrivate(params.userId, params.customerId, updates);
 }
 
 async function updateSubscriptionDeleted(params: {
@@ -166,32 +209,29 @@ async function updateSubscriptionDeleted(params: {
   subscriptionId: string;
 }) {
   const db = getAdminDb();
-  await db
-    .collection('users')
-    .doc(params.userId)
-    .set(
-      {
-        // Canonical entitlement fields — revoke premium across rules + mobile.
-        plan: 'free',
-        subscriptionExpiresAt: null,
-        subscriptionLifecycle: {
-          provider: 'stripe',
-          status: 'canceled',
-          currentPeriodEnd: null,
-          cancelAtPeriodEnd: false,
-        },
-        // Legacy web fields (kept for backward compatibility).
-        isPremium: false,
-        premiumPlan: null,
-        premiumExpiresAt: null,
-        premiumAutoRenew: false,
-        stripeSubscriptionStatus: 'canceled',
-        stripeSubscriptionId: params.subscriptionId,
-        stripeCustomerId: params.customerId,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+  const revoke: Record<string, unknown> = {
+    // Canonical entitlement fields — revoke premium across rules + mobile.
+    plan: 'free',
+    subscriptionExpiresAt: null,
+    subscriptionLifecycle: {
+      provider: 'stripe',
+      status: 'canceled',
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+    },
+    // Legacy web fields (kept for backward compatibility).
+    isPremium: false,
+    premiumPlan: null,
+    premiumExpiresAt: null,
+    premiumAutoRenew: false,
+    stripeSubscriptionStatus: 'canceled',
+    stripeSubscriptionId: params.subscriptionId,
+    stripeCustomerId: params.customerId,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  await db.collection('users').doc(params.userId).set(revoke, { merge: true });
+  // H-2: keep the owner-only private doc + Stripe map in sync with the public write.
+  await mirrorBillingToPrivate(params.userId, params.customerId, revoke);
 }
 
 async function processSubscriptionEvent(
