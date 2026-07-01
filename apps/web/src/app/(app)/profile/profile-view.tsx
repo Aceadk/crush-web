@@ -3,6 +3,7 @@
 import { buildProfileCompletionStateFromProfile } from '@/components/profile/profile-completion';
 import {
   calculateAge,
+  describeProfilePhotoUploadError,
   locationService,
   storageService,
   useAuthStore,
@@ -36,7 +37,7 @@ const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 
 export default function ProfileView() {
-  const { user, profile, refreshProfile } = useAuthStore();
+  const { user, profile, setProfile, refreshProfile } = useAuthStore();
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,14 +64,24 @@ export default function ProfileView() {
     try {
       const photoUrl = await storageService.uploadProfilePhoto(user.uid, file);
       const currentPhotos = profile?.photos || [];
+      const newPhotos = [...currentPhotos, photoUrl];
       await userService.updateUserProfile(user.uid, {
-        photos: [...currentPhotos, photoUrl],
+        photos: newPhotos,
+        primaryPhotoIndex: 0,
         profilePhotoUrl: currentPhotos.length === 0 ? photoUrl : profile?.profilePhotoUrl,
       });
+      if (profile) {
+        setProfile({
+          ...profile,
+          photos: newPhotos,
+          primaryPhotoIndex: 0,
+          profilePhotoUrl: currentPhotos.length === 0 ? photoUrl : profile.profilePhotoUrl,
+        });
+      }
       await refreshProfile();
     } catch (error) {
       console.error('Failed to upload photo:', error);
-      setPhotoError('Failed to upload photo. Please try again.');
+      setPhotoError(describeProfilePhotoUploadError(error));
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -85,7 +96,14 @@ export default function ProfileView() {
 
     await userService.updateUserProfile(user.uid, {
       photos: newPhotos,
+      primaryPhotoIndex: 0,
       profilePhotoUrl: newPhotos[0] || undefined,
+    });
+    setProfile({
+      ...profile,
+      photos: newPhotos,
+      primaryPhotoIndex: 0,
+      profilePhotoUrl: newPhotos[0],
     });
     await refreshProfile();
   };
@@ -99,6 +117,13 @@ export default function ProfileView() {
 
     await userService.updateUserProfile(user.uid, {
       photos: newPhotos,
+      primaryPhotoIndex: 0,
+      profilePhotoUrl: photo,
+    });
+    setProfile({
+      ...profile,
+      photos: newPhotos,
+      primaryPhotoIndex: 0,
       profilePhotoUrl: photo,
     });
     await refreshProfile();
@@ -121,7 +146,7 @@ export default function ProfileView() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header with gradient */}
-      <div className="via-primary-dark relative h-48 bg-gradient-to-br from-primary to-secondary">
+      <div className="relative h-48 bg-gradient-to-br from-primary via-primary-dark to-secondary">
         <div className="absolute inset-0 bg-black/20" />
         <div className="absolute right-4 top-4 flex gap-2">
           <Link href="/settings">
@@ -167,7 +192,7 @@ export default function ProfileView() {
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="hover:bg-primary-dark absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-colors"
+              className="absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-colors hover:bg-primary-dark"
               aria-label="Upload profile photo"
               type="button"
             >

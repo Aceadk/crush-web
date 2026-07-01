@@ -128,7 +128,7 @@ export type {
   StreakStatusResponse,
   RecordStreakResponse,
 } from './api/callables';
-export { storageService } from './services/storage';
+export { describeProfilePhotoUploadError, storageService } from './services/storage';
 export type { UploadProgress } from './services/storage';
 export { userService } from './services/user';
 export {

@@ -3,6 +3,7 @@
 import { PhotoGridReorder } from '@/components/profile/photo-grid-reorder';
 import { buildProfileCompletionState } from '@/components/profile/profile-completion';
 import {
+  describeProfilePhotoUploadError,
   storageService,
   useAuthStore,
   userService,
@@ -23,11 +24,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  AVAILABLE_INTERESTS,
-  PROMPT_QUESTIONS,
-  type FormData,
-} from './profile-edit-constants';
+import { AVAILABLE_INTERESTS, PROMPT_QUESTIONS, type FormData } from './profile-edit-constants';
 
 export default function ProfileEditForm() {
   const router = useRouter();
@@ -150,7 +147,7 @@ export default function ProfileEditForm() {
       const photoUrl = await storageService.uploadProfilePhoto(user.uid, file);
       setPhotos((prev) => [...prev, photoUrl]);
     } catch (err) {
-      setError('Failed to upload photo. Please try again.');
+      setError(describeProfilePhotoUploadError(err));
       console.error('Failed to upload photo:', err);
     } finally {
       setUploading(false);
@@ -257,6 +254,7 @@ export default function ProfileEditForm() {
         interests: formData.interests,
         prompts: formData.prompts.filter((p) => p.answer.trim()),
         photos,
+        primaryPhotoIndex: 0,
         profilePhotoUrl: photos[0] || undefined,
         location: formData.location.city ? formData.location : undefined,
         lifestyle: {

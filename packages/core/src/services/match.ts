@@ -20,10 +20,19 @@ import {
   getFirebaseDb,
   getAppCheckHeaders,
 } from '../firebase/config';
-import { Match, MatchStatus, DiscoveryProfile, DiscoveryFilters, ReceivedLike, MessageRequest, WeeklyPick } from '../types/match';
+import {
+  Match,
+  MatchStatus,
+  DiscoveryProfile,
+  DiscoveryFilters,
+  ReceivedLike,
+  MessageRequest,
+  WeeklyPick,
+} from '../types/match';
 import { buildDiscoveryRestUrl, mapDiscoveryRestProfiles } from './discovery_rest';
 import { streakService } from './streak';
 import { isPremiumUser } from './entitlement';
+import { mapUserDocumentToUserProfile, resolveUserProfilePhotos } from './user_document';
 
 const MATCHES_COLLECTION = 'matches';
 const SWIPES_COLLECTION = 'swipes';
@@ -58,12 +67,7 @@ class MatchService {
     const city = typeof source.city === 'string' ? source.city.trim() : undefined;
     const country = typeof source.country === 'string' ? source.country.trim() : undefined;
 
-    if (
-      latitude === undefined &&
-      longitude === undefined &&
-      !city &&
-      !country
-    ) {
+    if (latitude === undefined && longitude === undefined && !city && !country) {
       return null;
     }
 
@@ -124,22 +128,11 @@ class MatchService {
     const db = getFirebaseDb();
     const blockedUserIds = new Set<string>();
 
-    const [blockedByMeResult, blockedMeResult, legacyBlockedResult] =
-      await Promise.allSettled([
-        getDocs(
-          query(
-            collection(db, BLOCKS_COLLECTION),
-            where('blockerId', '==', userId)
-          )
-        ),
-        getDocs(
-          query(
-            collection(db, BLOCKS_COLLECTION),
-            where('blockedId', '==', userId)
-          )
-        ),
-        getDocs(collection(db, USERS_COLLECTION, userId, LEGACY_BLOCKED_SUBCOLLECTION)),
-      ]);
+    const [blockedByMeResult, blockedMeResult, legacyBlockedResult] = await Promise.allSettled([
+      getDocs(query(collection(db, BLOCKS_COLLECTION), where('blockerId', '==', userId))),
+      getDocs(query(collection(db, BLOCKS_COLLECTION), where('blockedId', '==', userId))),
+      getDocs(collection(db, USERS_COLLECTION, userId, LEGACY_BLOCKED_SUBCOLLECTION)),
+    ]);
 
     if (blockedByMeResult.status === 'fulfilled') {
       for (const blockDoc of blockedByMeResult.value.docs) {
@@ -199,10 +192,7 @@ class MatchService {
   /**
    * Subscribe to matches updates
    */
-  subscribeToMatches(
-    userId: string,
-    callback: (matches: Match[]) => void
-  ): Unsubscribe {
+  subscribeToMatches(userId: string, callback: (matches: Match[]) => void): Unsubscribe {
     const db = getFirebaseDb();
 
     const q = query(
@@ -213,9 +203,7 @@ class MatchService {
     );
 
     return onSnapshot(q, (snapshot) => {
-      const matches = snapshot.docs.map((doc) =>
-        this.mapDocToMatch(doc.id, doc.data())
-      );
+      const matches = snapshot.docs.map((doc) => this.mapDocToMatch(doc.id, doc.data()));
       callback(matches);
     });
   }
@@ -296,6 +284,10 @@ class MatchService {
 
     const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
     const userData = userDoc.data();
+    const otherUserPhoto = otherUserData
+      ? resolveUserProfilePhotos(otherUserData).displayPhotoUrl
+      : undefined;
+    const userPhoto = userData ? resolveUserProfilePhotos(userData).displayPhotoUrl : undefined;
 
     const now = serverTimestamp();
 
@@ -307,7 +299,7 @@ class MatchService {
       preMatchMessageRequestsCount: 0,
       pinnedForUser: false,
       otherUserName: otherUserData?.displayName || '',
-      otherUserPhotoUrl: otherUserData?.photos?.[0] || '',
+      otherUserPhotoUrl: otherUserPhoto || '',
       createdAt: now,
       updatedAt: now,
       unreadCount: 0,
@@ -322,7 +314,7 @@ class MatchService {
       preMatchMessageRequestsCount: 0,
       pinnedForUser: false,
       otherUserName: userData?.displayName || '',
-      otherUserPhotoUrl: userData?.photos?.[0] || '',
+      otherUserPhotoUrl: userPhoto || '',
       createdAt: now,
       updatedAt: now,
       unreadCount: 0,
@@ -414,12 +406,13 @@ class MatchService {
       if (!likerDoc.exists()) continue;
 
       const likerData = likerDoc.data();
+      const likerPhotoUrl = resolveUserProfilePhotos(likerData).displayPhotoUrl;
 
       receivedLikes.push({
         id: swipeDoc.id,
         likerUserId,
-        likerName: likerData.displayName as string || 'Unknown',
-        likerPhotoUrl: likerData.photos?.[0] as string || likerData.profilePhotoUrl as string,
+        likerName: (likerData.displayName as string) || 'Unknown',
+        likerPhotoUrl,
         likerAge: likerData.age as number | undefined,
         isSuperLike: swipeData.action === 'superlike',
         timestamp: this.timestampToString(swipeData.timestamp),
@@ -473,12 +466,13 @@ class MatchService {
       if (!senderDoc.exists()) continue;
 
       const senderData = senderDoc.data();
+      const fromUserPhotoUrl = resolveUserProfilePhotos(senderData).displayPhotoUrl;
 
       messageRequests.push({
         id: swipeDoc.id,
         fromUserId,
-        fromUserName: senderData.displayName as string || 'Unknown',
-        fromUserPhotoUrl: senderData.photos?.[0] as string || senderData.profilePhotoUrl as string,
+        fromUserName: (senderData.displayName as string) || 'Unknown',
+        fromUserPhotoUrl,
         fromUserAge: senderData.age as number | undefined,
         message,
         isSuperLike: swipeData.action === 'superlike',
@@ -517,10 +511,7 @@ class MatchService {
     const blockedUserIds = await this.getDiscoveryBlockedUserIds(userId);
 
     // Get users already swiped
-    const swipesQuery = query(
-      collection(db, SWIPES_COLLECTION),
-      where('swiperId', '==', userId)
-    );
+    const swipesQuery = query(collection(db, SWIPES_COLLECTION), where('swiperId', '==', userId));
     const swipesSnapshot = await getDocs(swipesQuery);
     const swipedUserIds = new Set(
       swipesSnapshot.docs.map((doc) => doc.data().swipedUserId as string)
@@ -533,7 +524,9 @@ class MatchService {
     // Get current user's profile for matching interests
     const currentUserDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
     const currentUserData = currentUserDoc.data();
-    const currentUserInterests = (currentUserData?.interests as string[]) || [];
+    const currentUserInterests = currentUserData
+      ? mapUserDocumentToUserProfile(userId, currentUserData).interests || []
+      : [];
 
     // Query active users with complete profiles
     const usersQuery = query(
@@ -555,36 +548,38 @@ class MatchService {
       if (swipedUserIds.has(userDoc.id)) continue;
 
       const data = userDoc.data();
-      const userInterests = (data.interests as string[]) || [];
+      const profile = mapUserDocumentToUserProfile(userDoc.id, data);
+      const userInterests = profile.interests || [];
 
       // Calculate compatibility score based on shared interests
-      const sharedInterests = currentUserInterests.filter(
-        (interest) => userInterests.includes(interest)
+      const sharedInterests = currentUserInterests.filter((interest) =>
+        userInterests.includes(interest)
       );
-      const compatibilityScore = currentUserInterests.length > 0
-        ? Math.round((sharedInterests.length / Math.max(currentUserInterests.length, 1)) * 100)
-        : 50;
+      const compatibilityScore =
+        currentUserInterests.length > 0
+          ? Math.round((sharedInterests.length / Math.max(currentUserInterests.length, 1)) * 100)
+          : 50;
 
       // Determine pick reason
       let pickReason = 'Featured profile';
       if (sharedInterests.length >= 3) {
         pickReason = `${sharedInterests.length} shared interests`;
-      } else if (data.isVerified) {
+      } else if (profile.isVerified) {
         pickReason = 'Verified profile';
-      } else if (data.photos?.length >= 3) {
+      } else if (profile.photos.length >= 3) {
         pickReason = 'Active user';
       }
 
       picks.push({
         id: `pick_${userDoc.id}`,
         userId: userDoc.id,
-        displayName: data.displayName as string || '',
-        age: data.age as number | undefined,
-        bio: data.bio as string | undefined,
-        photos: (data.photos as string[]) || [],
+        displayName: profile.displayName,
+        age: profile.age,
+        bio: profile.bio,
+        photos: profile.photos,
         interests: userInterests,
-        prompts: data.prompts as WeeklyPick['prompts'],
-        isVerified: data.isVerified as boolean || false,
+        prompts: profile.prompts as WeeklyPick['prompts'],
+        isVerified: profile.isVerified,
         compatibilityScore,
         pickReason,
         expiresAt: weekEnd.toISOString(),
@@ -649,15 +644,15 @@ class MatchService {
       userId: data.userId as string,
       otherUserId: data.otherUserId as string,
       status: data.status as MatchStatus,
-      preMatchMessageRequestsCount: data.preMatchMessageRequestsCount as number || 0,
-      pinnedForUser: data.pinnedForUser as boolean || false,
+      preMatchMessageRequestsCount: (data.preMatchMessageRequestsCount as number) || 0,
+      pinnedForUser: (data.pinnedForUser as boolean) || false,
       otherUserName: data.otherUserName as string | undefined,
       otherUserPhotoUrl: data.otherUserPhotoUrl as string | undefined,
       createdAt: this.timestampToString(data.createdAt),
       updatedAt: this.timestampToString(data.updatedAt),
       lastMessageAt: this.timestampToString(data.lastMessageAt),
       lastMessage: data.lastMessage as string | undefined,
-      unreadCount: data.unreadCount as number || 0,
+      unreadCount: (data.unreadCount as number) || 0,
       isSuperLike: data.isSuperLike as boolean | undefined,
     };
   }

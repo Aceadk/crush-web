@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildUserProfileCreateData, mapUserDocumentToUserProfile } from '@crush/core/services/user_document';
-import { buildDiscoveryRestUrl, mapDiscoveryRestProfiles } from '@crush/core/services/discovery_rest';
+import {
+  buildUserProfileCreateData,
+  mapUserDocumentToUserProfile,
+  resolveUserProfilePhotos,
+} from '@crush/core/services/user_document';
+import {
+  buildDiscoveryRestUrl,
+  mapDiscoveryRestProfiles,
+} from '@crush/core/services/discovery_rest';
 import { DEFAULT_DISCOVERY_FILTERS } from '@crush/core/types/match';
 import { DEFAULT_USER_SETTINGS, type UserProfile } from '@crush/core/types/user';
 
@@ -36,6 +43,7 @@ describe('web user document compatibility helpers', () => {
       birthDate: '1998-05-10',
       gender: 'female',
       photoUrls: ['https://img.example.com/alice.jpg'],
+      primaryPhotoIndex: 0,
       city: 'Austin',
       country: 'US',
       latitude: 30.2672,
@@ -90,6 +98,32 @@ describe('web user document compatibility helpers', () => {
     expect(profile.settings?.maxDistance).toBe(40);
     expect(profile.settings?.ageRangeMin).toBe(23);
     expect(profile.settings?.ageRangeMax).toBe(33);
+  });
+
+  it('prefers canonical mobile photos and presents the selected display photo first', () => {
+    const document = {
+      photos: ['https://img.example.com/stale-root.jpg'],
+      profilePhotoUrl: 'https://img.example.com/stale-display.jpg',
+      profile: {
+        name: 'Mobile User',
+        photoUrls: ['https://img.example.com/one.jpg', 'https://img.example.com/main.jpg'],
+        primaryPhotoIndex: 1,
+      },
+    };
+
+    expect(resolveUserProfilePhotos(document)).toEqual({
+      photos: ['https://img.example.com/one.jpg', 'https://img.example.com/main.jpg'],
+      primaryPhotoIndex: 1,
+      displayPhotoUrl: 'https://img.example.com/main.jpg',
+    });
+
+    const profile = mapUserDocumentToUserProfile('mobile-user', document);
+    expect(profile.profilePhotoUrl).toBe('https://img.example.com/main.jpg');
+    expect(profile.photos).toEqual([
+      'https://img.example.com/main.jpg',
+      'https://img.example.com/one.jpg',
+    ]);
+    expect(profile.primaryPhotoIndex).toBe(0);
   });
 });
 
@@ -147,6 +181,26 @@ describe('web discovery REST helpers', () => {
         prompts: [],
         isVerified: true,
       },
+    ]);
+  });
+
+  it('moves a REST primary photo to the front for existing swipe-card consumers', () => {
+    const [profile] = mapDiscoveryRestProfiles({
+      profiles: [
+        {
+          id: 'mobile-user',
+          display_name: 'Mobile User',
+          photos: [
+            { url: 'https://img.example.com/one.jpg', is_primary: false },
+            { url: 'https://img.example.com/main.jpg', is_primary: true },
+          ],
+        },
+      ],
+    });
+
+    expect(profile.photos).toEqual([
+      'https://img.example.com/main.jpg',
+      'https://img.example.com/one.jpg',
     ]);
   });
 });

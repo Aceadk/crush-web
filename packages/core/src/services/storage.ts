@@ -14,17 +14,35 @@ const MAX_STORY_IMAGE_SIZE = 15 * 1024 * 1024; // 15MB
 const MAX_STORY_VIDEO_SIZE = 25 * 1024 * 1024; // 25MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 const ALLOWED_AUDIO_TYPES = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/wav'];
-const ALLOWED_STORY_VIDEO_TYPES = [
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-  'video/x-m4v',
-];
+const ALLOWED_STORY_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v'];
 
 export interface UploadProgress {
   progress: number;
   bytesTransferred: number;
   totalBytes: number;
+}
+
+export function describeProfilePhotoUploadError(error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : '';
+
+  switch (code) {
+    case 'storage/unauthorized':
+    case 'storage/unauthenticated':
+      return "We couldn't save that photo because your upload session was rejected. Sign out and back in, then try again.";
+    case 'storage/quota-exceeded':
+      return 'Photo storage is temporarily full. Please try again later.';
+    case 'storage/retry-limit-exceeded':
+    case 'storage/canceled':
+      return 'The upload did not finish. Check your connection and try again.';
+    default:
+      if (error instanceof Error && error.message) {
+        return `Couldn't upload that photo: ${error.message}`;
+      }
+      return "Couldn't upload that photo. Please try a different image or try again.";
+  }
 }
 
 class StorageService {
@@ -150,9 +168,7 @@ class StorageService {
     const listRef = ref(storage, `users/${userId}/photos`);
 
     const result = await listAll(listRef);
-    const urls = await Promise.all(
-      result.items.map((itemRef) => getDownloadURL(itemRef))
-    );
+    const urls = await Promise.all(result.items.map((itemRef) => getDownloadURL(itemRef)));
 
     return urls;
   }
@@ -181,10 +197,7 @@ class StorageService {
 
     // This assumes the Firebase Extension naming convention
     // Adjust based on your actual setup
-    return originalUrl.replace(
-      /\/([^/?]+)(\?|$)/,
-      `/thumb_${sizeMap[size]}_$1$2`
-    );
+    return originalUrl.replace(/\/([^/?]+)(\?|$)/, `/thumb_${sizeMap[size]}_$1$2`);
   }
 
   /**
@@ -260,7 +273,9 @@ class StorageService {
     }
 
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      throw new Error(`File type ${file.type} is not allowed. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}`);
+      throw new Error(
+        `File type ${file.type} is not allowed. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}`
+      );
     }
   }
 
@@ -270,25 +285,19 @@ class StorageService {
   private validateStoryFile(file: File): void {
     if (ALLOWED_IMAGE_TYPES.includes(file.type)) {
       if (file.size > MAX_STORY_IMAGE_SIZE) {
-        throw new Error(
-          `Story image exceeds ${MAX_STORY_IMAGE_SIZE / 1024 / 1024}MB limit`
-        );
+        throw new Error(`Story image exceeds ${MAX_STORY_IMAGE_SIZE / 1024 / 1024}MB limit`);
       }
       return;
     }
 
     if (ALLOWED_STORY_VIDEO_TYPES.includes(file.type)) {
       if (file.size > MAX_STORY_VIDEO_SIZE) {
-        throw new Error(
-          `Story video exceeds ${MAX_STORY_VIDEO_SIZE / 1024 / 1024}MB limit`
-        );
+        throw new Error(`Story video exceeds ${MAX_STORY_VIDEO_SIZE / 1024 / 1024}MB limit`);
       }
       return;
     }
 
-    throw new Error(
-      `Unsupported story media type ${file.type}. Use an image or MP4/WebM video.`
-    );
+    throw new Error(`Unsupported story media type ${file.type}. Use an image or MP4/WebM video.`);
   }
 }
 

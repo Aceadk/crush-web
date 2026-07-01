@@ -15,6 +15,7 @@ export interface UserProfile {
   sexualOrientation?: SexualOrientation;
   interestedIn?: Gender[];
   photos: string[];
+  primaryPhotoIndex?: number;
   profilePhotoUrl?: string;
   location?: GeoLocation;
   interests?: string[];

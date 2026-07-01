@@ -39,9 +39,7 @@ describe('buildUserProfileCreateData — canonical only', () => {
   const created = buildUserProfileCreateData(fullProfileInput, '2026-06-01T00:00:00.000Z');
 
   it('emits no legacy flat root keys', () => {
-    const offenders = rootKeysIn(created).filter((k) =>
-      REJECTED_FLAT_ROOT_KEYS.includes(k)
-    );
+    const offenders = rootKeysIn(created).filter((k) => REJECTED_FLAT_ROOT_KEYS.includes(k));
     expect(offenders).toEqual([]);
   });
 
@@ -54,6 +52,7 @@ describe('buildUserProfileCreateData — canonical only', () => {
       sexualOrientation: 'straight',
       interests: ['Hiking', 'Coffee'],
       photoUrls: ['https://img.example.com/alice.jpg'],
+      primaryPhotoIndex: 0,
     });
   });
 
@@ -70,9 +69,7 @@ describe('buildUserProfileUpdateData — canonical only', () => {
   const updates = buildUserProfileUpdateData(fullProfileInput);
 
   it('emits no legacy flat root keys', () => {
-    const offenders = rootKeysIn(updates).filter((k) =>
-      REJECTED_FLAT_ROOT_KEYS.includes(k)
-    );
+    const offenders = rootKeysIn(updates).filter((k) => REJECTED_FLAT_ROOT_KEYS.includes(k));
     expect(offenders).toEqual([]);
   });
 
@@ -94,6 +91,8 @@ describe('buildUserProfileUpdateData — canonical only', () => {
   it('keeps allowed root mirrors (displayName, photos, location)', () => {
     expect(updates.displayName).toBe('Alice Web');
     expect(updates.photos).toEqual(['https://img.example.com/alice.jpg']);
+    expect(updates.profilePhotoUrl).toBe('https://img.example.com/alice.jpg');
+    expect(updates['profile.primaryPhotoIndex']).toBe(0);
     expect(updates.location).toBeDefined();
     expect(updates['profile.name']).toBe('Alice Web');
   });

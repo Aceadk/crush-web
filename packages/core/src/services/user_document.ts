@@ -37,7 +37,42 @@ function toNumber(value: unknown): number | undefined {
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  return value
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim());
+}
+
+function normalizePrimaryPhotoIndex(value: unknown, photoCount: number): number {
+  if (photoCount <= 0) return 0;
+  const index = toNumber(value);
+  if (index === undefined) return 0;
+  return Math.max(0, Math.min(Math.trunc(index), photoCount - 1));
+}
+
+export type ResolvedUserProfilePhotos = {
+  photos: string[];
+  primaryPhotoIndex: number;
+  displayPhotoUrl?: string;
+};
+
+export function resolveUserProfilePhotos(data: FirestoreUserData): ResolvedUserProfilePhotos {
+  const profile = asRecord(data.profile);
+  const hasCanonicalPhotoList = Array.isArray(profile.photoUrls);
+  let photos = hasCanonicalPhotoList
+    ? toStringArray(profile.photoUrls)
+    : toStringArray(data.photos);
+
+  if (photos.length === 0 && !hasCanonicalPhotoList) {
+    const legacyDisplayPhoto = toString(data.profilePhotoUrl);
+    photos = legacyDisplayPhoto ? [legacyDisplayPhoto] : [];
+  }
+
+  const primaryPhotoIndex = normalizePrimaryPhotoIndex(profile.primaryPhotoIndex, photos.length);
+  return {
+    photos,
+    primaryPhotoIndex,
+    displayPhotoUrl: photos[primaryPhotoIndex],
+  };
 }
 
 function normalizeGender(value: unknown): Gender | undefined {
@@ -228,7 +263,14 @@ export function buildUserProfileCreateData(
   nowIso: string
 ): Record<string, unknown> {
   const displayName = data.displayName?.trim() ?? '';
-  const photos = data.photos ?? [];
+  const photos =
+    data.photos && data.photos.length > 0
+      ? data.photos
+      : data.profilePhotoUrl
+        ? [data.profilePhotoUrl]
+        : [];
+  const primaryPhotoIndex = normalizePrimaryPhotoIndex(data.primaryPhotoIndex, photos.length);
+  const displayPhotoUrl = photos[primaryPhotoIndex];
   const settings = { ...DEFAULT_USER_SETTINGS, ...(data.settings ?? {}) };
   const interestedIn = normalizeInterestedIn(data.interestedIn);
   const location = normalizeLocation(data.location);
@@ -251,6 +293,7 @@ export function buildUserProfileCreateData(
     sexualOrientation: data.sexualOrientation,
     bio: data.bio ?? '',
     photoUrls: photos,
+    primaryPhotoIndex,
     interests: data.interests ?? [],
     city: location?.city ?? '',
     country: location?.country ?? '',
@@ -295,7 +338,7 @@ export function buildUserProfileCreateData(
     // legacyFlatProfileKeys() and docs/contracts/canonical_user_document.fixture.json.
     interestedIn,
     photos,
-    profilePhotoUrl: data.profilePhotoUrl ?? photos[0],
+    profilePhotoUrl: displayPhotoUrl ?? data.profilePhotoUrl,
     location,
     prompts,
     lifestyle: data.lifestyle,
@@ -362,9 +405,16 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
       interestedIn.length > 0 ? interestedIn : ['male', 'female'];
   }
   if (data.photos !== undefined) {
+    const primaryPhotoIndex = normalizePrimaryPhotoIndex(
+      data.primaryPhotoIndex,
+      data.photos.length
+    );
     updates.photos = data.photos;
-    updates.profilePhotoUrl = data.photos[0] ?? undefined;
+    updates.profilePhotoUrl = data.photos[primaryPhotoIndex] ?? null;
     updates['profile.photoUrls'] = data.photos;
+    updates['profile.primaryPhotoIndex'] = primaryPhotoIndex;
+  } else if (data.primaryPhotoIndex !== undefined) {
+    updates['profile.primaryPhotoIndex'] = Math.max(0, Math.trunc(data.primaryPhotoIndex));
   }
   if (location !== undefined) {
     updates.location = location;
@@ -447,10 +497,14 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
 export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData): UserProfile {
   const profile = asRecord(data.profile);
   const canonicalBirthDate = toString(data.birthDate) ?? toString(profile.birthDate);
+  const photoSelection = resolveUserProfilePhotos(data);
   const photos =
-    toStringArray(data.photos).length > 0
-      ? toStringArray(data.photos)
-      : toStringArray(profile.photoUrls);
+    photoSelection.primaryPhotoIndex > 0
+      ? [
+          photoSelection.photos[photoSelection.primaryPhotoIndex],
+          ...photoSelection.photos.filter((_, index) => index !== photoSelection.primaryPhotoIndex),
+        ]
+      : photoSelection.photos;
   const interestedIn =
     normalizeInterestedIn(data.interestedIn).length > 0
       ? normalizeInterestedIn(data.interestedIn)
@@ -517,7 +571,10 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
       toString(profile.sexualOrientation)) as UserProfile['sexualOrientation'],
     interestedIn,
     photos,
-    profilePhotoUrl: toString(data.profilePhotoUrl) ?? photos[0],
+    // The web view-model presents the selected display photo first so existing
+    // grids and swipe-card components consistently treat index 0 as primary.
+    primaryPhotoIndex: 0,
+    profilePhotoUrl: photoSelection.displayPhotoUrl,
     location,
     interests:
       toStringArray(data.interests).length > 0

@@ -118,6 +118,7 @@ interface AuthState {
   verifyPhoneCode: (code: string) => Promise<void>;
   signOut: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
+  setProfile: (profile: UserProfile | null) => void;
   refreshProfile: () => Promise<void>;
   refreshSession: (options?: { forceRefresh?: boolean }) => Promise<void>;
   clearError: () => void;
@@ -210,7 +211,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
               deviceTrustChecked: true,
               deviceTrustLoading: false,
               deviceTrusted: trustResult.trusted,
-              trustedDevices: toDeviceState(trustResult.trustedDevices, trustResult.currentDeviceId),
+              trustedDevices: toDeviceState(
+                trustResult.trustedDevices,
+                trustResult.currentDeviceId
+              ),
             });
           } catch (error) {
             console.error('Failed to initialize user session:', error);
@@ -331,7 +335,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   checkDeviceTrust: async () => {
     const { user } = get();
     if (!user) {
-      set({ deviceTrustChecked: true, deviceTrusted: true, deviceTrustLoading: false, trustedDevices: [] });
+      set({
+        deviceTrustChecked: true,
+        deviceTrusted: true,
+        deviceTrustLoading: false,
+        trustedDevices: [],
+      });
       return true;
     }
 
@@ -415,7 +424,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       const trustedDevices = await deviceSecurityService.revokeTrustedDevice(user.uid, deviceId);
       const currentDeviceId = deviceSecurityService.getOrCreateCurrentDeviceId();
-      const currentDeviceTrusted = trustedDevices.some((device) => device.deviceId === currentDeviceId);
+      const currentDeviceTrusted = trustedDevices.some(
+        (device) => device.deviceId === currentDeviceId
+      );
 
       set({
         trustedDevices: toDeviceState(trustedDevices, currentDeviceId),
@@ -515,6 +526,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   // Refresh profile
+  setProfile: (profile) => set({ profile }),
+
   refreshProfile: async () => {
     const { user } = get();
     if (!user) return;
