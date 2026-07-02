@@ -491,7 +491,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       const { user } = get();
       if (user) {
-        await userService.setUserOffline(user.uid);
+        // Best-effort presence update — it must NEVER block sign-out. An
+        // unverified user (or one whose Firestore write is rejected/offline)
+        // must still be able to sign out, so swallow any failure here instead
+        // of letting it abort the actual Firebase sign-out + cookie clear below.
+        try {
+          await userService.setUserOffline(user.uid);
+        } catch (presenceError) {
+          console.error('setUserOffline during sign-out (ignored):', presenceError);
+        }
       }
       await authService.signOut();
       // Ensure cookie is removed

@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from '@crush/ui';
 import { ArrowLeft, CheckCircle2, Loader2, LogOut, Mail, RefreshCw } from 'lucide-react';
-import { toast } from 'sonner';
 import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -29,6 +28,7 @@ function VerifyEmailRequiredPageContent() {
 
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
@@ -101,32 +101,20 @@ function VerifyEmailRequiredPageContent() {
   }, [user?.email, resending, cooldown]);
 
   const handleSignOut = useCallback(async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    setErrorMessage(null);
     try {
       await signOut();
-      router.replace('/auth/login');
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to sign out.');
+      // Sign-out must never trap the user on this screen — log and leave anyway.
+      // The store already clears Firebase auth + the session cookie best-effort.
+      console.error('Sign out error (navigating to login regardless):', error);
     }
-  }, [signOut, router]);
-
-  const requestSignOutConfirmation = useCallback(() => {
-    toast('Sign out of this account?', {
-      description: 'You will need to sign in again to continue verification.',
-      duration: 10000,
-      action: {
-        label: 'Sign out',
-        onClick: () => {
-          void handleSignOut();
-        },
-      },
-      cancel: {
-        label: 'Cancel',
-        onClick: () => {
-          setInfoMessage('Stayed signed in.');
-        },
-      },
-    });
-  }, [handleSignOut]);
+    // Hard redirect so middleware re-evaluates with the cleared session cookie
+    // and cannot bounce the user back to verify-email.
+    window.location.href = '/auth/login';
+  }, [signOut, signingOut]);
 
   useEffect(() => {
     if (!initialized || loading) return;
@@ -259,10 +247,20 @@ function VerifyEmailRequiredPageContent() {
         <Button
           className="w-full h-12"
           variant="ghost"
-          onClick={requestSignOutConfirmation}
+          onClick={() => void handleSignOut()}
+          disabled={signingOut}
         >
-          <LogOut className="w-4 h-4 mr-2" />
-          Sign out
+          {signingOut ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Signing out...
+            </>
+          ) : (
+            <>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign out
+            </>
+          )}
         </Button>
 
         {/* Escape hatch: users who can't verify right now (or don't want to
