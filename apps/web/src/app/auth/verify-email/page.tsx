@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authService, useAuthStore, userService } from '@crush/core';
 import {
@@ -11,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@crush/ui';
-import { CheckCircle2, Loader2, LogOut, Mail, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, LogOut, Mail, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
@@ -263,6 +264,17 @@ function VerifyEmailRequiredPageContent() {
           <LogOut className="w-4 h-4 mr-2" />
           Sign out
         </Button>
+
+        {/* Escape hatch: users who can't verify right now (or don't want to
+            sign out) can still return to the public site. The home route is
+            public, so this never bounces back here. */}
+        <Link
+          href="/"
+          className="flex items-center justify-center gap-2 pt-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to home
+        </Link>
       </CardContent>
     </Card>
   );
