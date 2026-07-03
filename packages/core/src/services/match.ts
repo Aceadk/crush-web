@@ -508,83 +508,74 @@ class MatchService {
    */
   async getWeeklyPicks(userId: string): Promise<WeeklyPick[]> {
     const db = getFirebaseDb();
-    const blockedUserIds = await this.getDiscoveryBlockedUserIds(userId);
 
-    // Get users already swiped
-    const swipesQuery = query(collection(db, SWIPES_COLLECTION), where('swiperId', '==', userId));
-    const swipesSnapshot = await getDocs(swipesQuery);
-    const swipedUserIds = new Set(
-      swipesSnapshot.docs.map((doc) => doc.data().swipedUserId as string)
-    );
-    for (const blockedId of blockedUserIds) {
-      swipedUserIds.add(blockedId);
-    }
-    swipedUserIds.add(userId); // Exclude self
-
-    // Get current user's profile for matching interests
+    // Current user's interests for compatibility ranking (owner read).
     const currentUserDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
     const currentUserData = currentUserDoc.data();
     const currentUserInterests = currentUserData
       ? mapUserDocumentToUserProfile(userId, currentUserData).interests || []
       : [];
 
-    // Query active users with complete profiles
-    const usersQuery = query(
-      collection(db, USERS_COLLECTION),
-      where('onboardingComplete', '==', true),
-      where('profileComplete', '==', true),
-      limit(100) // Get more to filter and rank
+    // Candidates come from the shared discovery deck endpoint so weekly picks
+    // follow the SAME server-side discovery mode as the main deck (open mode:
+    // every valid account; advanced mode: the filtered/ranked system) and
+    // inherit its safety exclusions (self, blocked/reported both directions,
+    // banned/deleted, already swiped). This used to query users on the
+    // onboardingComplete/profileComplete flags — precomputed advanced-
+    // eligibility values that kept hiding accounts while open discovery is
+    // active. NaN filter values are simply not sent (buildDiscoveryRestUrl
+    // only forwards finite numbers), so the server's own mode decides.
+    const candidates = await this.getDiscoveryProfiles(
+      userId,
+      { minAge: Number.NaN, maxAge: Number.NaN, maxDistance: Number.NaN },
+      50
     );
 
-    const usersSnapshot = await getDocs(usersQuery);
-
-    const picks: WeeklyPick[] = [];
     const now = new Date();
     const weekEnd = new Date(now);
     weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay())); // End of week
     weekEnd.setHours(23, 59, 59, 999);
 
-    for (const userDoc of usersSnapshot.docs) {
-      if (swipedUserIds.has(userDoc.id)) continue;
+    const picks: WeeklyPick[] = candidates
+      .filter((profile) => profile.id !== userId)
+      .map((profile) => {
+        const userInterests = profile.interests || [];
 
-      const data = userDoc.data();
-      const profile = mapUserDocumentToUserProfile(userDoc.id, data);
-      const userInterests = profile.interests || [];
+        // Calculate compatibility score based on shared interests
+        const sharedInterests = currentUserInterests.filter((interest) =>
+          userInterests.includes(interest)
+        );
+        const compatibilityScore =
+          currentUserInterests.length > 0
+            ? Math.round((sharedInterests.length / Math.max(currentUserInterests.length, 1)) * 100)
+            : 50;
 
-      // Calculate compatibility score based on shared interests
-      const sharedInterests = currentUserInterests.filter((interest) =>
-        userInterests.includes(interest)
-      );
-      const compatibilityScore =
-        currentUserInterests.length > 0
-          ? Math.round((sharedInterests.length / Math.max(currentUserInterests.length, 1)) * 100)
-          : 50;
+        // Determine pick reason
+        let pickReason = 'Featured profile';
+        if (sharedInterests.length >= 3) {
+          pickReason = `${sharedInterests.length} shared interests`;
+        } else if (profile.isVerified) {
+          pickReason = 'Verified profile';
+        } else if (profile.photos.length >= 3) {
+          pickReason = 'Active user';
+        }
 
-      // Determine pick reason
-      let pickReason = 'Featured profile';
-      if (sharedInterests.length >= 3) {
-        pickReason = `${sharedInterests.length} shared interests`;
-      } else if (profile.isVerified) {
-        pickReason = 'Verified profile';
-      } else if (profile.photos.length >= 3) {
-        pickReason = 'Active user';
-      }
-
-      picks.push({
-        id: `pick_${userDoc.id}`,
-        userId: userDoc.id,
-        displayName: profile.displayName,
-        age: profile.age,
-        bio: profile.bio,
-        photos: profile.photos,
-        interests: userInterests,
-        prompts: profile.prompts as WeeklyPick['prompts'],
-        isVerified: profile.isVerified,
-        compatibilityScore,
-        pickReason,
-        expiresAt: weekEnd.toISOString(),
+        return {
+          id: `pick_${profile.id}`,
+          userId: profile.id,
+          displayName: profile.displayName,
+          age: profile.age,
+          bio: profile.bio,
+          photos: profile.photos,
+          distance: profile.distance,
+          interests: userInterests,
+          prompts: profile.prompts,
+          isVerified: profile.isVerified,
+          compatibilityScore,
+          pickReason,
+          expiresAt: weekEnd.toISOString(),
+        };
       });
-    }
 
     // Sort by compatibility score and return top 10
     picks.sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
