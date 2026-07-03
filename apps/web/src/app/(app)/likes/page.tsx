@@ -1,7 +1,7 @@
 'use client';
 
 import { PlusFeatureGate } from '@/features/premium';
-import { matchService, ReceivedLike, useAuthStore } from '@crush/core';
+import { matchService, matchServiceV2, ReceivedLike, useAuthStore } from '@crush/core';
 import { Badge, Button, Card, SkeletonProfile } from '@crush/ui';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, Heart, Loader2, Lock, Sparkles, X } from 'lucide-react';
@@ -47,7 +47,9 @@ export default function LikesPage() {
     setActionLoading(like.id);
 
     try {
-      const result = await matchService.swipe(user.uid, like.likerUserId, 'like');
+      // Swipes must go through the backend callables — direct Firestore swipe
+      // writes are rejected by the production security rules.
+      const result = await matchServiceV2.swipeRight(like.likerUserId);
       if (result.isMatch) {
         // Remove from likes list and show match notification
         setLikes((prev) => prev.filter((l) => l.id !== like.id));
@@ -67,7 +69,7 @@ export default function LikesPage() {
     setActionLoading(like.id);
 
     try {
-      await matchService.swipe(user.uid, like.likerUserId, 'pass');
+      await matchServiceV2.swipeLeft(like.likerUserId);
       setLikes((prev) => prev.filter((l) => l.id !== like.id));
     } catch (err) {
       console.error('Failed to pass:', err);
