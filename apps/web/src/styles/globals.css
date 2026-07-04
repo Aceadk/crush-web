@@ -438,3 +438,23 @@
     transform: scale(1.1);
   }
 }
+
+/* ── Auth stage (login/signup over the ambient particle field) ──────────── */
+
+/* Glowing brand focus for form fields — scoped to the auth stage so the rest
+   of the app keeps its standard ring. Complements (not replaces) the
+   focus-visible outline for keyboard users. */
+.auth-stage input:focus-visible,
+.auth-stage textarea:focus-visible,
+.auth-stage select:focus-visible {
+  border-color: rgba(255, 63, 127, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(255, 63, 127, 0.55),
+    0 0 28px -6px rgba(255, 63, 127, 0.55);
+  outline: none;
+}
+
+/* The "or continue with" divider chip sits on the glass card, not bg-card. */
+.auth-stage span.bg-card {
+  background-color: rgba(13, 14, 18, 0.85);
+}

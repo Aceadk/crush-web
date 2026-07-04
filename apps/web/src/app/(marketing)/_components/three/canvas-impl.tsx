@@ -37,6 +37,8 @@ function FrameloopGovernor() {
 
 export interface MagneticCanvasProps {
   quality: SceneQualityProfile;
+  /** Ambient preset for auth pages: subdued, slow, no post-processing. */
+  ambient?: boolean;
   /** Called if the WebGL context is lost so the shell can fall back to CSS. */
   onContextLost: () => void;
 }
@@ -46,7 +48,11 @@ export interface MagneticCanvasProps {
  * runtime only load when a WebGL-capable, motion-tolerant client mounts the
  * scene (next/dynamic in magnetic-scene.tsx).
  */
-export default function MagneticCanvas({ quality, onContextLost }: MagneticCanvasProps) {
+export default function MagneticCanvas({
+  quality,
+  ambient = false,
+  onContextLost,
+}: MagneticCanvasProps) {
   return (
     <Canvas
       dpr={[1, quality.maxDpr]}
@@ -75,8 +81,12 @@ export default function MagneticCanvas({ quality, onContextLost }: MagneticCanva
     >
       <ReadySignal />
       <FrameloopGovernor />
-      <MagneticOrbs particlesPerOrb={quality.particlesPerOrb} starCount={quality.starCount} />
-      {quality.postProcessing ? <SceneEffects /> : null}
+      <MagneticOrbs
+        particlesPerOrb={ambient ? Math.min(quality.particlesPerOrb, 1400) : quality.particlesPerOrb}
+        starCount={ambient ? Math.min(quality.starCount, 400) : quality.starCount}
+        ambient={ambient}
+      />
+      {quality.postProcessing && !ambient ? <SceneEffects /> : null}
     </Canvas>
   );
 }

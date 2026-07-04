@@ -22,7 +22,14 @@ const MagneticCanvas = dynamic(() => import('./canvas-impl'), { ssr: false });
  * The scene is purely decorative (aria-hidden, pointer-events: none); cursor
  * input comes from a window listener so content above stays interactive.
  */
-export function MagneticScene({ className }: { className?: string }) {
+export function MagneticScene({
+  className,
+  preset = 'landing',
+}: {
+  className?: string;
+  /** `ambient` = subdued auth-page field: fewer particles, slower, dimmer. */
+  preset?: 'landing' | 'ambient';
+}) {
   const quality = useSceneQuality();
   const [mounted, setMounted] = useState(false);
   const [lost, setLost] = useState(false);
@@ -78,7 +85,11 @@ export function MagneticScene({ className }: { className?: string }) {
 
       {showCanvas ? (
         <div className="absolute inset-0 opacity-0 animate-[crush-scene-in_1.2s_ease-out_forwards]">
-          <MagneticCanvas quality={quality} onContextLost={() => setLost(true)} />
+          <MagneticCanvas
+            quality={quality}
+            ambient={preset === 'ambient'}
+            onContextLost={() => setLost(true)}
+          />
         </div>
       ) : null}
     </div>

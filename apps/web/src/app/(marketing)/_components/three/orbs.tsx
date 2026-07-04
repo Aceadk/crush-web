@@ -87,17 +87,22 @@ interface OrbUniforms {
   uOpacity: THREE.IUniform<number>;
 }
 
-function createOrbMaterial(core: string, edge: string, phase: number): THREE.ShaderMaterial {
+function createOrbMaterial(
+  core: string,
+  edge: string,
+  phase: number,
+  ambient: boolean
+): THREE.ShaderMaterial {
   const uniforms: OrbUniforms = {
     uTime: { value: 0 },
     uProgress: { value: 0 },
     uPhase: { value: phase },
     uCursor: { value: new THREE.Vector3(0, 0, 0) },
     uCursorStrength: { value: 0 },
-    uSize: { value: 4.2 },
+    uSize: { value: ambient ? 3.4 : 4.2 },
     uColorCore: { value: new THREE.Color(core) },
     uColorEdge: { value: new THREE.Color(edge) },
-    uOpacity: { value: 0.66 },
+    uOpacity: { value: ambient ? 0.4 : 0.66 },
   };
   return new THREE.ShaderMaterial({
     vertexShader: ORB_VERTEX_SHADER,
@@ -143,9 +148,16 @@ function narrativePosition(
 export function MagneticOrbs({
   particlesPerOrb,
   starCount,
+  ambient = false,
 }: {
   particlesPerOrb: number;
   starCount: number;
+  /**
+   * Ambient preset (auth pages): fewer/dimmer particles, half-speed drift,
+   * a fixed mid-narrative orbit instead of scroll-driven progress, and a
+   * gentler cursor pull — a subdued backdrop, not the show.
+   */
+  ambient?: boolean;
 }) {
   const viewport = useThree((s) => s.viewport);
 
@@ -160,19 +172,23 @@ export function MagneticOrbs({
         geometryB: buildOrbGeometry(particlesPerOrb, 0.78, 7331),
         starGeometry: buildStarGeometry(starCount, 2024),
         // Orb A: brand primary pink. Orb B: brand secondary violet.
-        materialA: createOrbMaterial('#ff9dbf', '#ff3f7f', 0),
-        materialB: createOrbMaterial('#c9b8ff', '#7c4dff', 11.7),
+        materialA: createOrbMaterial('#ff9dbf', '#ff3f7f', 0, ambient),
+        materialB: createOrbMaterial('#c9b8ff', '#7c4dff', 11.7, ambient),
         starMaterial: new THREE.ShaderMaterial({
           vertexShader: STARFIELD_VERTEX_SHADER,
           fragmentShader: STARFIELD_FRAGMENT_SHADER,
-          uniforms: { uTime: { value: 0 }, uSize: { value: 1.6 }, uOpacity: { value: 0.5 } },
+          uniforms: {
+            uTime: { value: 0 },
+            uSize: { value: 1.6 },
+            uOpacity: { value: ambient ? 0.35 : 0.5 },
+          },
           transparent: true,
           depthWrite: false,
           blending: THREE.AdditiveBlending,
         }),
       };
       // Geometry/material identity is fixed per quality profile.
-    }, [particlesPerOrb, starCount]);
+    }, [particlesPerOrb, starCount, ambient]);
 
   const cursorWorld = useRef(new THREE.Vector3());
   const cursorEased = useRef(new THREE.Vector3());
@@ -181,8 +197,9 @@ export function MagneticOrbs({
   const targetB = useRef(new THREE.Vector3());
 
   useFrame((state, delta) => {
-    const t = state.clock.elapsedTime;
-    const progress = sceneState.progress;
+    // Ambient preset: half-speed clock, fixed gentle orbit (mid-narrative).
+    const t = state.clock.elapsedTime * (ambient ? 0.45 : 1);
+    const progress = ambient ? 0.55 : sceneState.progress;
     const dt = Math.min(delta, 1 / 30);
 
     // Cursor in world units on the z=0 plane, critically damped ease.
@@ -192,7 +209,7 @@ export function MagneticOrbs({
       0
     );
     cursorEased.current.lerp(cursorWorld.current, 1 - Math.exp(-6 * dt));
-    const targetStrength = sceneState.cursorActive ? 0.5 : 0;
+    const targetStrength = sceneState.cursorActive ? (ambient ? 0.22 : 0.5) : 0;
     strength.current += (targetStrength - strength.current) * (1 - Math.exp(-4 * dt));
 
     // Composition adapts to aspect ratio: wide screens separate the orbs
