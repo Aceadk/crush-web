@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { ArrowRight, ChevronDown } from 'lucide-react';
-import { MagneticScene } from '../three/magnetic-scene';
 import { SectionLabel } from '../motion/section-label';
 
 /**
  * Act 1 — "Alone". Full-viewport cinematic hero over the Magnetic Attraction
- * particle scene: two luminous orbs drifting apart in deep space, reacting to
- * the cursor. Oversized display type, one punchy line, scroll indicator.
+ * particle scene (page-fixed, mounted by the landing page): two luminous orbs
+ * drifting apart in deep space, reacting to the cursor. Oversized display
+ * type, one punchy line, scroll indicator.
  *
  * Server component: all copy is static SSR markup (visible with JS disabled —
  * the WebGL scene and entrance animations are progressive enhancement, and
@@ -14,11 +14,7 @@ import { SectionLabel } from '../motion/section-label';
  */
 export function CrushHero() {
   return (
-    <section className="relative flex min-h-[100svh] flex-col overflow-hidden bg-[#0d0e12] text-white">
-      {/* Scene (decorative, pointer-events none). Stage (b) lifts this to a
-          page-fixed canvas that persists through the scroll narrative. */}
-      <MagneticScene className="absolute inset-0" />
-
+    <section className="relative flex min-h-[100svh] flex-col overflow-hidden text-white">
       {/* Readability vignette between scene and type. */}
       <div
         aria-hidden="true"

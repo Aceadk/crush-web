@@ -4,6 +4,7 @@ export { FloatingMatchScene } from './floating-match-scene';
 export { SocialProofStrip } from './social-proof-strip';
 export { FeatureStoryGrid } from './feature-story-grid';
 export { HowItWorksJourney } from './how-it-works-journey';
+export { MatchMoment } from './match-moment';
 export { LoveStoriesSection } from './love-stories-section';
 export { PricingPreviewSection } from './pricing-preview-section';
 export { DownloadSection } from './download-section';
