@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildUserProfileCreateData,
   buildUserProfileUpdateData,
+  mapUserDocumentToUserProfile,
 } from '@crush/core/services/user_document';
 import type { UserProfile } from '@crush/core/types/user';
 import fixture from '@/__fixtures__/canonical_user_document.json';
@@ -34,6 +35,26 @@ const fullProfileInput: Partial<UserProfile> = {
   isVerified: true,
   location: { city: 'Austin', country: 'US', latitude: 30.2672, longitude: -97.7431 },
 };
+
+describe('mapUserDocumentToUserProfile — Firestore timestamps', () => {
+  it('calls timestamp-like toDate methods with their instance context', () => {
+    const timestampLike = {
+      millis: Date.parse('2026-07-04T00:00:00.000Z'),
+      toDate() {
+        return new Date(this.millis);
+      },
+    };
+
+    const profile = mapUserDocumentToUserProfile('user-timestamp', {
+      displayName: 'Timestamp User',
+      createdAt: timestampLike,
+      updatedAt: timestampLike,
+    });
+
+    expect(profile.createdAt).toBe('2026-07-04T00:00:00.000Z');
+    expect(profile.updatedAt).toBe('2026-07-04T00:00:00.000Z');
+  });
+});
 
 describe('buildUserProfileCreateData — canonical only', () => {
   const created = buildUserProfileCreateData(fullProfileInput, '2026-06-01T00:00:00.000Z');

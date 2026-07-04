@@ -101,6 +101,10 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'monospace'],
+        // Cinematic display face for the marketing landing + auth pages.
+        // Falls back to the sans stack anywhere --font-display isn't set
+        // (it is only loaded by the marketing/auth layouts).
+        display: ['var(--font-display)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         // Linear-inspired compact typography

@@ -1,6 +1,17 @@
 import type { Metadata } from 'next';
+import { Space_Grotesk } from 'next/font/google';
 import { PublicHeader } from './_components/landing/public-header';
 import { PublicFooter } from './_components/landing/public-footer';
+
+// Display face for the cinematic landing type. Self-hosted via next/font
+// (downloaded at build time), so no external font origin is needed under the
+// production CSP. Exposed as --font-display / Tailwind `font-display`.
+const displayFont = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Crush - Find Your Perfect Match | Modern Dating App',
@@ -42,10 +53,10 @@ export default function MarketingLayout({
   // and footer were duplicated per page (with drifting link sets) and six
   // public pages had no header/footer or mobile navigation at all.
   return (
-    <>
+    <div className={displayFont.variable}>
       <PublicHeader />
       <main id="main-content">{children}</main>
       <PublicFooter />
-    </>
+    </div>
   );
 }

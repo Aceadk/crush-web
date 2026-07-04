@@ -108,6 +108,8 @@ export function buildCspHeader(options: CspOptions): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    'upgrade-insecure-requests',
+    // Local Next development serves plain HTTP. Upgrading same-origin RSC/API
+    // requests there produces HTTPS-to-an-HTTP-port failures.
+    ...(!isDevelopment ? ['upgrade-insecure-requests'] : []),
   ].join('; ');
 }

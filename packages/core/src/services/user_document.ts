@@ -190,7 +190,9 @@ function normalizeTimestampToString(value: unknown): string | undefined {
   if (typeof value === 'object' && value !== null && 'toDate' in value) {
     const maybeToDate = (value as { toDate?: unknown }).toDate;
     if (typeof maybeToDate === 'function') {
-      return (maybeToDate as () => Date)().toISOString();
+      // Firestore Timestamp.toDate() reads instance state through `this`.
+      // Calling it detached breaks authenticated profile loading.
+      return (maybeToDate as (this: object) => Date).call(value).toISOString();
     }
   }
   return undefined;
