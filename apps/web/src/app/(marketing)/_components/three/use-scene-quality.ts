@@ -28,6 +28,12 @@ const PROFILES: Record<SceneQuality, SceneQualityProfile> = {
 function detectTier(): SceneQuality {
   if (typeof window === 'undefined') return 'static';
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'static';
+  // Automated browsers (Playwright/Lighthouse/CI) have no GPU: WebGL falls
+  // back to SwiftShader on the CPU and the particle loop starves the main
+  // thread, deadlocking router transitions and assertion polling. They get
+  // the designed no-WebGL CSS fallback — the same tier a real GPU-less
+  // client would get. (Matches the preloader's webdriver skip.)
+  if (navigator.webdriver) return 'static';
 
   // WebGL availability (also catches software-rendering blocklists that
   // return null contexts).

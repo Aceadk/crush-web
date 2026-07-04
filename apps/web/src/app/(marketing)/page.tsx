@@ -13,6 +13,8 @@ import { MagneticScene } from './_components/three/magnetic-scene';
 import { LenisProvider } from './_components/motion/lenis-provider';
 import { ScrollDirector } from './_components/motion/scroll-director';
 import { Preloader } from './_components/motion/preloader';
+import { CursorGlow } from './_components/motion/cursor-glow';
+import { GrainOverlay } from './_components/motion/grain-overlay';
 
 /**
  * Public marketing landing page (`/`) — the "Magnetic Attraction" story.
@@ -42,6 +44,8 @@ export default function HomePage() {
       <div id="magnetic-stage" className="fixed inset-0 z-0">
         <MagneticScene className="absolute inset-0" />
       </div>
+      <CursorGlow />
+      <GrainOverlay />
 
       <div className="relative z-10">
         <div id="act-1">

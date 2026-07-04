@@ -3,6 +3,7 @@ import { Space_Grotesk } from 'next/font/google';
 import { Heart } from 'lucide-react';
 import { RuntimeProviders } from '@/shared/providers/runtime-providers';
 import { MagneticScene } from '../(marketing)/_components/three/magnetic-scene';
+import { GrainOverlay } from '../(marketing)/_components/motion/grain-overlay';
 
 // Same display face as the landing page so the brand voice carries through.
 const displayFont = Space_Grotesk({
@@ -33,6 +34,7 @@ export default function AuthLayout({
       >
         {/* Subdued particle field (fewer particles, slower drift). */}
         <MagneticScene preset="ambient" className="fixed inset-0" />
+        <GrainOverlay />
 
         {/* Readability vignette behind the card column. */}
         <div

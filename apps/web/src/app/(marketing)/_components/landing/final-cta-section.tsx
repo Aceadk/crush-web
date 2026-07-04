@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, Heart } from 'lucide-react';
+import { Magnetic } from '../motion/magnetic';
 import { Reveal } from './reveal';
 
 // Deterministic decorative hearts for the CTA panel (SSR-safe).
@@ -47,13 +48,15 @@ export function FinalCTASection() {
               <p className="mx-auto mb-8 max-w-lg text-white/85">
                 Join millions of singles who have found love on Crush. Your perfect match is waiting.
               </p>
-              <Link
-                href="/auth/signup"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-7 py-3 text-base font-medium text-primary shadow-lg transition-all duration-150 hover:bg-white/90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
-              >
-                Create Free Account
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
+              <Magnetic>
+                <Link
+                  href="/auth/signup"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-7 py-3 text-base font-medium text-primary shadow-lg transition-all duration-150 hover:bg-white/90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+                >
+                  Create Free Account
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Magnetic>
             </div>
           </div>
         </Reveal>

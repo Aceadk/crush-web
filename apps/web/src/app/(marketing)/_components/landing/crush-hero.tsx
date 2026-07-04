@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, ChevronDown } from 'lucide-react';
+import { Magnetic } from '../motion/magnetic';
 import { SectionLabel } from '../motion/section-label';
 
 /**
@@ -41,22 +42,26 @@ export function CrushHero() {
         </p>
 
         <div className="flex flex-col items-center justify-center gap-3 sm:flex-row motion-safe:animate-hero-in motion-safe:[animation-delay:360ms]">
-          <Link
-            href="/auth/signup"
-            className="group inline-flex items-center gap-2 rounded-full bg-[#ff3f7f] px-8 py-3.5 text-base font-medium text-white shadow-[0_10px_50px_-12px_rgba(255,63,127,0.9)] transition-all duration-300 hover:shadow-[0_14px_70px_-10px_rgba(255,63,127,1)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff3f7f]"
-          >
-            Start Matching
-            <ArrowRight
-              className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
-              aria-hidden="true"
-            />
-          </Link>
-          <Link
-            href="/auth/login"
-            className="inline-flex items-center rounded-full border border-white/15 bg-white/[0.03] px-8 py-3.5 text-base font-medium text-white/80 backdrop-blur transition-colors hover:border-white/30 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
-          >
-            Sign in
-          </Link>
+          <Magnetic>
+            <Link
+              href="/auth/signup"
+              className="group inline-flex items-center gap-2 rounded-full bg-[#ff3f7f] px-8 py-3.5 text-base font-medium text-white shadow-[0_10px_50px_-12px_rgba(255,63,127,0.9)] transition-all duration-300 hover:shadow-[0_14px_70px_-10px_rgba(255,63,127,1)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff3f7f]"
+            >
+              Start Matching
+              <ArrowRight
+                className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </Link>
+          </Magnetic>
+          <Magnetic strength={0.22}>
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center rounded-full border border-white/15 bg-white/[0.03] px-8 py-3.5 text-base font-medium text-white/80 backdrop-blur transition-colors hover:border-white/30 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
+            >
+              Sign in
+            </Link>
+          </Magnetic>
         </div>
 
         <p className="mt-10 font-mono text-[11px] uppercase tracking-[0.35em] text-white/30 motion-safe:animate-hero-in motion-safe:[animation-delay:480ms]">

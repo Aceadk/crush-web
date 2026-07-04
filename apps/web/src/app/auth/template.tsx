@@ -1,25 +1,16 @@
-'use client';
-
-import { motion, useReducedMotion } from 'framer-motion';
-
 /**
  * Route-transition template for the auth flow: every navigation between auth
  * pages (login ↔ signup ↔ phone ↔ forgot-password …) re-mounts this template,
- * so the card gently crossfades/rises in instead of hard-swapping. Reduced
- * motion renders children directly.
+ * so the card gently rises/fades in instead of hard-swapping.
+ *
+ * Deliberately pure CSS (`motion-safe` keyframes, animation-fill both): the
+ * card must never depend on a JS animation loop to become visible — an
+ * earlier framer-motion version of this template started content at
+ * opacity 0 and intermittently never ran `animate` under CPU contention
+ * (vendored React 19 + framer-motion 11), leaving auth pages blank. CSS
+ * animations run without JavaScript, respect prefers-reduced-motion via the
+ * motion-safe variant, and replay on every template re-mount.
  */
 export default function AuthTemplate({ children }: { children: React.ReactNode }) {
-  const reduceMotion = useReducedMotion();
-
-  if (reduceMotion) return <>{children}</>;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16, scale: 0.985 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.45, ease: [0.21, 0.47, 0.32, 0.98] }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className="motion-safe:animate-hero-in">{children}</div>;
 }
