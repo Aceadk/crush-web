@@ -7,6 +7,7 @@ import { Sidebar } from '@/shared/components/layout/app-sidebar';
 import { AuthLoadingShell, AuthRedirectingShell } from '@/shared/components/layout/auth-shell';
 import { useIsMobile } from '@/shared/hooks';
 import { appendRedirectParam } from '@/shared/lib/auth-redirect';
+import { shouldShowAuthLoadingShell } from '@/shared/lib/auth-gates';
 import { RuntimeProviders } from '@/shared/providers/runtime-providers';
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
@@ -121,9 +122,13 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   // Loading state
   if (
-    !initialized ||
-    loading ||
-    (user && !needsEmailVerification && (!deviceTrustChecked || deviceTrustLoading))
+    shouldShowAuthLoadingShell({
+      initialized,
+      loading,
+      hasUser: Boolean(user),
+      needsEmailVerification,
+      deviceTrustChecked,
+    })
   ) {
     return <AuthLoadingShell />;
   }
