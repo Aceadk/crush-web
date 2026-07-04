@@ -70,7 +70,11 @@ export default function AccountManagementPage() {
   const [deviceActionSuccess, setDeviceActionSuccess] = useState<string | null>(null);
 
   const isEmailVerified = user?.emailVerified;
-  const isPaused = profile?.settings?.showOnlineStatus === false;
+  // "Hide Profile" = discovery visibility (canonical
+  // profile.preferences.hideFromDiscovery, surfaced as settings.showInDiscovery)
+  // — the field the backend deck and the mobile app honor. It previously
+  // toggled showOnlineStatus, which never hid the profile.
+  const isPaused = profile?.settings?.showInDiscovery === false;
   const currentTrustedDevice = trustedDevices.find((device) => device.isCurrentDevice);
 
   useEffect(() => {
@@ -229,7 +233,7 @@ export default function AccountManagementPage() {
     setPauseLoading(true);
     try {
       await userService.updateUserSettings(user.uid, {
-        showOnlineStatus: isPaused,
+        showInDiscovery: isPaused,
       });
       await refreshProfile();
     } catch (error) {

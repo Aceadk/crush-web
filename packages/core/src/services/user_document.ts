@@ -62,7 +62,10 @@ export function resolveUserProfilePhotos(data: FirestoreUserData): ResolvedUserP
     ? toStringArray(profile.photoUrls)
     : toStringArray(data.photos);
 
-  if (photos.length === 0 && !hasCanonicalPhotoList) {
+  // Fall back to the legacy single display photo whenever the resolved list is
+  // empty — including when profile.photoUrls exists but is an empty array,
+  // matching the backend's profilePhotoSelection precedence.
+  if (photos.length === 0) {
     const legacyDisplayPhoto = toString(data.profilePhotoUrl);
     photos = legacyDisplayPhoto ? [legacyDisplayPhoto] : [];
   }
@@ -258,6 +261,58 @@ function deriveCompletionFlags(params: {
   };
 }
 
+/**
+ * Onboarding ROUTING GATE — mirrors the mobile app's derivation exactly
+ * (Crush App lib/shared/dto/user.dart, CrushUser.isOnboardingComplete):
+ * terms accepted AND basic info present (age >= 18 and a gender, unless the
+ * user skipped that step) AND at least one photo (unless skipped).
+ *
+ * Deliberately IGNORES the top-level onboardingComplete/profileComplete doc
+ * fields: the backend mirror trigger (syncLegacyDiscoveryFields in
+ * functions/src/index.ts) continuously rewrites those to the user's
+ * advanced-discovery ELIGIBILITY, which flips false for incognito/hidden/
+ * moderated users. Routing on them would bounce a fully-onboarded user back
+ * into onboarding — and treat the same account differently than mobile does.
+ */
+export function deriveOnboardingGate(params: {
+  hasAcceptedTerms: boolean;
+  hasSkippedBasicInfo?: boolean;
+  hasSkippedProfileSetup?: boolean;
+  age?: number;
+  gender?: Gender;
+  photos: string[];
+}): boolean {
+  if (!params.hasAcceptedTerms) return false;
+  const basicInfoDone =
+    params.hasSkippedBasicInfo === true || ((params.age ?? 0) >= 18 && Boolean(params.gender));
+  const profileSetupDone = params.hasSkippedProfileSetup === true || params.photos.length > 0;
+  return basicInfoDone && profileSetupDone;
+}
+
+/**
+ * Recursively drop undefined values from a write payload. The web Firestore
+ * SDK rejects undefined field values (we deliberately do NOT enable
+ * ignoreUndefinedProperties — explicit payloads keep writes auditable), and
+ * signup calls buildUserProfileCreateData with most optional fields absent,
+ * which used to make EVERY web account-creation setDoc throw and leave the
+ * user with no users/{uid} document at all.
+ */
+function omitUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => omitUndefinedDeep(item)) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object' && value.constructor === Object) {
+    const result: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (entry !== undefined) {
+        result[key] = omitUndefinedDeep(entry);
+      }
+    }
+    return result as T;
+  }
+  return value;
+}
+
 export function buildUserProfileCreateData(
   data: Partial<UserProfile>,
   nowIso: string
@@ -288,8 +343,8 @@ export function buildUserProfileCreateData(
   const canonicalProfile: Record<string, unknown> = {
     name: displayName,
     birthDate: data.birthDate,
-    age: data.age,
-    gender: normalizeGender(data.gender),
+    age: data.age ?? 0,
+    gender: normalizeGender(data.gender) ?? '',
     sexualOrientation: data.sexualOrientation,
     bio: data.bio ?? '',
     photoUrls: photos,
@@ -298,6 +353,11 @@ export function buildUserProfileCreateData(
     city: location?.city ?? '',
     country: location?.country ?? '',
     isVerified: data.isVerified ?? false,
+    // Present-but-empty defaults mirroring the mobile create
+    // (_ensureUserDocumentExists in firebase_auth_repository.dart).
+    lastName: '',
+    videoUrls: [] as string[],
+    languages: [] as string[],
     preferences: buildCanonicalPreferences(interestedIn, settings),
   };
 
@@ -326,12 +386,16 @@ export function buildUserProfileCreateData(
     canonicalProfile.workout = data.lifestyle.workout;
   }
 
-  return {
+  // omitUndefinedDeep is load-bearing: at signup most optional fields are
+  // absent and the web Firestore SDK throws on any undefined value, which
+  // previously broke every web account creation (no users/{uid} doc at all).
+  return omitUndefinedDeep({
     id: data.id,
-    email: data.email,
-    phoneNumber: data.phoneNumber,
+    email: data.email ?? null,
+    phoneNumber: data.phoneNumber ?? '',
     displayName,
-    username: data.username,
+    username: data.username ?? null,
+    usernameLower: data.username ? data.username.toLowerCase() : null,
     // Canonical demographic/profile data lives ONLY under profile.* — the
     // Firestore rules reject legacy flat root keys (bio, birthDate, age, gender,
     // sexualOrientation, interests, isVerified, …). See firestore.rules
@@ -342,7 +406,13 @@ export function buildUserProfileCreateData(
     location,
     prompts,
     lifestyle: data.lifestyle,
+    // Canonical entitlement field (backend/rules source of truth) plus the
+    // legacy alias web historically wrote; both default to free, matching the
+    // mobile create in _ensureUserDocumentExists.
+    plan: 'free',
     subscriptionTier: data.subscriptionTier ?? 'free',
+    isIdVerified: false,
+    themePreference: 'system',
     billingPeriod: data.billingPeriod,
     premiumExpiresAt: data.premiumExpiresAt,
     premiumAutoRenew: data.premiumAutoRenew,
@@ -363,7 +433,7 @@ export function buildUserProfileCreateData(
     isPhoneVerified: data.isPhoneVerified ?? Boolean(data.phoneNumber),
     boost: data.boost,
     profile: canonicalProfile,
-  };
+  });
 }
 
 export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<string, unknown> {
@@ -496,7 +566,13 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
 
 export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData): UserProfile {
   const profile = asRecord(data.profile);
-  const canonicalBirthDate = toString(data.birthDate) ?? toString(profile.birthDate);
+  // Mobile writes profile.birthDate as a Firestore Timestamp; web writes an
+  // ISO string. Accept both so ages derived from mobile-written docs work.
+  const canonicalBirthDate =
+    toString(data.birthDate) ??
+    toString(profile.birthDate) ??
+    normalizeTimestampToString(data.birthDate) ??
+    normalizeTimestampToString(profile.birthDate);
   const photoSelection = resolveUserProfilePhotos(data);
   const photos =
     photoSelection.primaryPhotoIndex > 0
@@ -544,6 +620,12 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
       settingsFromDoc.showAge ??
       DEFAULT_USER_SETTINGS.showAge,
     incognitoMode: toBoolean(profilePreferences.incognitoMode) ?? settingsFromDoc.incognitoMode,
+    // Canonical profile.preferences.hideFromDiscovery wins; legacy
+    // settings.showInDiscovery is the fallback. Defaults to visible.
+    showInDiscovery:
+      toBoolean(profilePreferences.hideFromDiscovery) !== undefined
+        ? !toBoolean(profilePreferences.hideFromDiscovery)
+        : (settingsFromDoc.showInDiscovery ?? true),
   };
   const displayName = toString(data.displayName) ?? toString(profile.name) ?? '';
   const completion = deriveCompletionFlags({
@@ -609,7 +691,18 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
     notificationSettings: data.notificationSettings as UserProfile['notificationSettings'],
     hasAcceptedTerms: toBoolean(data.hasAcceptedTerms) ?? false,
     termsAcceptedAt: toString(data.termsAcceptedAt),
-    onboardingComplete: completion.onboardingComplete,
+    hasSkippedBasicInfo: toBoolean(data.hasSkippedBasicInfo),
+    hasSkippedProfileSetup: toBoolean(data.hasSkippedProfileSetup),
+    // Routing gate (mobile-parity derivation) — NOT the trigger-managed
+    // top-level doc field; see deriveOnboardingGate.
+    onboardingComplete: deriveOnboardingGate({
+      hasAcceptedTerms: toBoolean(data.hasAcceptedTerms) ?? false,
+      hasSkippedBasicInfo: toBoolean(data.hasSkippedBasicInfo),
+      hasSkippedProfileSetup: toBoolean(data.hasSkippedProfileSetup),
+      age: toNumber(data.age) ?? toNumber(profile.age) ?? deriveAgeFromBirthDate(canonicalBirthDate),
+      gender: normalizeGender(data.gender) ?? normalizeGender(profile.gender),
+      photos,
+    }),
     profileComplete: completion.profileComplete,
     isEmailVerified: toBoolean(data.isEmailVerified),
     isPhoneVerified: toBoolean(data.isPhoneVerified),

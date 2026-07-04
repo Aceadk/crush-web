@@ -25,7 +25,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { setIsMobile } = useUIStore();
   const { subscribeToMatches, cleanup } = useMatchStore();
   const isMobile = useIsMobile();
-  const needsEmailVerification = Boolean(user?.email && !user.emailVerified);
+  // Phone-verified accounts are exempt (mobile parity: account verification is
+  // email OR phone; the backend's requireEmailVerified also exempts phone
+  // sign-in). Only unverified email/password accounts are gated.
+  const needsEmailVerification = Boolean(user?.email && !user.emailVerified && !user.phoneNumber);
 
   // Note: Auth is initialized globally in AuthInitializer provider
 
