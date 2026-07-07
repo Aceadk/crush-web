@@ -154,9 +154,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Main content. md:ml-64 matches the useIsMobile (768px) breakpoint that
           controls sidebar visibility — lg: left the sidebar overlapping content
           between 768–1023px. No transition: animating the margin on viewport
-          resize caused a transient horizontal overflow. */}
+          resize caused a transient horizontal overflow.
+
+          pt-14 below md reserves space for the fixed mobile menu button
+          (app-sidebar: `fixed top-3 left-3`), which otherwise overlaps the
+          top-left of every page's content (e.g. the discover "STORIES"
+          heading). Cleared at md+ where the sidebar takes over the layout. */}
       <main className={`flex-1 ${!isMobile ? 'md:ml-64' : ''}`}>
-        <div className="min-h-screen">{children}</div>
+        <div className="min-h-screen pt-14 md:pt-0">{children}</div>
       </main>
     </div>
   );
