@@ -15,6 +15,21 @@ const DEFAULT_REMEMBER_ME = true;
 
 let pendingRememberMePreference: boolean | null = null;
 
+/**
+ * Federated sign-ins (Google/Apple) are a strong identity proof from the
+ * provider, so they bypass the password-account new-device verification flow.
+ * Device verification exists to mitigate a leaked *password* used from an
+ * unknown device; it adds nothing for OAuth and only creates friction (a
+ * Google account already signed in to the browser could otherwise log in with
+ * one tap). Kept in one place so both the auth listener and checkDeviceTrust
+ * treat these identically.
+ */
+export function isFederatedSignIn(user: User): boolean {
+  return user.providerData.some(
+    ({ providerId }) => providerId === 'google.com' || providerId === 'apple.com'
+  );
+}
+
 function readRememberMePreference(): boolean {
   if (typeof window === 'undefined') {
     return DEFAULT_REMEMBER_ME;
@@ -191,8 +206,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             })();
 
             const trustPromise = (async () => {
-              // Device verification is enforced only for verified email accounts.
-              if (!user.email || !user.emailVerified) {
+              // Federated (Google/Apple) sign-ins and accounts without a
+              // verified email skip device verification — see isFederatedSignIn.
+              if (isFederatedSignIn(user) || !user.email || !user.emailVerified) {
                 return {
                   trusted: true,
                   currentDeviceId: deviceSecurityService.getOrCreateCurrentDeviceId(),
@@ -344,7 +360,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return true;
     }
 
-    if (!user.email || !user.emailVerified) {
+    // Federated (Google/Apple) sign-ins and unverified-email accounts are
+    // trusted without the email device-verification step (see isFederatedSignIn).
+    if (isFederatedSignIn(user) || !user.email || !user.emailVerified) {
       set({ deviceTrustChecked: true, deviceTrusted: true, deviceTrustLoading: false });
       return true;
     }
