@@ -14,8 +14,15 @@ export default function FinishSignInPage() {
   useEffect(() => {
     async function completeSignIn() {
       try {
-        const { getAuth, isSignInWithEmailLink, signInWithEmailLink } = await import('firebase/auth');
-        const auth = getAuth();
+        const { isSignInWithEmailLink, signInWithEmailLink } = await import('firebase/auth');
+        // Use the app's lazy-initializing accessor, NOT the raw getAuth().
+        // /finishSignIn is a top-level route outside RuntimeProviders, so when
+        // the email link opens it in a fresh tab nothing has called
+        // initializeApp() yet — a bare getAuth() then throws "No Firebase App
+        // '[DEFAULT]'". getFirebaseAuth() runs getAuth(getFirebaseApp()), and
+        // getFirebaseApp() initializes the app on first use.
+        const { getFirebaseAuth } = await import('@crush/core');
+        const auth = getFirebaseAuth();
         const redirectPath = sanitizeRedirectPath(
           new URL(window.location.href).searchParams.get('redirect')
         );

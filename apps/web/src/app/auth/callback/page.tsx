@@ -12,8 +12,12 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     async function handleCallback() {
       try {
-        const { getAuth, getRedirectResult } = await import('firebase/auth');
-        const auth = getAuth();
+        const { getRedirectResult } = await import('firebase/auth');
+        // getFirebaseAuth() self-initializes the Firebase app; a bare getAuth()
+        // can throw "No Firebase App '[DEFAULT]'" when this callback loads
+        // before providers initialize Firebase.
+        const { getFirebaseAuth } = await import('@crush/core');
+        const auth = getFirebaseAuth();
         const result = await getRedirectResult(auth);
 
         if (result?.user) {
