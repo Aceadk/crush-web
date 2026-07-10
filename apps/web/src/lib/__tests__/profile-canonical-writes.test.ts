@@ -117,6 +117,27 @@ describe('buildUserProfileUpdateData — canonical only', () => {
     expect(updates.location).toBeDefined();
     expect(updates['profile.name']).toBe('Alice Web');
   });
+
+  it('strips nested undefined values (updateDoc rejects them)', () => {
+    // Profile-edit sends unset lifestyle selects as literal undefined; the
+    // web Firestore SDK throws on any nested undefined, which failed the
+    // whole profile save for users with an incomplete lifestyle section.
+    const withUnsetLifestyle = buildUserProfileUpdateData({
+      lifestyle: {
+        height: 170,
+        education: 'BSc',
+        drinking: undefined,
+        smoking: undefined,
+        workout: undefined,
+      },
+    });
+
+    const lifestyle = withUnsetLifestyle.lifestyle as Record<string, unknown>;
+    expect(lifestyle).toEqual({ height: 170, education: 'BSc' });
+    expect(Object.values(withUnsetLifestyle)).not.toContain(undefined);
+    expect(withUnsetLifestyle['profile.heightCm']).toBe(170);
+    expect(withUnsetLifestyle['profile.drinking']).toBeUndefined();
+  });
 });
 
 describe('fixture integrity', () => {

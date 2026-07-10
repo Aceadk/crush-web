@@ -563,7 +563,12 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
     }
   }
 
-  return updates;
+  // Same guarantee as buildUserProfileCreateData: the web Firestore SDK
+  // rejects undefined field values, and callers pass objects with optional
+  // entries (e.g. profile-edit sends lifestyle with drinking/smoking/workout
+  // as `undefined` when unset). Without this, updateDoc throws and the whole
+  // profile save fails for any user with an incomplete lifestyle section.
+  return omitUndefinedDeep(updates);
 }
 
 export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData): UserProfile {
