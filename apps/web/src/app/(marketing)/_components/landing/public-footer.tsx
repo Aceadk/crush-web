@@ -1,5 +1,9 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Heart } from 'lucide-react';
+import { cn } from '@crush/ui';
 
 const FOOTER_COLUMNS = [
   {
@@ -32,8 +36,19 @@ const FOOTER_COLUMNS = [
 
 /** Public marketing footer — same link set as before, refreshed presentation. */
 export function PublicFooter() {
+  const pathname = usePathname();
+  // The landing page is a fixed dark cinematic canvas regardless of app
+  // theme; scope the dark token set to the footer there (same pattern as
+  // PublicHeader).
+  const onLanding = pathname === '/';
+
   return (
-    <footer className="relative border-t border-border px-4 py-12 sm:px-6 lg:px-8">
+    <footer
+      className={cn(
+        'relative border-t border-border px-4 py-12 sm:px-6 lg:px-8',
+        onLanding && 'dark bg-[#0d0e12] text-foreground'
+      )}
+    >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"

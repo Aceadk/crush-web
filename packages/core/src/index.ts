@@ -166,7 +166,7 @@ export { storyService } from './services/story';
 export { streakService } from './services/streak';
 
 // Stores
-export { useAuthStore } from './stores/auth';
+export { useAuthStore, isFederatedSignIn } from './stores/auth';
 export { useBoostStore } from './stores/boost';
 export { useMatchStore } from './stores/match';
 export { useMessageStore } from './stores/message';

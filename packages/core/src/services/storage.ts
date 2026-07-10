@@ -103,10 +103,10 @@ class StorageService {
 
     const storage = getFirebaseStorage();
     const fileName = `${Date.now()}_${file.name}`;
-    const storageRef = ref(
-      storage,
-      `conversations/${conversationId}/images/${senderId}/${fileName}`
-    );
+    // chat_media/{matchId}/{senderId} is the ONLY chat path storage.rules
+    // allows (and the path mobile uses). The previous conversations/* path
+    // had no matching rule, so every web chat image upload was denied.
+    const storageRef = ref(storage, `chat_media/${conversationId}/${senderId}/${fileName}`);
 
     if (onProgress) {
       return this.uploadWithProgress(storageRef, file, onProgress);
@@ -138,10 +138,9 @@ class StorageService {
 
     const storage = getFirebaseStorage();
     const fileName = `${Date.now()}_voice.webm`;
-    const storageRef = ref(
-      storage,
-      `conversations/${conversationId}/audio/${senderId}/${fileName}`
-    );
+    // Same chat_media/{matchId}/{senderId} path as mobile; storage.rules now
+    // allows audio content types there (10MB cap server-side).
+    const storageRef = ref(storage, `chat_media/${conversationId}/${senderId}/${fileName}`);
 
     if (onProgress) {
       return this.uploadBlobWithProgress(storageRef, audioBlob, onProgress);

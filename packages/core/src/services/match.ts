@@ -32,10 +32,12 @@ import {
 import { buildDiscoveryRestUrl, mapDiscoveryRestProfiles } from './discovery_rest';
 import { streakService } from './streak';
 import { isPremiumUser } from './entitlement';
+import { matchServiceV2 } from './match_v2';
 import { mapUserDocumentToUserProfile, resolveUserProfilePhotos } from './user_document';
 
 const MATCHES_COLLECTION = 'matches';
 const SWIPES_COLLECTION = 'swipes';
+const LIKES_COLLECTION = 'likes';
 const USERS_COLLECTION = 'users';
 const BLOCKS_COLLECTION = 'blocks';
 const LEGACY_BLOCKED_SUBCOLLECTION = 'blocked';
@@ -370,56 +372,79 @@ class MatchService {
   async getLikesReceived(userId: string): Promise<ReceivedLike[]> {
     const db = getFirebaseDb();
 
-    // Query swipes where the current user was swiped on with like/superlike
-    const swipesQuery = query(
-      collection(db, SWIPES_COLLECTION),
-      where('swipedUserId', '==', userId),
-      where('action', 'in', ['like', 'superlike']),
-      orderBy('timestamp', 'desc'),
+    // Likes are written by the backend swipeRight callable as
+    // {fromUserId, toUserId, attachedMessage?, createdAt}. The previous query
+    // read swipes.swipedUserId/timestamp — fields no live code path writes —
+    // so this page always came back empty. toUserId+createdAt is backed by a
+    // composite index and recipient-readable per firestore.rules.
+    const likesQuery = query(
+      collection(db, LIKES_COLLECTION),
+      where('toUserId', '==', userId),
+      orderBy('createdAt', 'desc'),
       limit(50)
     );
+    const likesSnapshot = await getDocs(likesQuery);
 
-    const swipesSnapshot = await getDocs(swipesQuery);
-
-    // Get users who have already matched with the current user
-    const matchesQuery = query(
-      collection(db, MATCHES_COLLECTION),
-      where('userId', '==', userId),
-      where('status', '==', 'mutual')
-    );
-    const matchesSnapshot = await getDocs(matchesQuery);
-    const matchedUserIds = new Set(
-      matchesSnapshot.docs.map((doc) => doc.data().otherUserId as string)
-    );
+    const matchedUserIds = await this.getCanonicalMatchedUserIds(userId);
 
     const receivedLikes: ReceivedLike[] = [];
+    const seenLikers = new Set<string>();
 
-    for (const swipeDoc of swipesSnapshot.docs) {
-      const swipeData = swipeDoc.data();
-      const likerUserId = swipeData.swiperId as string;
+    for (const likeDoc of likesSnapshot.docs) {
+      const likeData = likeDoc.data();
+      const likerUserId = likeData.fromUserId as string | undefined;
 
-      // Skip if already matched
-      if (matchedUserIds.has(likerUserId)) continue;
+      if (!likerUserId || likerUserId === userId) continue;
+      // Skip if already matched or duplicate liker
+      if (matchedUserIds.has(likerUserId) || seenLikers.has(likerUserId)) continue;
+      seenLikers.add(likerUserId);
 
       // Get liker's profile info
       const likerDoc = await getDoc(doc(db, USERS_COLLECTION, likerUserId));
       if (!likerDoc.exists()) continue;
 
       const likerData = likerDoc.data();
-      const likerPhotoUrl = resolveUserProfilePhotos(likerData).displayPhotoUrl;
+      const likerProfile = mapUserDocumentToUserProfile(likerUserId, likerData);
 
       receivedLikes.push({
-        id: swipeDoc.id,
+        id: likeDoc.id,
         likerUserId,
-        likerName: (likerData.displayName as string) || 'Unknown',
-        likerPhotoUrl,
-        likerAge: likerData.age as number | undefined,
-        isSuperLike: swipeData.action === 'superlike',
-        timestamp: this.timestampToString(swipeData.timestamp),
+        likerName: likerProfile.displayName || 'Unknown',
+        likerPhotoUrl: resolveUserProfilePhotos(likerData).displayPhotoUrl,
+        likerAge: likerProfile.age,
+        // The backend likes schema does not record a super-like distinction.
+        isSuperLike: false,
+        timestamp: this.timestampToString(likeData.createdAt),
       });
     }
 
     return receivedLikes;
+  }
+
+  /**
+   * Other-user ids from the canonical match model (userIds array +
+   * status 'active'; legacy 'mutual' accepted). Status is filtered client-side
+   * so the query stays on the built-in single-field index.
+   */
+  private async getCanonicalMatchedUserIds(userId: string): Promise<Set<string>> {
+    const db = getFirebaseDb();
+    const matchesQuery = query(
+      collection(db, MATCHES_COLLECTION),
+      where('userIds', 'array-contains', userId)
+    );
+    const matchesSnapshot = await getDocs(matchesQuery);
+
+    const matchedUserIds = new Set<string>();
+    matchesSnapshot.docs.forEach((matchDoc) => {
+      const data = matchDoc.data();
+      const status = (data.status as string | undefined) ?? '';
+      if (status !== 'active' && status !== 'mutual') return;
+      const userIds = Array.isArray(data.userIds) ? (data.userIds as string[]) : [];
+      userIds.forEach((id) => {
+        if (id && id !== userId) matchedUserIds.add(id);
+      });
+    });
+    return matchedUserIds;
   }
 
   /**
@@ -429,54 +454,51 @@ class MatchService {
   async getMessageRequests(userId: string): Promise<MessageRequest[]> {
     const db = getFirebaseDb();
 
-    // Get swipes with message requests (people who liked this user and sent a message)
-    const swipesQuery = query(
-      collection(db, SWIPES_COLLECTION),
-      where('swipedUserId', '==', userId),
-      where('action', 'in', ['like', 'superlike']),
-      orderBy('timestamp', 'desc'),
+    // Message requests are likes that carry an attachedMessage (written by the
+    // backend swipeRight callable as {fromUserId, toUserId, attachedMessage,
+    // createdAt}). The previous query read swipes.swipedUserId/timestamp —
+    // fields no live code path writes — so this page always came back empty.
+    const likesQuery = query(
+      collection(db, LIKES_COLLECTION),
+      where('toUserId', '==', userId),
+      orderBy('createdAt', 'desc'),
       limit(50)
     );
+    const likesSnapshot = await getDocs(likesQuery);
 
-    const swipesSnapshot = await getDocs(swipesQuery);
-
-    // Get users who have already matched with the current user
-    const matchesQuery = query(
-      collection(db, MATCHES_COLLECTION),
-      where('userId', '==', userId),
-      where('status', '==', 'mutual')
-    );
-    const matchesSnapshot = await getDocs(matchesQuery);
-    const matchedUserIds = new Set(
-      matchesSnapshot.docs.map((doc) => doc.data().otherUserId as string)
-    );
+    const matchedUserIds = await this.getCanonicalMatchedUserIds(userId);
 
     const messageRequests: MessageRequest[] = [];
+    const seenSenders = new Set<string>();
 
-    for (const swipeDoc of swipesSnapshot.docs) {
-      const swipeData = swipeDoc.data();
-      const fromUserId = swipeData.swiperId as string;
-      const message = swipeData.message as string | undefined;
+    for (const likeDoc of likesSnapshot.docs) {
+      const likeData = likeDoc.data();
+      const fromUserId = likeData.fromUserId as string | undefined;
+      const message =
+        typeof likeData.attachedMessage === 'string' ? likeData.attachedMessage.trim() : '';
 
-      // Skip if already matched or no message
-      if (matchedUserIds.has(fromUserId) || !message) continue;
+      // Skip if no message, self, already matched, or duplicate sender
+      if (!fromUserId || fromUserId === userId || !message) continue;
+      if (matchedUserIds.has(fromUserId) || seenSenders.has(fromUserId)) continue;
+      seenSenders.add(fromUserId);
 
       // Get sender's profile info
       const senderDoc = await getDoc(doc(db, USERS_COLLECTION, fromUserId));
       if (!senderDoc.exists()) continue;
 
       const senderData = senderDoc.data();
-      const fromUserPhotoUrl = resolveUserProfilePhotos(senderData).displayPhotoUrl;
+      const senderProfile = mapUserDocumentToUserProfile(fromUserId, senderData);
 
       messageRequests.push({
-        id: swipeDoc.id,
+        id: likeDoc.id,
         fromUserId,
-        fromUserName: (senderData.displayName as string) || 'Unknown',
-        fromUserPhotoUrl,
-        fromUserAge: senderData.age as number | undefined,
+        fromUserName: senderProfile.displayName || 'Unknown',
+        fromUserPhotoUrl: resolveUserProfilePhotos(senderData).displayPhotoUrl,
+        fromUserAge: senderProfile.age,
         message,
-        isSuperLike: swipeData.action === 'superlike',
-        timestamp: this.timestampToString(swipeData.timestamp),
+        // The backend likes schema does not record a super-like distinction.
+        isSuperLike: false,
+        timestamp: this.timestampToString(likeData.createdAt),
       });
     }
 
@@ -484,11 +506,12 @@ class MatchService {
   }
 
   /**
-   * Accept a message request (like the user back, creating a match)
+   * Accept a message request (like the user back, creating a match).
+   * Routed through the backend swipeRight callable — direct Firestore swipe
+   * writes are rejected by the production security rules.
    */
   async acceptMessageRequest(userId: string, fromUserId: string): Promise<{ matchId: string }> {
-    // Simply swipe like - if they already liked us, it will create a match
-    const result = await this.swipe(userId, fromUserId, 'like');
+    const result = await matchServiceV2.swipeRight(fromUserId);
     if (!result.isMatch || !result.matchId) {
       throw new Error('Failed to create match');
     }
@@ -496,10 +519,10 @@ class MatchService {
   }
 
   /**
-   * Decline a message request (pass on the user)
+   * Decline a message request (pass on the user) via the backend callable.
    */
   async declineMessageRequest(userId: string, fromUserId: string): Promise<void> {
-    await this.swipe(userId, fromUserId, 'pass');
+    await matchServiceV2.swipeLeft(fromUserId);
   }
 
   /**
@@ -508,83 +531,74 @@ class MatchService {
    */
   async getWeeklyPicks(userId: string): Promise<WeeklyPick[]> {
     const db = getFirebaseDb();
-    const blockedUserIds = await this.getDiscoveryBlockedUserIds(userId);
 
-    // Get users already swiped
-    const swipesQuery = query(collection(db, SWIPES_COLLECTION), where('swiperId', '==', userId));
-    const swipesSnapshot = await getDocs(swipesQuery);
-    const swipedUserIds = new Set(
-      swipesSnapshot.docs.map((doc) => doc.data().swipedUserId as string)
-    );
-    for (const blockedId of blockedUserIds) {
-      swipedUserIds.add(blockedId);
-    }
-    swipedUserIds.add(userId); // Exclude self
-
-    // Get current user's profile for matching interests
+    // Current user's interests for compatibility ranking (owner read).
     const currentUserDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
     const currentUserData = currentUserDoc.data();
     const currentUserInterests = currentUserData
       ? mapUserDocumentToUserProfile(userId, currentUserData).interests || []
       : [];
 
-    // Query active users with complete profiles
-    const usersQuery = query(
-      collection(db, USERS_COLLECTION),
-      where('onboardingComplete', '==', true),
-      where('profileComplete', '==', true),
-      limit(100) // Get more to filter and rank
+    // Candidates come from the shared discovery deck endpoint so weekly picks
+    // follow the SAME server-side discovery mode as the main deck (open mode:
+    // every valid account; advanced mode: the filtered/ranked system) and
+    // inherit its safety exclusions (self, blocked/reported both directions,
+    // banned/deleted, already swiped). This used to query users on the
+    // onboardingComplete/profileComplete flags — precomputed advanced-
+    // eligibility values that kept hiding accounts while open discovery is
+    // active. NaN filter values are simply not sent (buildDiscoveryRestUrl
+    // only forwards finite numbers), so the server's own mode decides.
+    const candidates = await this.getDiscoveryProfiles(
+      userId,
+      { minAge: Number.NaN, maxAge: Number.NaN, maxDistance: Number.NaN },
+      50
     );
 
-    const usersSnapshot = await getDocs(usersQuery);
-
-    const picks: WeeklyPick[] = [];
     const now = new Date();
     const weekEnd = new Date(now);
     weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay())); // End of week
     weekEnd.setHours(23, 59, 59, 999);
 
-    for (const userDoc of usersSnapshot.docs) {
-      if (swipedUserIds.has(userDoc.id)) continue;
+    const picks: WeeklyPick[] = candidates
+      .filter((profile) => profile.id !== userId)
+      .map((profile) => {
+        const userInterests = profile.interests || [];
 
-      const data = userDoc.data();
-      const profile = mapUserDocumentToUserProfile(userDoc.id, data);
-      const userInterests = profile.interests || [];
+        // Calculate compatibility score based on shared interests
+        const sharedInterests = currentUserInterests.filter((interest) =>
+          userInterests.includes(interest)
+        );
+        const compatibilityScore =
+          currentUserInterests.length > 0
+            ? Math.round((sharedInterests.length / Math.max(currentUserInterests.length, 1)) * 100)
+            : 50;
 
-      // Calculate compatibility score based on shared interests
-      const sharedInterests = currentUserInterests.filter((interest) =>
-        userInterests.includes(interest)
-      );
-      const compatibilityScore =
-        currentUserInterests.length > 0
-          ? Math.round((sharedInterests.length / Math.max(currentUserInterests.length, 1)) * 100)
-          : 50;
+        // Determine pick reason
+        let pickReason = 'Featured profile';
+        if (sharedInterests.length >= 3) {
+          pickReason = `${sharedInterests.length} shared interests`;
+        } else if (profile.isVerified) {
+          pickReason = 'Verified profile';
+        } else if (profile.photos.length >= 3) {
+          pickReason = 'Active user';
+        }
 
-      // Determine pick reason
-      let pickReason = 'Featured profile';
-      if (sharedInterests.length >= 3) {
-        pickReason = `${sharedInterests.length} shared interests`;
-      } else if (profile.isVerified) {
-        pickReason = 'Verified profile';
-      } else if (profile.photos.length >= 3) {
-        pickReason = 'Active user';
-      }
-
-      picks.push({
-        id: `pick_${userDoc.id}`,
-        userId: userDoc.id,
-        displayName: profile.displayName,
-        age: profile.age,
-        bio: profile.bio,
-        photos: profile.photos,
-        interests: userInterests,
-        prompts: profile.prompts as WeeklyPick['prompts'],
-        isVerified: profile.isVerified,
-        compatibilityScore,
-        pickReason,
-        expiresAt: weekEnd.toISOString(),
+        return {
+          id: `pick_${profile.id}`,
+          userId: profile.id,
+          displayName: profile.displayName,
+          age: profile.age,
+          bio: profile.bio,
+          photos: profile.photos,
+          distance: profile.distance,
+          interests: userInterests,
+          prompts: profile.prompts,
+          isVerified: profile.isVerified,
+          compatibilityScore,
+          pickReason,
+          expiresAt: weekEnd.toISOString(),
+        };
       });
-    }
 
     // Sort by compatibility score and return top 10
     picks.sort((a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));

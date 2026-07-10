@@ -1,7 +1,27 @@
 import Link from 'next/link';
+import { Space_Grotesk } from 'next/font/google';
 import { Heart } from 'lucide-react';
 import { RuntimeProviders } from '@/shared/providers/runtime-providers';
+import { MagneticScene } from '../(marketing)/_components/three/magnetic-scene';
+import { GrainOverlay } from '../(marketing)/_components/motion/grain-overlay';
 
+// Same display face as the landing page so the brand voice carries through.
+const displayFont = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+/**
+ * Auth stage — the same cinematic world as the landing page, subdued.
+ *
+ * A dark (`dark`-scoped tokens) full-viewport stage with the ambient preset
+ * of the Magnetic Attraction particle field behind a centred glass card
+ * column. The `auth-stage` class scopes the glowing input focus treatment
+ * (see globals.css). All form logic lives in the pages; this layout is
+ * presentation only.
+ */
 export default function AuthLayout({
   children,
 }: {
@@ -9,68 +29,47 @@ export default function AuthLayout({
 }) {
   return (
     <RuntimeProviders>
-      <div className="min-h-screen flex bg-background">
-        {/* Left side - Branding */}
-        <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary-dark to-secondary relative overflow-hidden">
-          {/* Decorative elements */}
-          <div className="absolute inset-0">
-            <div className="absolute top-20 left-20 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-20 right-20 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-          </div>
+      <div
+        className={`auth-stage dark relative min-h-screen overflow-hidden bg-[#0d0e12] text-foreground ${displayFont.variable}`}
+      >
+        {/* Subdued particle field (fewer particles, slower drift). */}
+        <MagneticScene preset="ambient" className="fixed inset-0" />
+        <GrainOverlay />
 
-          {/* Content */}
-          <div className="relative z-10 flex flex-col justify-center px-12 text-white">
-            <Link href="/" className="flex items-center gap-3 mb-8">
-              <Heart className="w-12 h-12 fill-white" />
-              <span className="text-4xl font-bold tracking-tight">Crush</span>
+        {/* Readability vignette behind the card column. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 bg-[radial-gradient(70%_60%_at_50%_45%,rgba(13,14,18,0.5),transparent_78%)]"
+        />
+
+        <div className="relative z-10 flex min-h-screen flex-col">
+          {/* Brand header */}
+          <header className="flex items-center justify-between px-6 py-5">
+            <Link
+              href="/"
+              className="group inline-flex items-center gap-2 text-white transition-opacity hover:opacity-80"
+            >
+              <Heart
+                className="h-6 w-6 fill-[#ff3f7f] text-[#ff3f7f] drop-shadow-[0_0_12px_rgba(255,63,127,0.7)]"
+                aria-hidden="true"
+              />
+              <span className="font-display text-xl font-semibold tracking-tight">Crush</span>
             </Link>
-
-            <h1 className="text-5xl font-bold leading-tight mb-6">
-              Find Your
-              <br />
-              Perfect Match
-            </h1>
-
-            <p className="text-xl text-white/80 max-w-md">
-              Join millions of people discovering meaningful connections every day.
-              Your journey to love starts here.
-            </p>
-
-            {/* Stats */}
-            <div className="flex gap-12 mt-12">
-              <div>
-                <div className="text-4xl font-bold">10M+</div>
-                <div className="text-white/70">Active Users</div>
-              </div>
-              <div>
-                <div className="text-4xl font-bold">500K+</div>
-                <div className="text-white/70">Matches Daily</div>
-              </div>
-              <div>
-                <div className="text-4xl font-bold">150+</div>
-                <div className="text-white/70">Countries</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right side - Auth form */}
-        <div className="flex-1 flex flex-col bg-background">
-          {/* Mobile header */}
-          <div className="lg:hidden p-6 flex justify-center">
-            <Link href="/" className="flex items-center gap-2 text-primary">
-              <Heart className="w-8 h-8 fill-primary" />
-              <span className="text-2xl font-bold">Crush</span>
+            <Link
+              href="/"
+              className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/40 transition-colors hover:text-white/80"
+            >
+              Back to site
             </Link>
-          </div>
+          </header>
 
-          {/* Form container */}
-          <div className="flex-1 flex items-center justify-center p-6">
+          {/* Form column */}
+          <main className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6">
             <div className="w-full max-w-md">{children}</div>
-          </div>
+          </main>
 
-          {/* Footer */}
-          <div className="p-6 text-center text-sm text-muted-foreground">
+          {/* Legal footer */}
+          <footer className="px-6 pb-6 text-center text-sm text-muted-foreground">
             <p>
               By continuing, you agree to our{' '}
               <Link href="/terms" className="text-primary hover:underline">
@@ -81,7 +80,7 @@ export default function AuthLayout({
                 Privacy Policy
               </Link>
             </p>
-          </div>
+          </footer>
         </div>
       </div>
     </RuntimeProviders>

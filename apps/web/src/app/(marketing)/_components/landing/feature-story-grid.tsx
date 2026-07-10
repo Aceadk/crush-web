@@ -1,5 +1,6 @@
 import { Eye, Globe, Heart, MessageCircle, Rewind, Shield } from 'lucide-react';
 import { Reveal } from './reveal';
+import { SectionLabel } from '../motion/section-label';
 
 const FEATURES = [
   {
@@ -51,6 +52,9 @@ export function FeatureStoryGrid() {
       <div className="relative mx-auto max-w-7xl">
         <Reveal>
           <div className="mb-14 text-center">
+            <SectionLabel index="02" className="mb-5">
+              Discovery
+            </SectionLabel>
             <h2 className="mb-3 text-3xl font-semibold tracking-tight sm:text-4xl">
               Why Choose <span className="text-gradient">Crush</span>?
             </h2>

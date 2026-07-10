@@ -43,6 +43,17 @@ export interface UserProfile {
   notificationSettings?: NotificationSettings;
   hasAcceptedTerms: boolean;
   termsAcceptedAt?: string;
+  // Mobile onboarding skip flags (written by the Flutter app when the user
+  // skips the basic-info / profile-setup steps). Read-only on web; inputs to
+  // the onboarding gate derivation.
+  hasSkippedBasicInfo?: boolean;
+  hasSkippedProfileSetup?: boolean;
+  // Onboarding ROUTING GATE, derived by mapUserDocumentToUserProfile the same
+  // way the mobile app derives it (terms + basic info + >=1 photo, honouring
+  // skip flags). NOT the raw Firestore field: the backend mirror trigger
+  // rewrites the top-level onboardingComplete/profileComplete doc fields to
+  // advanced-discovery ELIGIBILITY (false for incognito/hidden users), which
+  // must never bounce an onboarded user back into onboarding.
   onboardingComplete: boolean;
   profileComplete: boolean;
   isEmailVerified?: boolean;
@@ -92,6 +103,11 @@ export interface UserSettings {
   showAge: boolean;
   showDistance: boolean;
   showOnlineStatus: boolean;
+  // Discovery visibility. false maps to the canonical
+  // profile.preferences.hideFromDiscovery=true (buildCanonicalPreferences),
+  // which is what the backend deck + mobile read. Kept as the positive
+  // "showInDiscovery" here to match the legacy web settings doc shape.
+  showInDiscovery?: boolean;
   pushNotifications: boolean;
   emailNotifications: boolean;
   maxDistance: number;

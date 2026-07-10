@@ -94,13 +94,46 @@ class UserService {
       throw new Error('User not found');
     }
 
-    const currentSettings = userDoc.data().settings || DEFAULT_USER_SETTINGS;
+    const docData = userDoc.data();
+    const currentSettings = docData.settings || DEFAULT_USER_SETTINGS;
+
+    // The canonical profile.preferences.* values are the cross-platform source
+    // of truth (mobile writes ONLY those, never the legacy top-level settings
+    // doc field). Merge them into the base before applying this patch —
+    // otherwise toggling any single web setting would rebuild all preference
+    // keys from the stale top-level settings and clobber values the user set
+    // on mobile (e.g. their age range).
+    const profilePreferences =
+      (docData.profile as { preferences?: Record<string, unknown> } | undefined)?.preferences ??
+      {};
+    const canonicalAsSettings: Partial<UserSettings> = {};
+    if (typeof profilePreferences.maxDistanceKm === 'number') {
+      canonicalAsSettings.maxDistance = profilePreferences.maxDistanceKm;
+    }
+    if (typeof profilePreferences.minAge === 'number') {
+      canonicalAsSettings.ageRangeMin = profilePreferences.minAge;
+    }
+    if (typeof profilePreferences.maxAge === 'number') {
+      canonicalAsSettings.ageRangeMax = profilePreferences.maxAge;
+    }
+    if (typeof profilePreferences.showMyDistance === 'boolean') {
+      canonicalAsSettings.showDistance = profilePreferences.showMyDistance;
+    }
+    if (typeof profilePreferences.showMyAge === 'boolean') {
+      canonicalAsSettings.showAge = profilePreferences.showMyAge;
+    }
+    if (typeof profilePreferences.incognitoMode === 'boolean') {
+      canonicalAsSettings.incognitoMode = profilePreferences.incognitoMode;
+    }
+    if (typeof profilePreferences.hideFromDiscovery === 'boolean') {
+      canonicalAsSettings.showInDiscovery = !profilePreferences.hideFromDiscovery;
+    }
+
+    const mergedSettings = { ...currentSettings, ...canonicalAsSettings, ...settings };
 
     await updateDoc(doc(db, USERS_COLLECTION, userId), {
-      settings: { ...currentSettings, ...settings },
-      ...buildUserProfileUpdateData({
-        settings: { ...currentSettings, ...settings },
-      }),
+      settings: mergedSettings,
+      ...buildUserProfileUpdateData({ settings: mergedSettings }),
       updatedAt: serverTimestamp(),
     });
   }

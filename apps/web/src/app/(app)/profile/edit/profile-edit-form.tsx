@@ -32,7 +32,6 @@ export default function ProfileEditForm() {
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -203,32 +202,12 @@ export default function ProfileEditForm() {
     setIsDirty(true);
   };
 
-  const handleVerifyProfile = async () => {
-    if (!user) return;
-
-    setVerifying(true);
-    setError(null);
-
-    try {
-      // Simulate verification process
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      await userService.updateUserProfile(user.uid, {
-        isVerified: true,
-      });
-
-      await refreshProfile();
-
-      // Briefly show success before reloading or just refreshing State
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      setError('Verification failed. Please try again.');
-      console.error(err);
-    } finally {
-      setVerifying(false);
-    }
-  };
+  // NOTE: real verification is the mobile app's ID/selfie verification flow
+  // (backed by moderation). The previous handler here SELF-WROTE
+  // profile.isVerified=true after a fake 1.5s delay — granting the verified
+  // badge (and its advanced-discovery ranking boost) with no verification at
+  // all, visible across web AND mobile. Web intentionally has no self-serve
+  // path until a backend-verified flow exists.
 
   const handleSave = useCallback(async () => {
     if (!user) return;
@@ -436,17 +415,8 @@ export default function ProfileEditForm() {
                   <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
                     {profile.isVerified
                       ? 'Your profile has the blue checkmark. You stand out from the crowd!'
-                      : 'Verified profiles get more matches and build trust. Take a quick selfie to get your blue checkmark.'}
+                      : 'Verified profiles get more matches and build trust. Verify with a quick selfie in the Crush mobile app — web verification is coming soon.'}
                   </p>
-                  {!profile.isVerified && (
-                    <Button
-                      onClick={handleVerifyProfile}
-                      disabled={verifying}
-                      className="w-full sm:w-auto"
-                    >
-                      {verifying ? 'Verifying...' : 'Get Verified Now'}
-                    </Button>
-                  )}
                 </div>
               </div>
             </Card>

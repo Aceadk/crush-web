@@ -15,6 +15,21 @@ const DEFAULT_REMEMBER_ME = true;
 
 let pendingRememberMePreference: boolean | null = null;
 
+/**
+ * Federated sign-ins (Google/Apple) are a strong identity proof from the
+ * provider, so they bypass the password-account new-device verification flow.
+ * Device verification exists to mitigate a leaked *password* used from an
+ * unknown device; it adds nothing for OAuth and only creates friction (a
+ * Google account already signed in to the browser could otherwise log in with
+ * one tap). Kept in one place so both the auth listener and checkDeviceTrust
+ * treat these identically.
+ */
+export function isFederatedSignIn(user: User): boolean {
+  return user.providerData.some(
+    ({ providerId }) => providerId === 'google.com' || providerId === 'apple.com'
+  );
+}
+
 function readRememberMePreference(): boolean {
   if (typeof window === 'undefined') {
     return DEFAULT_REMEMBER_ME;
@@ -191,16 +206,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             })();
 
             const trustPromise = (async () => {
-              // Device verification is enforced only for verified email accounts.
-              if (!user.email || !user.emailVerified) {
-                return {
-                  trusted: true,
-                  currentDeviceId: deviceSecurityService.getOrCreateCurrentDeviceId(),
-                  trustedDevices: [] as TrustedDevice[],
-                };
-              }
-
-              return deviceSecurityService.evaluateCurrentDeviceTrust(user.uid);
+              // New-device email verification is fully disabled. Every
+              // authenticated session is treated as trusted, so login/signup
+              // never diverts to the "Verify this new device" screen — for any
+              // sign-in method (email/password, Google, Apple, phone). The step
+              // added friction (an email round-trip that stranded users who
+              // couldn't reach the inbox right away) without meaningful
+              // protection for our flows. The trusted-device inventory in
+              // Settings still works via loadTrustedDevices(); it just no longer
+              // gates access.
+              return {
+                trusted: true,
+                currentDeviceId: deviceSecurityService.getOrCreateCurrentDeviceId(),
+                trustedDevices: [] as TrustedDevice[],
+              };
             })();
 
             const [profile, trustResult] = await Promise.all([profilePromise, trustPromise]);
@@ -333,41 +352,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   checkDeviceTrust: async () => {
-    const { user } = get();
-    if (!user) {
-      set({
-        deviceTrustChecked: true,
-        deviceTrusted: true,
-        deviceTrustLoading: false,
-        trustedDevices: [],
-      });
-      return true;
-    }
-
-    if (!user.email || !user.emailVerified) {
-      set({ deviceTrustChecked: true, deviceTrusted: true, deviceTrustLoading: false });
-      return true;
-    }
-
-    set({ deviceTrustLoading: true, error: null });
-    try {
-      const trustResult = await deviceSecurityService.evaluateCurrentDeviceTrust(user.uid);
-      set({
-        deviceTrustChecked: true,
-        deviceTrustLoading: false,
-        deviceTrusted: trustResult.trusted,
-        trustedDevices: toDeviceState(trustResult.trustedDevices, trustResult.currentDeviceId),
-      });
-      return trustResult.trusted;
-    } catch (error) {
-      console.error('Failed to check device trust:', error);
-      set({
-        deviceTrustChecked: true,
-        deviceTrustLoading: false,
-        deviceTrusted: true,
-      });
-      return true;
-    }
+    // New-device email verification is disabled — every session is trusted.
+    // See the auth listener's trustPromise for the rationale. Kept as a
+    // resolved no-op so existing callers (the app layout and the device-verify
+    // pages) simply observe a trusted device and continue, instead of ever
+    // routing to the "Verify this new device" screen.
+    set({ deviceTrustChecked: true, deviceTrusted: true, deviceTrustLoading: false });
+    return true;
   },
 
   trustCurrentDevice: async () => {
@@ -424,13 +415,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       const trustedDevices = await deviceSecurityService.revokeTrustedDevice(user.uid, deviceId);
       const currentDeviceId = deviceSecurityService.getOrCreateCurrentDeviceId();
-      const currentDeviceTrusted = trustedDevices.some(
-        (device) => device.deviceId === currentDeviceId
-      );
 
       set({
         trustedDevices: toDeviceState(trustedDevices, currentDeviceId),
-        deviceTrusted: currentDeviceTrusted || !user.email || !user.emailVerified,
+        // Device verification is disabled — revoking a device (even the current
+        // one) from Settings must never flip the session into the gated state
+        // that would bounce the user to the "Verify this new device" screen.
+        deviceTrusted: true,
         deviceTrustChecked: true,
         deviceTrustLoading: false,
       });

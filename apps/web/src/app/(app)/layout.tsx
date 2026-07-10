@@ -7,6 +7,7 @@ import { Sidebar } from '@/shared/components/layout/app-sidebar';
 import { AuthLoadingShell, AuthRedirectingShell } from '@/shared/components/layout/auth-shell';
 import { useIsMobile } from '@/shared/hooks';
 import { appendRedirectParam } from '@/shared/lib/auth-redirect';
+import { shouldShowAuthLoadingShell } from '@/shared/lib/auth-gates';
 import { RuntimeProviders } from '@/shared/providers/runtime-providers';
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
@@ -25,7 +26,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { setIsMobile } = useUIStore();
   const { subscribeToMatches, cleanup } = useMatchStore();
   const isMobile = useIsMobile();
-  const needsEmailVerification = Boolean(user?.email && !user.emailVerified);
+  // Phone-verified accounts are exempt (mobile parity: account verification is
+  // email OR phone; the backend's requireEmailVerified also exempts phone
+  // sign-in). Only unverified email/password accounts are gated.
+  const needsEmailVerification = Boolean(user?.email && !user.emailVerified && !user.phoneNumber);
 
   // Note: Auth is initialized globally in AuthInitializer provider
 
@@ -118,9 +122,13 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   // Loading state
   if (
-    !initialized ||
-    loading ||
-    (user && !needsEmailVerification && (!deviceTrustChecked || deviceTrustLoading))
+    shouldShowAuthLoadingShell({
+      initialized,
+      loading,
+      hasUser: Boolean(user),
+      needsEmailVerification,
+      deviceTrustChecked,
+    })
   ) {
     return <AuthLoadingShell />;
   }
@@ -146,9 +154,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Main content. md:ml-64 matches the useIsMobile (768px) breakpoint that
           controls sidebar visibility — lg: left the sidebar overlapping content
           between 768–1023px. No transition: animating the margin on viewport
-          resize caused a transient horizontal overflow. */}
+          resize caused a transient horizontal overflow.
+
+          pt-14 below md reserves space for the fixed mobile menu button
+          (app-sidebar: `fixed top-3 left-3`), which otherwise overlaps the
+          top-left of every page's content (e.g. the discover "STORIES"
+          heading). Cleared at md+ where the sidebar takes over the layout. */}
       <main className={`flex-1 ${!isMobile ? 'md:ml-64' : ''}`}>
-        <div className="min-h-screen">{children}</div>
+        <div className="min-h-screen pt-14 md:pt-0">{children}</div>
       </main>
     </div>
   );

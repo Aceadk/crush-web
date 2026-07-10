@@ -176,7 +176,7 @@ function SignupPageContent() {
   const isLoading = loading || isSigningUp;
 
   return (
-    <Card className="border-0 shadow-lg">
+    <Card className="border border-white/10 bg-white/[0.05] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Create your account</CardTitle>
         <CardDescription>Start your journey to find love</CardDescription>
@@ -352,7 +352,7 @@ export default function SignupPage() {
   return (
     <Suspense
       fallback={
-        <Card className="border-0 shadow-lg">
+        <Card className="border border-white/10 bg-white/[0.05] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
           <CardContent className="py-12">
             <div className="flex items-center justify-center gap-3 text-muted-foreground">
               <User className="w-5 h-5 animate-pulse" />

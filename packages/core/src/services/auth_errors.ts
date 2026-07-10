@@ -25,7 +25,7 @@ const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
   'invalid-email': 'Please enter a valid email address.',
   'user-disabled': 'This account has been disabled. Please contact support.',
   'email-already-in-use': 'An account with this email already exists.',
-  'weak-password': 'Password is too weak. Use at least 6 characters.',
+  'weak-password': 'Password is too weak. Use at least 8 characters.',
   'too-many-requests':
     'Too many attempts. Please wait a moment and try again.',
   'network-request-failed':

@@ -153,7 +153,7 @@ export default function LoginForm() {
   const isLoading = loading || isSigningIn || isSendingEmailLink;
 
   return (
-    <Card className="border-0 shadow-lg">
+    <Card className="border border-white/10 bg-white/[0.05] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">{t('auth.welcomeBack')}</CardTitle>
         <CardDescription>{t('auth.signInSubtitle')}</CardDescription>

@@ -1,116 +1,81 @@
-'use client';
-
-import { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ChevronDown, Sparkles } from 'lucide-react';
-import { FloatingMatchScene } from './floating-match-scene';
+import { ArrowRight, ChevronDown } from 'lucide-react';
+import { Magnetic } from '../motion/magnetic';
+import { SectionLabel } from '../motion/section-label';
 
 /**
- * Cinematic full-viewport hero: layered gradient mesh with subtle scroll
- * parallax, an animated gradient headline, and the floating match scene.
+ * Act 1 — "Alone". Full-viewport cinematic hero over the Magnetic Attraction
+ * particle scene (page-fixed, mounted by the landing page): two luminous orbs
+ * drifting apart in deep space, reacting to the cursor. Oversized display
+ * type, one punchy line, scroll indicator.
  *
- * Entrance animations are pure CSS (`animate-hero-in`) so they run even when
- * JavaScript is unavailable; parallax is a tiny rAF-throttled enhancement
- * that is skipped entirely for reduced-motion users.
+ * Server component: all copy is static SSR markup (visible with JS disabled —
+ * the WebGL scene and entrance animations are progressive enhancement, and
+ * entrance uses CSS `motion-safe` keyframes only).
  */
 export function CrushHero() {
-  const orbARef = useRef<HTMLDivElement>(null);
-  const orbBRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    let frame = 0;
-    const onScroll = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        const y = window.scrollY;
-        if (y > window.innerHeight * 1.5) return; // hero is off screen
-        if (orbARef.current) orbARef.current.style.transform = `translate3d(0, ${y * 0.22}px, 0)`;
-        if (orbBRef.current) orbBRef.current.style.transform = `translate3d(0, ${y * -0.16}px, 0)`;
-        if (sceneRef.current) sceneRef.current.style.transform = `translate3d(0, ${y * 0.08}px, 0)`;
-      });
-    };
-
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, []);
-
   return (
-    <section className="relative flex min-h-[100svh] flex-col overflow-hidden pt-14">
-      {/* Layered gradient mesh background */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(55%_45%_at_75%_8%,hsl(var(--primary)/0.12),transparent_65%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(45%_40%_at_15%_85%,hsl(var(--secondary)/0.10),transparent_65%)]" />
-        <div
-          ref={orbARef}
-          className="absolute -top-32 right-[8%] h-[28rem] w-[28rem] rounded-full bg-primary/15 blur-3xl motion-safe:animate-pulse-glow"
-        />
-        <div
-          ref={orbBRef}
-          className="absolute bottom-[-10rem] left-[-6rem] h-[24rem] w-[24rem] rounded-full bg-secondary/15 blur-3xl motion-safe:animate-pulse-glow [animation-delay:2s]"
-        />
-      </div>
+    <section className="relative flex min-h-[100svh] flex-col overflow-hidden text-white">
+      {/* Readability vignette between scene and type. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_46%,rgba(13,14,18,0.55),transparent_75%)]"
+      />
 
-      <div className="relative mx-auto flex w-full max-w-7xl flex-1 items-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid w-full items-center gap-12 lg:grid-cols-2 lg:gap-8">
-          {/* Copy */}
-          <div className="text-center lg:text-left">
-            <div className="motion-safe:animate-hero-in">
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-accent/80 px-3.5 py-1.5 text-xs font-medium text-accent-foreground backdrop-blur">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Over 1 million matches made</span>
-              </div>
-            </div>
-
-            <h1 className="mb-5 text-4xl font-semibold tracking-tight xs:text-5xl md:text-6xl xl:text-7xl motion-safe:animate-hero-in motion-safe:[animation-delay:120ms]">
-              Find your{' '}
-              <span className="bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_auto] bg-clip-text text-transparent motion-safe:animate-gradient-pan">
-                perfect match
-              </span>
-            </h1>
-
-            <p className="mx-auto mb-8 max-w-xl text-base text-muted-foreground sm:text-lg lg:mx-0 motion-safe:animate-hero-in motion-safe:[animation-delay:240ms]">
-              Crush is the dating app that focuses on meaningful connections.
-              Swipe, match, and chat with people who share your interests and values.
-            </p>
-
-            <div className="flex flex-col justify-center gap-3 sm:flex-row lg:justify-start motion-safe:animate-hero-in motion-safe:[animation-delay:360ms]">
-              <Link
-                href="/auth/signup"
-                className="btn-primary px-7 py-3 text-base shadow-[0_8px_40px_-12px_hsl(var(--primary)/0.6)] transition-shadow hover:shadow-[0_8px_48px_-8px_hsl(var(--primary)/0.7)]"
-              >
-                Start Matching
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-              <Link href="/features" className="btn-outline glass px-7 py-3 text-base">
-                Learn More
-              </Link>
-            </div>
-          </div>
-
-          {/* Floating match scene */}
-          <div className="motion-safe:animate-hero-in motion-safe:[animation-delay:300ms]">
-            <div ref={sceneRef}>
-              <FloatingMatchScene />
-            </div>
-          </div>
+      <div className="relative mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-4 py-24 text-center sm:px-6">
+        <div className="motion-safe:animate-hero-in">
+          <SectionLabel index="01" className="mb-8">
+            Two strangers
+          </SectionLabel>
         </div>
+
+        <h1 className="mb-7 font-display text-[clamp(3rem,10.5vw,8.25rem)] font-semibold leading-[0.94] tracking-[-0.045em] motion-safe:animate-hero-in motion-safe:[animation-delay:120ms]">
+          Find your
+          <br />
+          <span className="bg-gradient-to-r from-[#ff3f7f] via-[#ff7aa6] to-[#7c4dff] bg-[length:200%_auto] bg-clip-text text-transparent motion-safe:animate-gradient-pan">
+            perfect match
+          </span>
+        </h1>
+
+        <p className="mb-10 max-w-md text-balance text-base text-white/60 sm:text-lg motion-safe:animate-hero-in motion-safe:[animation-delay:240ms]">
+          Two people. One pull. Crush is where gravity does the matchmaking.
+        </p>
+
+        <div className="flex flex-col items-center justify-center gap-3 sm:flex-row motion-safe:animate-hero-in motion-safe:[animation-delay:360ms]">
+          <Magnetic>
+            <Link
+              href="/auth/signup"
+              className="group inline-flex items-center gap-2 rounded-full bg-[#ff3f7f] px-8 py-3.5 text-base font-medium text-white shadow-[0_10px_50px_-12px_rgba(255,63,127,0.9)] transition-all duration-300 hover:shadow-[0_14px_70px_-10px_rgba(255,63,127,1)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff3f7f]"
+            >
+              Start Matching
+              <ArrowRight
+                className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </Link>
+          </Magnetic>
+          <Magnetic strength={0.22}>
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center rounded-full border border-white/15 bg-white/[0.03] px-8 py-3.5 text-base font-medium text-white/80 backdrop-blur transition-colors hover:border-white/30 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
+            >
+              Sign in
+            </Link>
+          </Magnetic>
+        </div>
+
+        <p className="mt-10 font-mono text-[11px] uppercase tracking-[0.35em] text-white/30 motion-safe:animate-hero-in motion-safe:[animation-delay:480ms]">
+          Over 1 million matches made
+        </p>
       </div>
 
       {/* Scroll hint */}
-      <div className="relative pb-6 text-center motion-safe:animate-hero-in motion-safe:[animation-delay:600ms]">
+      <div className="relative pb-8 text-center motion-safe:animate-hero-in motion-safe:[animation-delay:600ms]">
         <a
           href="#why-crush"
-          className="inline-flex flex-col items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex flex-col items-center gap-1.5 text-white/40 transition-colors hover:text-white"
         >
-          <span className="text-[11px] font-medium uppercase tracking-[0.2em]">Scroll</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.35em]">Scroll</span>
           <ChevronDown className="h-4 w-4 motion-safe:animate-scroll-hint" aria-hidden="true" />
           <span className="sr-only">Scroll down to learn why people choose Crush</span>
         </a>

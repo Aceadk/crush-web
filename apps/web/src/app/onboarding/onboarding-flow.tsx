@@ -96,7 +96,9 @@ export default function OnboardingFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, refreshProfile } = useAuthStore();
-  const needsEmailVerification = Boolean(user?.email && !user.emailVerified);
+  // Phone-verified accounts are exempt (mobile parity: account verification is
+  // email OR phone). Only unverified email/password accounts are gated.
+  const needsEmailVerification = Boolean(user?.email && !user.emailVerified && !user.phoneNumber);
   const redirectAfterAuth = sanitizeRedirectPath(searchParams.get('redirect'));
   const postOnboardingRedirect = redirectAfterAuth.startsWith('/onboarding')
     ? '/discover'

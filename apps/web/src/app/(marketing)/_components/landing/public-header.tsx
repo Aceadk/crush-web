@@ -22,6 +22,10 @@ export function PublicHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  // The landing page is a fixed dark cinematic canvas regardless of the app
+  // theme, so the header wears a dark-glass variant there (and hides the
+  // theme toggle, which has no visible effect on that route).
+  const onLanding = pathname === '/';
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -40,7 +44,14 @@ export function PublicHeader() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
-      <nav aria-label="Main" className="glass border-b border-border/50">
+      <nav
+        aria-label="Main"
+        className={cn(
+          onLanding
+            ? 'border-b border-white/10 bg-[#0d0e12]/70 backdrop-blur-xl'
+            : 'glass border-b border-border/50'
+        )}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <Link href="/" className="flex items-center gap-2" onClick={closeMenu}>
@@ -57,7 +68,9 @@ export function PublicHeader() {
                     'text-sm transition-colors',
                     pathname === href
                       ? 'text-foreground font-medium'
-                      : 'text-muted-foreground hover:text-foreground'
+                      : onLanding
+                        ? 'text-white/55 hover:text-white'
+                        : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   {label}
@@ -66,10 +79,15 @@ export function PublicHeader() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              <ThemeToggle />
+              {!onLanding && <ThemeToggle />}
               <Link
                 href="/auth/login"
-                className="hidden sm:inline-flex text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className={cn(
+                  'hidden sm:inline-flex text-sm font-medium transition-colors',
+                  onLanding
+                    ? 'text-white/60 hover:text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
               >
                 Log in
               </Link>
@@ -79,7 +97,12 @@ export function PublicHeader() {
               <button
                 ref={menuButtonRef}
                 type="button"
-                className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className={cn(
+                  'md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors',
+                  onLanding
+                    ? 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                    : 'border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
                 aria-label={menuOpen ? 'Close menu' : 'Open menu'}
                 aria-expanded={menuOpen}
                 aria-controls="public-mobile-nav"
@@ -99,7 +122,10 @@ export function PublicHeader() {
         <div
           id="public-mobile-nav"
           hidden={!menuOpen}
-          className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl"
+          className={cn(
+            'md:hidden border-t backdrop-blur-xl',
+            onLanding ? 'border-white/10 bg-[#0d0e12]/95' : 'border-border/50 bg-background/95'
+          )}
         >
           <div className="px-4 py-3 space-y-1">
             {NAV_LINKS.map(({ href, label }) => (
@@ -111,7 +137,9 @@ export function PublicHeader() {
                   'block rounded-lg px-3 py-2.5 text-sm transition-colors',
                   pathname === href
                     ? 'bg-accent text-accent-foreground font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    : onLanding
+                      ? 'text-white/60 hover:bg-white/5 hover:text-white'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 )}
               >
                 {label}
@@ -120,15 +148,25 @@ export function PublicHeader() {
             <Link
               href="/#download"
               onClick={closeMenu}
-              className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className={cn(
+                'block rounded-lg px-3 py-2.5 text-sm transition-colors',
+                onLanding
+                  ? 'text-white/60 hover:bg-white/5 hover:text-white'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
             >
               Download
             </Link>
-            <div className="pt-2 mt-2 border-t border-border/50">
+            <div className={cn('pt-2 mt-2 border-t', onLanding ? 'border-white/10' : 'border-border/50')}>
               <Link
                 href="/auth/login"
                 onClick={closeMenu}
-                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className={cn(
+                  'block rounded-lg px-3 py-2.5 text-sm transition-colors',
+                  onLanding
+                    ? 'text-white/60 hover:bg-white/5 hover:text-white'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
               >
                 Log in
               </Link>

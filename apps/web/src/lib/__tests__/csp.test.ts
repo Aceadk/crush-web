@@ -97,6 +97,16 @@ describe('CSP — environment-specific behavior', () => {
     expect(connect).toContain('http://127.0.0.1:*');
     expect(connect).toContain('ws://localhost:*');
   });
+
+  it('does not upgrade localhost HTTP requests in development', () => {
+    const dev = buildCspHeader({ isDevelopment: true });
+    expect(dev).not.toContain('upgrade-insecure-requests');
+  });
+
+  it('upgrades insecure requests in production', () => {
+    const prod = buildCspHeader({ isDevelopment: false });
+    expect(prod).toContain('upgrade-insecure-requests');
+  });
 });
 
 describe('CSP — canonical REST API origin', () => {

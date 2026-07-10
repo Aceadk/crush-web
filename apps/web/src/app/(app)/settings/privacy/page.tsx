@@ -117,7 +117,7 @@ export default function PrivacySettingsPage() {
     showAge: profile?.settings?.showAge ?? true,
     showReadReceipts: true,
     discoverableByContacts: false,
-    showInDiscovery: true,
+    showInDiscovery: profile?.settings?.showInDiscovery ?? true,
   });
 
   // Load settings from profile
@@ -128,6 +128,7 @@ export default function PrivacySettingsPage() {
         showOnlineStatus: profile.settings?.showOnlineStatus ?? true,
         showDistance: profile.settings?.showDistance ?? true,
         showAge: profile.settings?.showAge ?? true,
+        showInDiscovery: profile.settings?.showInDiscovery ?? true,
       }));
     }
   }, [profile?.settings]);
@@ -145,6 +146,10 @@ export default function PrivacySettingsPage() {
       if (key === 'showOnlineStatus') settingsUpdate.showOnlineStatus = value;
       if (key === 'showDistance') settingsUpdate.showDistance = value;
       if (key === 'showAge') settingsUpdate.showAge = value;
+      // Maps to the canonical profile.preferences.hideFromDiscovery via
+      // buildCanonicalPreferences — the field the backend deck + mobile read.
+      // Previously this toggle showed "Saved" without writing anything.
+      if (key === 'showInDiscovery') settingsUpdate.showInDiscovery = value;
 
       if (Object.keys(settingsUpdate).length > 0) {
         await userService.updateUserSettings(user.uid, settingsUpdate);

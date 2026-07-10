@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { authService, useAuthStore, userService } from '@crush/core';
+import { authService, useAuthStore } from '@crush/core';
 import {
   Button,
   Card,
@@ -54,15 +54,11 @@ function VerifyEmailRequiredPageContent() {
         const verified = await authService.checkEmailVerification();
 
         if (verified) {
-          // Sync verification status to Firestore for cross-platform consistency
-          if (user.uid) {
-            try {
-              await userService.updateUserProfile(user.uid, { isEmailVerified: true });
-            } catch {
-              // Non-blocking — Firebase Auth is the source of truth
-              console.error('Failed to sync isEmailVerified to Firestore');
-            }
-          }
+          // Firebase Auth is the cross-platform source of truth for email
+          // verification (mobile ORs the doc flag with the Auth flag, and the
+          // backend checks the Auth token). The previous "sync to Firestore"
+          // write here was a silent no-op — buildUserProfileUpdateData never
+          // mapped isEmailVerified — so it was removed rather than faked.
           setInfoMessage('Email verified. Redirecting...');
           router.replace(getPostVerificationRoute());
           return;
@@ -80,7 +76,7 @@ function VerifyEmailRequiredPageContent() {
         setChecking(false);
       }
     },
-    [user?.email, user?.uid, router, getPostVerificationRoute]
+    [user?.email, router, getPostVerificationRoute]
   );
 
   const handleResend = useCallback(async () => {
