@@ -79,9 +79,11 @@ export const STREAK_MILESTONES: StreakMilestone[] = [
   { days: 30, bonusLikes: 19, message: 'Month Streak!', icon: 'diamond' },
 ];
 
-// Constants
-export const BASE_DAILY_LIKES = 50;
-export const MAX_DAILY_LIKES = 69; // Maximum likes for free users regardless of streak
+// Constants — mirror the backend DAILY_LIKE_LIMIT_FREE + streak bonus
+// (functions/src/index.ts in the app repo); the server is authoritative,
+// these only drive local counters/UI. Daily limit only — no hourly throttle.
+export const BASE_DAILY_LIKES = 100;
+export const MAX_DAILY_LIKES = 119; // base + max streak bonus (19 at 30 days)
 export const LIKES_RESET_HOURS = 24;
 
 /**
