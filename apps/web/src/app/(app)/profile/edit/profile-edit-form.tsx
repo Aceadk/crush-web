@@ -247,12 +247,13 @@ export default function ProfileEditForm() {
       });
 
       setIsDirty(false); // Reset dirty state on successful save
-      await refreshProfile();
       setSuccess(true);
-
-      setTimeout(() => {
-        router.push('/profile');
-      }, 1000);
+      // Don't hold the user on this screen: refresh the store in the
+      // background and navigate right away (a 1s dwell + awaited refetch
+      // used to make every save feel slow). The profile page reads the
+      // store, which this refresh updates.
+      void refreshProfile();
+      router.push('/profile');
     } catch (err) {
       setError('Failed to save profile. Please try again.');
       console.error('Failed to save profile:', err);

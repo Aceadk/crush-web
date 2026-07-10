@@ -124,7 +124,7 @@ describe('buildUserProfileUpdateData — canonical only', () => {
     // whole profile save for users with an incomplete lifestyle section.
     const withUnsetLifestyle = buildUserProfileUpdateData({
       lifestyle: {
-        height: 170,
+        height: '170',
         education: 'BSc',
         drinking: undefined,
         smoking: undefined,
@@ -133,9 +133,9 @@ describe('buildUserProfileUpdateData — canonical only', () => {
     });
 
     const lifestyle = withUnsetLifestyle.lifestyle as Record<string, unknown>;
-    expect(lifestyle).toEqual({ height: 170, education: 'BSc' });
+    expect(lifestyle).toEqual({ height: '170', education: 'BSc' });
     expect(Object.values(withUnsetLifestyle)).not.toContain(undefined);
-    expect(withUnsetLifestyle['profile.heightCm']).toBe(170);
+    expect(withUnsetLifestyle['profile.heightCm']).toBe('170');
     expect(withUnsetLifestyle['profile.drinking']).toBeUndefined();
   });
 });
