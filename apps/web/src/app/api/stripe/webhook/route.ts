@@ -7,19 +7,25 @@ export const runtime = 'nodejs';
 
 type PremiumPlan = 'monthly' | 'quarterly' | 'yearly';
 
+// Billing period per price ID. Built from the SAME six `<tier>_<period>` vars the
+// checkout route uses — previously this read a separate legacy trio
+// (STRIPE_MONTHLY/QUARTERLY/YEARLY_PRICE_ID), so a price created for checkout was
+// unknown here and the purchased period was recorded as undefined.
 const PRICE_ID_TO_PLAN: Record<string, PremiumPlan> = {};
-const monthlyPriceId = process.env.STRIPE_MONTHLY_PRICE_ID?.trim();
-const quarterlyPriceId = process.env.STRIPE_QUARTERLY_PRICE_ID?.trim();
-const yearlyPriceId = process.env.STRIPE_YEARLY_PRICE_ID?.trim();
+const PRICE_ENV_TO_PERIOD: Record<string, PremiumPlan> = {
+  STRIPE_PLUS_MONTHLY_PRICE_ID: 'monthly',
+  STRIPE_PLUS_QUARTERLY_PRICE_ID: 'quarterly',
+  STRIPE_PLUS_YEARLY_PRICE_ID: 'yearly',
+  STRIPE_PLATINUM_MONTHLY_PRICE_ID: 'monthly',
+  STRIPE_PLATINUM_QUARTERLY_PRICE_ID: 'quarterly',
+  STRIPE_PLATINUM_YEARLY_PRICE_ID: 'yearly',
+};
 
-if (monthlyPriceId) {
-  PRICE_ID_TO_PLAN[monthlyPriceId] = 'monthly';
-}
-if (quarterlyPriceId) {
-  PRICE_ID_TO_PLAN[quarterlyPriceId] = 'quarterly';
-}
-if (yearlyPriceId) {
-  PRICE_ID_TO_PLAN[yearlyPriceId] = 'yearly';
+for (const [envName, period] of Object.entries(PRICE_ENV_TO_PERIOD)) {
+  const priceId = process.env[envName]?.trim();
+  if (priceId) {
+    PRICE_ID_TO_PLAN[priceId] = period;
+  }
 }
 
 function getStripeClient(): Stripe {
