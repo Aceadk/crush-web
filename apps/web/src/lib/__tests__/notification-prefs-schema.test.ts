@@ -27,7 +27,10 @@ vi.mock('@crush/core/firebase/config', () => ({
   getFirebaseDb: vi.fn(),
 }));
 
-import { WEB_NOTIFICATION_PREF_DEFAULTS } from '@crush/core/services/notification';
+import {
+  buildWebPushTokenOptions,
+  WEB_NOTIFICATION_PREF_DEFAULTS,
+} from '@crush/core/services/notification';
 
 // Authoritative backend categories (functions/src/index.ts NotificationCategory).
 const BACKEND_CATEGORIES = [
@@ -46,10 +49,9 @@ const CHANNELS = ['push', 'email'] as const;
 describe('WebNotificationPrefs schema ↔ backend categories', () => {
   it('includes every backend notification category', () => {
     for (const category of BACKEND_CATEGORIES) {
-      expect(
-        WEB_NOTIFICATION_PREF_DEFAULTS,
-        `missing category "${category}"`
-      ).toHaveProperty(category);
+      expect(WEB_NOTIFICATION_PREF_DEFAULTS, `missing category "${category}"`).toHaveProperty(
+        category
+      );
     }
   });
 
@@ -61,9 +63,7 @@ describe('WebNotificationPrefs schema ↔ backend categories', () => {
 
   it('has no keys beyond channels + backend categories', () => {
     const allowed = new Set<string>([...CHANNELS, ...BACKEND_CATEGORIES]);
-    const extra = Object.keys(WEB_NOTIFICATION_PREF_DEFAULTS).filter(
-      (k) => !allowed.has(k)
-    );
+    const extra = Object.keys(WEB_NOTIFICATION_PREF_DEFAULTS).filter((k) => !allowed.has(k));
     expect(extra, `unexpected pref keys: ${extra.join(', ')}`).toEqual([]);
   });
 
@@ -71,5 +71,20 @@ describe('WebNotificationPrefs schema ↔ backend categories', () => {
     for (const [key, value] of Object.entries(WEB_NOTIFICATION_PREF_DEFAULTS)) {
       expect(value, `${key} should default true`).toBe(true);
     }
+  });
+
+  it('uses Firebase default web-push credentials when no VAPID env key exists', () => {
+    const registration = {} as ServiceWorkerRegistration;
+    expect(buildWebPushTokenOptions(registration, '')).toEqual({
+      serviceWorkerRegistration: registration,
+    });
+  });
+
+  it('passes a configured VAPID key to Firebase messaging', () => {
+    const registration = {} as ServiceWorkerRegistration;
+    expect(buildWebPushTokenOptions(registration, 'vapid-key')).toEqual({
+      serviceWorkerRegistration: registration,
+      vapidKey: 'vapid-key',
+    });
   });
 });

@@ -50,12 +50,17 @@ function buildServiceWorkerUrl(): string {
   return `${SERVICE_WORKER_PATH}?${params.toString()}`;
 }
 
-function getVapidKey(): string {
-  const key = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY?.trim();
-  if (!key) {
-    throw new Error('Missing NEXT_PUBLIC_FIREBASE_VAPID_KEY');
-  }
-  return key;
+export function buildWebPushTokenOptions(
+  registration: ServiceWorkerRegistration,
+  vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY?.trim()
+): {
+  serviceWorkerRegistration: ServiceWorkerRegistration;
+  vapidKey?: string;
+} {
+  return {
+    serviceWorkerRegistration: registration,
+    ...(vapidKey ? { vapidKey } : {}),
+  };
 }
 
 function notificationSupportedByBrowser(): boolean {
@@ -215,10 +220,7 @@ class NotificationService {
   async registerToken(userId: string): Promise<string | null> {
     const registration = await getServiceWorkerRegistration();
     const messaging = getMessaging(getFirebaseApp());
-    const token = await getToken(messaging, {
-      vapidKey: getVapidKey(),
-      serviceWorkerRegistration: registration,
-    });
+    const token = await getToken(messaging, buildWebPushTokenOptions(registration));
     if (!token) return null;
 
     const db = getFirebaseDb();
@@ -242,10 +244,7 @@ class NotificationService {
     const messaging = getMessaging(getFirebaseApp());
     let token: string | null = null;
     try {
-      token = await getToken(messaging, {
-        vapidKey: getVapidKey(),
-        serviceWorkerRegistration: registration,
-      });
+      token = await getToken(messaging, buildWebPushTokenOptions(registration));
     } catch {
       token = null;
     }
