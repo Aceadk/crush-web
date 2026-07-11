@@ -216,7 +216,18 @@ class MatchServiceV2 {
       const matches = snapshot.docs.map((d) =>
         this.mapDocToMatch(d.id, d.data(), viewerId)
       );
-      void this.hydratePeerProfiles(matches).then((hydrated) => {
+      // One row per person: historical swipe races created duplicate match
+      // docs for the same pair. The query is newest-activity-first, so keeping
+      // the first doc per peer makes every client converge on the same one.
+      const seenPeers = new Set<string>();
+      const deduped = matches.filter((m) => {
+        const key = m.otherUserId.trim();
+        if (!key) return true;
+        if (seenPeers.has(key)) return false;
+        seenPeers.add(key);
+        return true;
+      });
+      void this.hydratePeerProfiles(deduped).then((hydrated) => {
         if (seq === latestSnapshotSeq) {
           callback(hydrated);
         }
