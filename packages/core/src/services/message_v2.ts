@@ -34,6 +34,11 @@ import {
 import { getFirebaseAuth, getFirebaseDb } from '../firebase/config';
 import { callables, type CallableMessageType } from '../api/callables';
 import {
+  decodeLegacyEncryptedContent,
+  isLegacyEncryptedContent,
+  LEGACY_ENCRYPTED_FALLBACK,
+} from './legacy_cipher';
+import {
   Message,
   MessageMetadata,
   MessageReaction,
@@ -204,8 +209,14 @@ class MessageServiceV2 {
         );
 
     const snapshot = await getDocs(q);
-    const messages = snapshot.docs.map((d) =>
-      this.mapDocToMessage(d.id, matchId, d.data())
+    const messages = await Promise.all(
+      snapshot.docs.map((d) =>
+        this.decodeLegacyContent(
+          matchId,
+          d.data(),
+          this.mapDocToMessage(d.id, matchId, d.data())
+        )
+      )
     );
 
     return {
@@ -228,12 +239,47 @@ class MessageServiceV2 {
       limit(MESSAGES_PER_PAGE)
     );
 
+    // Legacy-message decoding is async; guard against a slow older snapshot
+    // resolving after a newer one and delivering stale messages.
+    let latestSnapshotSeq = 0;
     return onSnapshot(q, (snapshot) => {
-      const messages = snapshot.docs.map((d) =>
-        this.mapDocToMessage(d.id, matchId, d.data())
-      );
-      callback(messages);
+      const seq = ++latestSnapshotSeq;
+      void Promise.all(
+        snapshot.docs.map((d) =>
+          this.decodeLegacyContent(
+            matchId,
+            d.data(),
+            this.mapDocToMessage(d.id, matchId, d.data())
+          )
+        )
+      ).then((messages) => {
+        if (seq === latestSnapshotSeq) {
+          callback(messages);
+        }
+      });
     });
+  }
+
+  /**
+   * Replace legacy "enc_v1:" ciphertext (written by older mobile builds)
+   * with its decoded plaintext, or a lock placeholder when undecodable.
+   * Plaintext messages pass through untouched. See legacy_cipher.ts.
+   */
+  private async decodeLegacyContent(
+    matchId: string,
+    data: Record<string, unknown>,
+    message: Message
+  ): Promise<Message> {
+    if (message.type !== 'text' || !isLegacyEncryptedContent(message.content)) {
+      return message;
+    }
+    const decoded = await decodeLegacyEncryptedContent({
+      matchId,
+      fromUserId: (data.fromUserId as string) ?? '',
+      toUserId: (data.toUserId as string) ?? '',
+      content: message.content,
+    });
+    return { ...message, content: decoded ?? LEGACY_ENCRYPTED_FALLBACK };
   }
 
   /**

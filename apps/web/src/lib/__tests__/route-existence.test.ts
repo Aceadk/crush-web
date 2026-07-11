@@ -75,8 +75,12 @@ describe('isImplementedWebRoute', () => {
     expect(isImplementedWebRoute('/messages/abc123')).toBe(true);
     expect(isImplementedWebRoute('/messages/abc123?from=push')).toBe(true);
   });
-  it('rejects non-existent routes (e.g. /profile/:userId has no page)', () => {
-    expect(isImplementedWebRoute('/profile/user-1')).toBe(false);
+  it('accepts the peer profile route (/profile/:userId)', () => {
+    // Five surfaces (chat header, likes, weekly picks, matches ×2) link
+    // here; it 404'd until the page was added.
+    expect(isImplementedWebRoute('/profile/user-1')).toBe(true);
+  });
+  it('rejects non-existent routes', () => {
     expect(isImplementedWebRoute('/totally-made-up')).toBe(false);
   });
   it('sanity: app dir resolves', () => {

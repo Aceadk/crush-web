@@ -159,6 +159,11 @@ export type {
 } from './services/entitlement';
 
 export { boostService } from './services/boost';
+export {
+  decodeLegacyEncryptedContent,
+  isLegacyEncryptedContent,
+  LEGACY_ENCRYPTED_FALLBACK,
+} from './services/legacy_cipher';
 export { deviceSecurityService } from './services/device-security';
 export type { DeviceTrustResult, TrustedDevice } from './services/device-security';
 export { promoCodeService } from './services/promo';

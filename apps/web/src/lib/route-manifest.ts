@@ -46,6 +46,7 @@ export const WEB_ROUTES = [
   '/pricing',
   '/privacy',
   '/profile',
+  '/profile/:userId',
   '/profile/edit',
   '/profile/preview',
   '/safety',

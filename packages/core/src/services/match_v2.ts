@@ -39,6 +39,13 @@ import {
 import { getFirebaseAuth, getFirebaseDb } from '../firebase/config';
 import { callables } from '../api/callables';
 import { Match, MatchStatus } from '../types/match';
+import { isLegacyEncryptedContent } from './legacy_cipher';
+
+/** Chat-list previews never show raw legacy ciphertext. */
+function maskLegacyPreview(preview: string | undefined): string | undefined {
+  if (!preview) return preview;
+  return isLegacyEncryptedContent(preview) ? '🔒 Message' : preview;
+}
 
 const MATCHES_COLLECTION = 'matches';
 
@@ -117,7 +124,11 @@ class MatchServiceV2 {
       lastMessageAt: data.lastMessageAt
         ? this.toIsoString(data.lastMessageAt)
         : undefined,
-      lastMessage: (data.lastMessageContent as string | undefined) ?? undefined,
+      // Older mobile builds encrypted texts, so the denormalized preview can
+      // be "enc_v1:..." ciphertext — mask it rather than showing gibberish.
+      lastMessage: maskLegacyPreview(
+        (data.lastMessageContent as string | undefined) ?? undefined
+      ),
       unreadCount: 0,
       isSuperLike: Boolean(data.isSuperLike),
     };
@@ -177,9 +188,10 @@ class MatchServiceV2 {
     );
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((d) =>
+    const matches = snapshot.docs.map((d) =>
       this.mapDocToMatch(d.id, d.data(), viewerId)
     );
+    return this.hydratePeerProfiles(matches);
   }
 
   /**
@@ -196,11 +208,19 @@ class MatchServiceV2 {
       orderBy('lastMessageAt', 'desc')
     );
 
+    // Peer hydration is async; guard against an older snapshot resolving
+    // after a newer one and delivering stale matches.
+    let latestSnapshotSeq = 0;
     return onSnapshot(q, (snapshot) => {
+      const seq = ++latestSnapshotSeq;
       const matches = snapshot.docs.map((d) =>
         this.mapDocToMatch(d.id, d.data(), viewerId)
       );
-      callback(matches);
+      void this.hydratePeerProfiles(matches).then((hydrated) => {
+        if (seq === latestSnapshotSeq) {
+          callback(hydrated);
+        }
+      });
     });
   }
 
@@ -214,7 +234,71 @@ class MatchServiceV2 {
     if (!snapshot.exists()) {
       return null;
     }
-    return this.mapDocToMatch(snapshot.id, snapshot.data(), viewerId);
+    const match = this.mapDocToMatch(snapshot.id, snapshot.data(), viewerId);
+    const [hydrated] = await this.hydratePeerProfiles([match]);
+    return hydrated;
+  }
+
+  /**
+   * Fill otherUserName/otherUserPhotoUrl from the peer's user document.
+   *
+   * The backend match doc does NOT denormalize peer identity (swipeRight
+   * writes only ids/status/timestamps), so without this every match rendered
+   * as "Unknown" with an empty avatar. Mirrors the mobile app's
+   * _hydrateCurrentMatchProfiles. Failures degrade to the raw match —
+   * hydration must never break the matches list.
+   */
+  private async hydratePeerProfiles(matches: Match[]): Promise<Match[]> {
+    const missing = matches.filter(
+      (m) => !m.otherUserName || !m.otherUserPhotoUrl
+    );
+    if (missing.length === 0) return matches;
+
+    const db = getFirebaseDb();
+    const uniquePeerIds = [...new Set(missing.map((m) => m.otherUserId))];
+    const profileByUid = new Map<
+      string,
+      { name?: string; photoUrl?: string }
+    >();
+
+    await Promise.all(
+      uniquePeerIds.map(async (uid) => {
+        try {
+          const snap = await getDoc(doc(db, 'users', uid));
+          if (!snap.exists()) return;
+          const data = snap.data() as Record<string, unknown>;
+          const profile = (data.profile ?? {}) as Record<string, unknown>;
+          const photoUrls = Array.isArray(profile.photoUrls)
+            ? (profile.photoUrls as string[])
+            : [];
+          const primaryIndex =
+            typeof profile.primaryPhotoIndex === 'number'
+              ? profile.primaryPhotoIndex
+              : 0;
+          profileByUid.set(uid, {
+            name:
+              (profile.name as string | undefined) ??
+              (data.displayName as string | undefined),
+            photoUrl:
+              photoUrls[primaryIndex] ??
+              photoUrls[0] ??
+              (data.profilePhotoUrl as string | undefined),
+          });
+        } catch {
+          // Blocked/hidden/deleted peers: leave the match unhydrated.
+        }
+      })
+    );
+
+    return matches.map((m) => {
+      const peer = profileByUid.get(m.otherUserId);
+      if (!peer) return m;
+      return {
+        ...m,
+        otherUserName: m.otherUserName ?? peer.name,
+        otherUserPhotoUrl: m.otherUserPhotoUrl ?? peer.photoUrl,
+      };
+    });
   }
 }
 
