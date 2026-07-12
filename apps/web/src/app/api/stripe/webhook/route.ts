@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { shouldApplyStripeEvent, type StripeEventVersion } from '../stripe-event-ordering';
 
 export const runtime = 'nodejs';
 
@@ -62,11 +63,7 @@ function extractCustomerId(
 }
 
 function extractSubscriptionId(
-  subscription:
-    | string
-    | Stripe.Subscription
-    | null
-    | undefined
+  subscription: string | Stripe.Subscription | null | undefined
 ): string | null {
   if (!subscription) {
     return null;
@@ -78,11 +75,7 @@ function extractSubscriptionId(
 }
 
 function isPremiumStatus(status: Stripe.Subscription.Status): boolean {
-  return (
-    status === 'active' ||
-    status === 'trialing' ||
-    status === 'past_due'
-  );
+  return status === 'active' || status === 'trialing' || status === 'past_due';
 }
 
 function resolvePremiumPlan(priceId?: string): PremiumPlan | undefined {
@@ -126,35 +119,66 @@ async function resolveUserId(
   return snapshot.docs[0].id;
 }
 
-/**
- * H-2: mirror sensitive billing/entitlement fields into the owner-only private
- * doc (users/{uid}/private/account) and maintain the Stripe reverse-lookup map
- * (stripe_customers/{customerId} -> uid). Called alongside the public write so
- * the private store stays current before the cutover removes these fields from
- * the public doc. Non-breaking during the additive phase.
- */
-async function mirrorBillingToPrivate(
-  userId: string,
-  customerId: string | null,
-  fields: Record<string, unknown>
-): Promise<void> {
-  const db = getAdminDb();
-  await db
-    .collection('users')
-    .doc(userId)
-    .collection('private')
-    .doc('account')
-    .set({ ...fields, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+function getStripeEventVersion(snapshot: FirebaseFirestore.DocumentSnapshot): StripeEventVersion {
+  const lifecycle = snapshot.get('subscriptionLifecycle') as Record<string, unknown> | undefined;
+  return {
+    created: typeof lifecycle?.stripeEventCreated === 'number' ? lifecycle.stripeEventCreated : 0,
+    status: typeof lifecycle?.status === 'string' ? lifecycle.status : undefined,
+  };
+}
 
-  if (customerId) {
-    await db
-      .collection('stripe_customers')
-      .doc(customerId)
-      .set(
-        { uid: userId, updatedAt: FieldValue.serverTimestamp() },
+/**
+ * Write public + private entitlement mirrors atomically and reject stale
+ * webhook snapshots. Stripe can deliver related events concurrently; without
+ * this monotonic guard an older `subscription.created(incomplete)` invocation
+ * can finish after `subscription.updated(active)` and revoke paid access.
+ */
+async function writeBillingState(params: {
+  userId: string;
+  customerId: string | null;
+  fields: Record<string, unknown>;
+  eventCreated: number;
+  status: string;
+}): Promise<void> {
+  const db = getAdminDb();
+  const publicRef = db.collection('users').doc(params.userId);
+  const privateRef = publicRef.collection('private').doc('account');
+  const customerMapRef = params.customerId
+    ? db.collection('stripe_customers').doc(params.customerId)
+    : null;
+
+  await db.runTransaction(async (transaction) => {
+    const [publicSnapshot, privateSnapshot] = await Promise.all([
+      transaction.get(publicRef),
+      transaction.get(privateRef),
+    ]);
+    const currentVersions = [
+      getStripeEventVersion(publicSnapshot),
+      getStripeEventVersion(privateSnapshot),
+    ];
+    const current = currentVersions.reduce((latest, candidate) =>
+      shouldApplyStripeEvent(latest, candidate) ? candidate : latest
+    );
+
+    if (
+      !shouldApplyStripeEvent(current, {
+        created: params.eventCreated,
+        status: params.status,
+      })
+    ) {
+      return;
+    }
+
+    transaction.set(publicRef, params.fields, { merge: true });
+    transaction.set(privateRef, params.fields, { merge: true });
+    if (customerMapRef) {
+      transaction.set(
+        customerMapRef,
+        { uid: params.userId, updatedAt: FieldValue.serverTimestamp() },
         { merge: true }
       );
-  }
+    }
+  });
 }
 
 async function updateSubscriptionState(params: {
@@ -165,13 +189,11 @@ async function updateSubscriptionState(params: {
   periodEndUnix: number | null;
   cancelAtPeriodEnd: boolean;
   plan: PremiumPlan | undefined;
+  eventCreated: number;
 }) {
-  const db = getAdminDb();
   const isPremium = isPremiumStatus(params.status);
   const premiumExpiresAt =
-    params.periodEndUnix != null
-      ? new Date(params.periodEndUnix * 1000).toISOString()
-      : null;
+    params.periodEndUnix != null ? new Date(params.periodEndUnix * 1000).toISOString() : null;
 
   const updates: Record<string, unknown> = {
     // Canonical entitlement fields (source of truth for rules + mobile).
@@ -185,6 +207,7 @@ async function updateSubscriptionState(params: {
       status: params.status,
       currentPeriodEnd: premiumExpiresAt,
       cancelAtPeriodEnd: params.cancelAtPeriodEnd,
+      stripeEventCreated: params.eventCreated,
     },
     // Legacy web fields (kept for backward compatibility).
     isPremium,
@@ -204,17 +227,21 @@ async function updateSubscriptionState(params: {
     updates.premiumPlan = null;
   }
 
-  await db.collection('users').doc(params.userId).set(updates, { merge: true });
-  // H-2: keep the owner-only private doc + Stripe map in sync with the public write.
-  await mirrorBillingToPrivate(params.userId, params.customerId, updates);
+  await writeBillingState({
+    userId: params.userId,
+    customerId: params.customerId,
+    fields: updates,
+    eventCreated: params.eventCreated,
+    status: params.status,
+  });
 }
 
 async function updateSubscriptionDeleted(params: {
   userId: string;
   customerId: string | null;
   subscriptionId: string;
+  eventCreated: number;
 }) {
-  const db = getAdminDb();
   const revoke: Record<string, unknown> = {
     // Canonical entitlement fields — revoke premium across rules + mobile.
     plan: 'free',
@@ -224,6 +251,7 @@ async function updateSubscriptionDeleted(params: {
       status: 'canceled',
       currentPeriodEnd: null,
       cancelAtPeriodEnd: false,
+      stripeEventCreated: params.eventCreated,
     },
     // Legacy web fields (kept for backward compatibility).
     isPremium: false,
@@ -235,23 +263,25 @@ async function updateSubscriptionDeleted(params: {
     stripeCustomerId: params.customerId,
     updatedAt: FieldValue.serverTimestamp(),
   };
-  await db.collection('users').doc(params.userId).set(revoke, { merge: true });
-  // H-2: keep the owner-only private doc + Stripe map in sync with the public write.
-  await mirrorBillingToPrivate(params.userId, params.customerId, revoke);
+  await writeBillingState({
+    userId: params.userId,
+    customerId: params.customerId,
+    fields: revoke,
+    eventCreated: params.eventCreated,
+    status: 'canceled',
+  });
 }
 
 async function processSubscriptionEvent(
   subscription: Stripe.Subscription,
-  userIdHint?: string | null
+  userIdHint: string | null | undefined,
+  eventCreated: number
 ) {
   const customerId = extractCustomerId(subscription.customer);
   const userId = await resolveUserId(userIdHint ?? null, customerId);
   if (!userId) {
     if (process.env.NODE_ENV === 'development') {
-      console.warn(
-        '[stripe-webhook] Could not resolve user for subscription',
-        subscription.id
-      );
+      console.warn('[stripe-webhook] Could not resolve user for subscription', subscription.id);
     }
     return;
   }
@@ -265,6 +295,7 @@ async function processSubscriptionEvent(
     periodEndUnix: subscription.current_period_end ?? null,
     cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
     plan,
+    eventCreated,
   });
 }
 
@@ -272,10 +303,7 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get('stripe-signature');
 
   if (!signature) {
-    return NextResponse.json(
-      { error: 'Missing stripe-signature header' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 });
   }
 
   const body = await request.text();
@@ -284,19 +312,12 @@ export async function POST(request: NextRequest) {
   const stripe = getStripeClient();
 
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      getWebhookSecret()
-    );
+    event = stripe.webhooks.constructEvent(body, signature, getWebhookSecret());
   } catch (err) {
     if (process.env.NODE_ENV === 'development') {
       console.error('Webhook signature verification failed:', err);
     }
-    return NextResponse.json(
-      { error: 'Webhook signature verification failed' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 });
   }
 
   const eventRef = db.collection('stripe_webhook_events').doc(event.id);
@@ -325,7 +346,7 @@ export async function POST(request: NextRequest) {
 
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          await processSubscriptionEvent(subscription, userIdHint);
+          await processSubscriptionEvent(subscription, userIdHint, event.created);
         } else if (userIdHint) {
           const customerId = extractCustomerId(session.customer);
           await db.collection('users').doc(userIdHint).set(
@@ -341,10 +362,15 @@ export async function POST(request: NextRequest) {
 
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const eventSubscription = event.data.object as Stripe.Subscription;
+        // Always reconcile from Stripe's current object, not the potentially
+        // stale event snapshot. The transaction below also prevents a slower
+        // older invocation from overwriting a newer event.
+        const subscription = await stripe.subscriptions.retrieve(eventSubscription.id);
         await processSubscriptionEvent(
           subscription,
-          subscription.metadata?.userId ?? null
+          eventSubscription.metadata?.userId ?? null,
+          event.created
         );
         break;
       }
@@ -352,15 +378,13 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = extractCustomerId(subscription.customer);
-        const userId = await resolveUserId(
-          subscription.metadata?.userId ?? null,
-          customerId
-        );
+        const userId = await resolveUserId(subscription.metadata?.userId ?? null, customerId);
         if (userId) {
           await updateSubscriptionDeleted({
             userId,
             customerId,
             subscriptionId: subscription.id,
+            eventCreated: event.created,
           });
         }
         break;
@@ -374,13 +398,10 @@ export async function POST(request: NextRequest) {
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           const customerId = extractCustomerId(subscription.customer);
-          const userId = await resolveUserId(
-            subscription.metadata?.userId ?? null,
-            customerId
-          );
+          const userId = await resolveUserId(subscription.metadata?.userId ?? null, customerId);
 
           if (userId) {
-            await processSubscriptionEvent(subscription, userId);
+            await processSubscriptionEvent(subscription, userId, event.created);
             if (event.type === 'invoice.payment_failed') {
               await db.collection('users').doc(userId).set(
                 {
@@ -396,7 +417,7 @@ export async function POST(request: NextRequest) {
       }
 
       default:
-        // Event intentionally ignored.
+      // Event intentionally ignored.
     }
 
     await eventRef.set(
@@ -413,9 +434,6 @@ export async function POST(request: NextRequest) {
     if (process.env.NODE_ENV === 'development') {
       console.error('Error processing webhook:', error);
     }
-    return NextResponse.json(
-      { error: 'Webhook processing failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
 }

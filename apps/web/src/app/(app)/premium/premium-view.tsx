@@ -1,13 +1,14 @@
 'use client';
 
 import { analytics } from '@/lib/analytics';
+import { ManageSubscriptionButton } from '@/features/premium';
 import {
-    BILLING_CONFIG,
-    useAuthStore,
-    usePromoCodeStore,
-    useUIStore,
-    type BillingPeriod,
-    type SubscriptionTier,
+  BILLING_CONFIG,
+  useAuthStore,
+  usePromoCodeStore,
+  useUIStore,
+  type BillingPeriod,
+  type SubscriptionTier,
 } from '@crush/core';
 import { Badge, Button, Card, cn } from '@crush/ui';
 import { loadStripe } from '@stripe/stripe-js';
@@ -346,18 +347,13 @@ export default function PremiumView() {
 
           {/* Manage Subscription */}
           <Card className="p-4">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                window.open('https://billing.stripe.com/p/login/test', '_blank');
-              }}
-            >
-              Manage Subscription
-            </Button>
-            <p className="mt-2 text-center text-xs text-gray-500">
-              Update payment method, change plan, or cancel subscription
-            </p>
+            {profile.stripeCustomerId ? (
+              <ManageSubscriptionButton />
+            ) : (
+              <p className="text-center text-sm text-gray-500">
+                This subscription is managed through the store where it was purchased.
+              </p>
+            )}
           </Card>
 
           {/* Your Benefits */}

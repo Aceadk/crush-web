@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore, userService, authService, type TrustedDevice } from '@crush/core';
 import { Card, Button, Input, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
+import { ManageSubscriptionButton } from '@/features/premium';
 import {
   ArrowLeft,
   Mail,
@@ -103,9 +104,7 @@ export default function AccountManagementPage() {
       await loadTrustedDevices();
       setDeviceActionSuccess('This device is now trusted.');
     } catch (error) {
-      setDeviceActionError(
-        error instanceof Error ? error.message : 'Failed to trust this device.'
-      );
+      setDeviceActionError(error instanceof Error ? error.message : 'Failed to trust this device.');
     } finally {
       setDeviceActionLoadingId(null);
     }
@@ -244,15 +243,15 @@ export default function AccountManagementPage() {
   }, [user, isPaused, refreshProfile]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-20 dark:bg-gray-900">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
+      <div className="sticky top-0 z-20 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div className="mx-auto flex max-w-2xl items-center gap-4 px-4 py-4">
           <button
             onClick={() => router.back()}
-            className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            className="-ml-2 p-2 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="h-6 w-6" />
           </button>
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
             Account Management
@@ -260,19 +259,19 @@ export default function AccountManagementPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
         {/* Email Section */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Email Address
             </h2>
           </div>
           <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                  <Mail className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                 </div>
                 <div>
                   <p className="font-medium text-gray-900 dark:text-white">
@@ -280,13 +279,13 @@ export default function AccountManagementPage() {
                   </p>
                   <div className="flex items-center gap-2">
                     {isEmailVerified ? (
-                      <Badge className="bg-green-100 text-green-700 border-0">
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                      <Badge className="border-0 bg-green-100 text-green-700">
+                        <CheckCircle2 className="mr-1 h-3 w-3" />
                         Verified
                       </Badge>
                     ) : (
-                      <Badge className="bg-amber-100 text-amber-700 border-0">
-                        <XCircle className="w-3 h-3 mr-1" />
+                      <Badge className="border-0 bg-amber-100 text-amber-700">
+                        <XCircle className="mr-1 h-3 w-3" />
                         Not verified
                       </Badge>
                     )}
@@ -301,10 +300,10 @@ export default function AccountManagementPage() {
                   disabled={verificationLoading || verificationSent}
                 >
                   {verificationLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : verificationSent ? (
                     <>
-                      <Check className="w-4 h-4 mr-1" />
+                      <Check className="mr-1 h-4 w-4" />
                       Sent
                     </>
                   ) : (
@@ -315,15 +314,11 @@ export default function AccountManagementPage() {
             </div>
 
             {!showEmailChange ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setShowEmailChange(true)}
-              >
+              <Button variant="outline" className="w-full" onClick={() => setShowEmailChange(true)}>
                 Change Email
               </Button>
             ) : (
-              <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <div className="space-y-3 border-t border-gray-100 pt-4 dark:border-gray-800">
                 <Input
                   type="email"
                   placeholder="New email address"
@@ -336,9 +331,7 @@ export default function AccountManagementPage() {
                   value={emailPassword}
                   onChange={(e) => setEmailPassword(e.target.value)}
                 />
-                {emailError && (
-                  <p className="text-sm text-red-500">{emailError}</p>
-                )}
+                {emailError && <p className="text-sm text-red-500">{emailError}</p>}
                 {emailSuccess && (
                   <p className="text-sm text-green-500">
                     Verification email sent to your new address
@@ -362,11 +355,7 @@ export default function AccountManagementPage() {
                     onClick={handleEmailChange}
                     disabled={emailLoading || !newEmail || !emailPassword}
                   >
-                    {emailLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      'Update Email'
-                    )}
+                    {emailLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Update Email'}
                   </Button>
                 </div>
               </div>
@@ -376,29 +365,29 @@ export default function AccountManagementPage() {
 
         {/* Phone Section */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Phone Number
             </h2>
           </div>
           <div className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                <Phone className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                <Phone className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-white">
                   {user?.phoneNumber || 'Not linked'}
                 </p>
                 {user?.phoneNumber && (
-                  <Badge className="bg-green-100 text-green-700 border-0">
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                  <Badge className="border-0 bg-green-100 text-green-700">
+                    <CheckCircle2 className="mr-1 h-3 w-3" />
                     Verified
                   </Badge>
                 )}
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-3">
+            <p className="mt-3 text-sm text-gray-500">
               To change your phone number, please contact support.
             </p>
           </div>
@@ -406,8 +395,8 @@ export default function AccountManagementPage() {
 
         {/* Password Section */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Password
             </h2>
           </div>
@@ -419,7 +408,7 @@ export default function AccountManagementPage() {
                 onClick={() => setShowPasswordChange(true)}
                 disabled={!user?.email}
               >
-                <Lock className="w-4 h-4 mr-2" />
+                <Lock className="mr-2 h-4 w-4" />
                 Change Password
               </Button>
             ) : (
@@ -437,9 +426,9 @@ export default function AccountManagementPage() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600"
                   >
                     {showCurrentPassword ? (
-                      <EyeOff className="w-4 h-4" />
+                      <EyeOff className="h-4 w-4" />
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <Eye className="h-4 w-4" />
                     )}
                   </button>
                 </div>
@@ -455,11 +444,7 @@ export default function AccountManagementPage() {
                     onClick={() => setShowNewPassword(!showNewPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600"
                   >
-                    {showNewPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
                 <Input
@@ -468,9 +453,7 @@ export default function AccountManagementPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
-                {passwordError && (
-                  <p className="text-sm text-red-500">{passwordError}</p>
-                )}
+                {passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
                 {passwordSuccess && (
                   <p className="text-sm text-green-500">Password updated successfully</p>
                 )}
@@ -491,10 +474,12 @@ export default function AccountManagementPage() {
                   <Button
                     className="flex-1"
                     onClick={handlePasswordChange}
-                    disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+                    disabled={
+                      passwordLoading || !currentPassword || !newPassword || !confirmPassword
+                    }
                   >
                     {passwordLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       'Update Password'
                     )}
@@ -503,31 +488,46 @@ export default function AccountManagementPage() {
               </div>
             )}
             {!user?.email && (
-              <p className="text-sm text-gray-500 mt-2">
-                Link an email address to set a password
-              </p>
+              <p className="mt-2 text-sm text-gray-500">Link an email address to set a password</p>
             )}
           </div>
         </Card>
 
+        {profile?.stripeCustomerId && (
+          <Card className="overflow-hidden">
+            <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Billing & Subscription
+              </h2>
+            </div>
+            <div className="p-4">
+              <ManageSubscriptionButton />
+            </div>
+          </Card>
+        )}
+
         {/* Account Status */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Account Status
             </h2>
           </div>
           <div className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={cn(
-                  'w-10 h-10 rounded-full flex items-center justify-center',
-                  isPaused ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-green-100 dark:bg-green-900/30'
-                )}>
+                <div
+                  className={cn(
+                    'flex h-10 w-10 items-center justify-center rounded-full',
+                    isPaused
+                      ? 'bg-amber-100 dark:bg-amber-900/30'
+                      : 'bg-green-100 dark:bg-green-900/30'
+                  )}
+                >
                   {isPaused ? (
-                    <Pause className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    <Pause className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   ) : (
-                    <Play className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <Play className="h-5 w-5 text-green-600 dark:text-green-400" />
                   )}
                 </div>
                 <div>
@@ -541,13 +541,9 @@ export default function AccountManagementPage() {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                onClick={handleTogglePause}
-                disabled={pauseLoading}
-              >
+              <Button variant="outline" onClick={handleTogglePause} disabled={pauseLoading}>
                 {pauseLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : isPaused ? (
                   'Show Profile'
                 ) : (
@@ -560,12 +556,12 @@ export default function AccountManagementPage() {
 
         {/* Trusted Devices */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Trusted Devices
             </h2>
           </div>
-          <div className="p-4 space-y-4">
+          <div className="space-y-4 p-4">
             {!user?.email || !user.emailVerified ? (
               <p className="text-sm text-gray-500">
                 Trusted-device verification is available after email verification.
@@ -580,12 +576,12 @@ export default function AccountManagementPage() {
                   >
                     {deviceActionLoadingId === 'current-device' ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Trusting...
                       </>
                     ) : (
                       <>
-                        <Shield className="w-4 h-4 mr-2" />
+                        <Shield className="mr-2 h-4 w-4" />
                         Trust This Device
                       </>
                     )}
@@ -601,24 +597,24 @@ export default function AccountManagementPage() {
                     {trustedDevices.map((device) => (
                       <div
                         key={device.deviceId}
-                        className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700"
+                        className="flex items-start gap-3 rounded-xl border border-gray-200 p-3 dark:border-gray-700"
                       >
-                        <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                          <Laptop className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                          <Laptop className="h-5 w-5 text-gray-600 dark:text-gray-300" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium text-gray-900 dark:text-white truncate">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-medium text-gray-900 dark:text-white">
                               {device.deviceName}
                             </p>
                             {device.isCurrentDevice && (
-                              <Badge className="bg-green-100 text-green-700 border-0">
+                              <Badge className="border-0 bg-green-100 text-green-700">
                                 Current device
                               </Badge>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 truncate">{device.userAgent}</p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="truncate text-xs text-gray-500">{device.userAgent}</p>
+                          <p className="mt-1 text-xs text-gray-500">
                             Last active: {formatTrustedDeviceTime(device.lastUsedAt)}
                           </p>
                         </div>
@@ -627,10 +623,12 @@ export default function AccountManagementPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => void handleRevokeDevice(device)}
-                            disabled={deviceActionLoadingId === device.deviceId || deviceTrustLoading}
+                            disabled={
+                              deviceActionLoadingId === device.deviceId || deviceTrustLoading
+                            }
                           >
                             {deviceActionLoadingId === device.deviceId ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               'Remove'
                             )}
@@ -643,31 +641,25 @@ export default function AccountManagementPage() {
               </>
             )}
 
-            {deviceActionSuccess && (
-              <p className="text-sm text-green-600">{deviceActionSuccess}</p>
-            )}
-            {deviceActionError && (
-              <p className="text-sm text-red-500">{deviceActionError}</p>
-            )}
+            {deviceActionSuccess && <p className="text-sm text-green-600">{deviceActionSuccess}</p>}
+            {deviceActionError && <p className="text-sm text-red-500">{deviceActionError}</p>}
           </div>
         </Card>
 
         {/* Data Export */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Your Data
             </h2>
           </div>
           <div className="p-4">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+                <Download className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-gray-900 dark:text-white">
-                  Export Your Data
-                </p>
+                <p className="font-medium text-gray-900 dark:text-white">Export Your Data</p>
                 <p className="text-sm text-gray-500">
                   Download a copy of your profile, matches, messages, and settings
                 </p>
@@ -681,17 +673,17 @@ export default function AccountManagementPage() {
             >
               {exportLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Preparing...
                 </>
               ) : exportSuccess ? (
                 <>
-                  <Check className="w-4 h-4 mr-2" />
+                  <Check className="mr-2 h-4 w-4" />
                   Downloaded!
                 </>
               ) : (
                 <>
-                  <Download className="w-4 h-4 mr-2" />
+                  <Download className="mr-2 h-4 w-4" />
                   Download My Data
                 </>
               )}
@@ -700,14 +692,12 @@ export default function AccountManagementPage() {
         </Card>
 
         {/* Security Note */}
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+        <div className="rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20">
           <div className="flex items-start gap-3">
-            <Shield className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+            <Shield className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
             <div>
-              <p className="font-medium text-blue-700 dark:text-blue-300">
-                Security Tips
-              </p>
-              <ul className="text-sm text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+              <p className="font-medium text-blue-700 dark:text-blue-300">Security Tips</p>
+              <ul className="mt-1 space-y-1 text-sm text-blue-600 dark:text-blue-400">
                 <li>Use a strong, unique password</li>
                 <li>Verify your email for account recovery</li>
                 <li>Never share your login credentials</li>
