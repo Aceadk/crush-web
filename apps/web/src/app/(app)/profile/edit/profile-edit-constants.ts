@@ -5,32 +5,7 @@
  * tables independently testable/reusable. Behavior is unchanged.
  */
 
-export const AVAILABLE_INTERESTS = [
-  'Travel',
-  'Music',
-  'Movies',
-  'Reading',
-  'Cooking',
-  'Fitness',
-  'Gaming',
-  'Photography',
-  'Art',
-  'Dancing',
-  'Hiking',
-  'Yoga',
-  'Coffee',
-  'Wine',
-  'Food',
-  'Fashion',
-  'Tech',
-  'Sports',
-  'Pets',
-  'Nature',
-  'Beach',
-  'Mountains',
-  'Meditation',
-  'Writing',
-] as const;
+export { ONBOARDING_INTEREST_OPTIONS as AVAILABLE_INTERESTS } from '@crush/core';
 
 export const PROMPT_QUESTIONS = [
   "I'm looking for...",
@@ -47,10 +22,31 @@ export const PROMPT_QUESTIONS = [
 
 export interface FormData {
   displayName: string;
+  birthDate: string;
+  gender: 'male' | 'female' | 'non_binary' | 'other' | '';
+  sexualOrientation:
+    | 'straight'
+    | 'gay'
+    | 'lesbian'
+    | 'bisexual'
+    | 'pansexual'
+    | 'asexual'
+    | 'other'
+    | 'prefer_not_to_say'
+    | '';
   bio: string;
   interests: string[];
   prompts: { question: string; answer: string }[];
-  location: { city: string; country: string };
+  location: {
+    latitude?: number;
+    longitude?: number;
+    accuracyMeters?: number;
+    city: string;
+    region?: string;
+    country: string;
+    capturedAt?: string;
+    confirmedAt?: string;
+  };
   lifestyle: {
     height: string;
     education: string;

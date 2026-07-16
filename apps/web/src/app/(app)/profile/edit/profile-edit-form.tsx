@@ -10,12 +10,20 @@ import {
   MAX_PROFILE_PHOTOS,
   MAX_INTERESTS,
   MAX_PROMPTS,
+  authVerificationFactsFromUser,
+  calculateCalendarAge,
+  latestAllowedAdultBirthDate,
+  locationService,
+  onboardingService,
+  normalizeInterestId,
 } from '@crush/core';
 import { Button, Card, cn, Input, Textarea } from '@crush/ui';
 import {
   AlertCircle,
   ArrowLeft,
   Check,
+  Loader2,
+  MapPin,
   Plus,
   Shield,
   ShieldCheck,
@@ -32,18 +40,36 @@ export default function ProfileEditForm() {
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
     displayName: profile?.displayName || '',
+    birthDate: profile?.birthDate?.slice(0, 10) || '',
+    gender: profile?.gender || '',
+    sexualOrientation: profile?.sexualOrientation || '',
     bio: profile?.bio || '',
-    interests: profile?.interests || [],
+    // Legacy profiles can hold more than MAX_INTERESTS (or duplicates after
+    // normalization); the server and rules cap at 5, so trim on load or the
+    // save is rejected wholesale.
+    interests: Array.from(
+      new Set(profile?.interests?.map(normalizeInterestId) || [])
+    ).slice(0, MAX_INTERESTS),
     prompts: profile?.prompts || [],
-    location: { city: profile?.location?.city || '', country: profile?.location?.country || '' },
+    location: {
+      latitude: profile?.location?.latitude,
+      longitude: profile?.location?.longitude,
+      accuracyMeters: profile?.location?.accuracyMeters,
+      city: profile?.location?.city || '',
+      region: profile?.location?.region,
+      country: profile?.location?.country || '',
+      capturedAt: profile?.location?.capturedAt,
+      confirmedAt: profile?.location?.confirmedAt,
+    },
     lifestyle: {
       height: profile?.lifestyle?.height || '',
-      education: profile?.lifestyle?.education || '',
+      education: profile?.school || profile?.lifestyle?.education || '',
       drinking: profile?.lifestyle?.drinking || '',
       smoking: profile?.lifestyle?.smoking || '',
       workout: profile?.lifestyle?.workout || '',
@@ -51,27 +77,79 @@ export default function ProfileEditForm() {
   });
 
   const [photos, setPhotos] = useState<string[]>(profile?.photos || []);
+  const [photoRecords, setPhotoRecords] = useState(profile?.photoRecords || []);
 
   const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const expectedUid = user.uid;
+    let cancelled = false;
+    void onboardingService
+      .resolve(authVerificationFactsFromUser(user))
+      .then((resolution) => {
+        if (cancelled || useAuthStore.getState().user?.uid !== expectedUid) return;
+        const trustedPhotos = resolution.snapshot.photos;
+        setPhotoRecords(trustedPhotos);
+        setPhotos(
+          trustedPhotos.flatMap((photo) =>
+            photo.status === 'approved' && photo.downloadUrl ? [photo.downloadUrl] : []
+          )
+        );
+        const confirmedLocation = resolution.snapshot.location;
+        if (confirmedLocation?.confirmedAt) {
+          setFormData((current) => ({
+            ...current,
+            location: {
+              ...current.location,
+              accuracyMeters: confirmedLocation.accuracyMeters,
+              city: confirmedLocation.city ?? current.location.city,
+              region: confirmedLocation.region ?? current.location.region,
+              country: confirmedLocation.country ?? current.location.country,
+              capturedAt: confirmedLocation.capturedAt,
+              confirmedAt: confirmedLocation.confirmedAt,
+            },
+          }));
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) console.warn('Could not hydrate trusted profile state:', caught);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const completionState = useMemo(
     () =>
       buildProfileCompletionState({
+        accountVerified: Boolean(user && (!user.email || user.emailVerified)),
+        username: profile?.username,
         displayName: formData.displayName,
+        birthDate: formData.birthDate,
+        gender: formData.gender || undefined,
+        interestedIn: profile?.interestedIn,
         bio: formData.bio,
         interests: formData.interests,
         prompts: formData.prompts,
         location:
           formData.location.city || formData.location.country ? formData.location : undefined,
         photos,
+        photoRecords,
       }),
     [
       formData.bio,
+      formData.birthDate,
       formData.displayName,
+      formData.gender,
       formData.interests,
       formData.location,
       formData.prompts,
       photos,
+      photoRecords,
+      profile?.interestedIn,
+      profile?.username,
+      user,
     ]
   );
   const completeness = completionState.percent;
@@ -93,17 +171,22 @@ export default function ProfileEditForm() {
 
     const checkDirty = () => {
       if (formData.displayName !== (profile.displayName || '')) return true;
+      if (formData.birthDate !== (profile.birthDate?.slice(0, 10) || '')) return true;
+      if (formData.gender !== (profile.gender || '')) return true;
+      if (formData.sexualOrientation !== (profile.sexualOrientation || '')) return true;
       if (formData.bio !== (profile.bio || '')) return true;
       if (formData.location.city !== (profile.location?.city || '')) return true;
       if (formData.location.country !== (profile.location?.country || '')) return true;
       if (formData.lifestyle.height !== (profile.lifestyle?.height || '')) return true;
-      if (formData.lifestyle.education !== (profile.lifestyle?.education || '')) return true;
+      if (formData.lifestyle.education !== (profile.school || profile.lifestyle?.education || ''))
+        return true;
       if (formData.lifestyle.drinking !== (profile.lifestyle?.drinking || '')) return true;
       if (formData.lifestyle.smoking !== (profile.lifestyle?.smoking || '')) return true;
       if (formData.lifestyle.workout !== (profile.lifestyle?.workout || '')) return true;
 
       if (!arraysEqual(photos, profile.photos || [])) return true;
-      if (!arraysEqual(formData.interests, profile.interests || [])) return true;
+      if (!arraysEqual(formData.interests, (profile.interests || []).map(normalizeInterestId)))
+        return true;
       if (!promptsEqual(formData.prompts, profile.prompts || [])) return true;
 
       return false;
@@ -143,8 +226,44 @@ export default function ProfileEditForm() {
     setError(null);
 
     try {
-      const photoUrl = await storageService.uploadProfilePhoto(user.uid, file);
-      setPhotos((prev) => [...prev, photoUrl]);
+      const upload = await storageService.uploadProfilePhotoForValidation(user.uid, file);
+      const validated = await onboardingService.validateProfilePhoto({
+        storagePath: upload.storagePath,
+        isPrimary: photos.length === 0,
+      });
+      if (validated.snapshot) {
+        setPhotoRecords(validated.snapshot.photos);
+        setPhotos(
+          validated.snapshot.photos.flatMap((photo) =>
+            photo.status === 'approved' && photo.downloadUrl ? [photo.downloadUrl] : []
+          )
+        );
+        URL.revokeObjectURL(upload.downloadUrl);
+      } else {
+        setPhotoRecords((prev) => [
+          ...prev,
+          {
+            mediaId: validated.mediaId,
+            storagePath: upload.storagePath,
+            downloadUrl: validated.downloadUrl ?? upload.downloadUrl,
+            status: validated.status,
+            reason: validated.reason,
+            isPrimary: photos.length === 0,
+          },
+        ]);
+        if (validated.status === 'approved' && validated.downloadUrl) {
+          setPhotos((prev) => [...prev, validated.downloadUrl!]);
+          URL.revokeObjectURL(upload.downloadUrl);
+        }
+      }
+      if (validated.status === 'rejected') {
+        setError(validated.reason || 'That photo did not pass the profile-photo checks.');
+      } else if (validated.status === 'failed') {
+        setError('The photo check failed. Please retry with another image.');
+      } else if (validated.status !== 'approved') {
+        setError('Your photo is still processing. It will be available after server approval.');
+      }
+      setIsDirty(true);
     } catch (err) {
       setError(describeProfilePhotoUploadError(err));
       console.error('Failed to upload photo:', err);
@@ -154,14 +273,71 @@ export default function ProfileEditForm() {
   };
 
   const handleRemovePhoto = (index: number) => {
+    const removedUrl = photos[index];
     setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoRecords((prev) => prev.filter((photo) => photo.downloadUrl !== removedUrl));
     setIsDirty(true);
   };
 
   const handlePhotosReorder = (newPhotos: string[]) => {
     setPhotos(newPhotos);
+    setPhotoRecords((records) =>
+      newPhotos.flatMap((url) => {
+        const record = records.find((entry) => entry.downloadUrl === url);
+        return record ? [record] : [];
+      })
+    );
     setIsDirty(true);
   };
+
+  const handleCaptureLocation = useCallback(async () => {
+    if (!user || locating) return;
+    const expectedUid = user.uid;
+    setLocating(true);
+    setError(null);
+    try {
+      const coordinates = await locationService.requestLocation({
+        enableHighAccuracy: true,
+        timeout: 30000,
+        maximumAge: 0,
+      });
+      const details = await locationService.reverseGeocode(coordinates);
+      const resolution = await onboardingService.confirmCurrentLocation(
+        {
+          latitude: coordinates.latitude,
+          longitude: coordinates.longitude,
+          accuracyMeters: coordinates.accuracy,
+          capturedAt: new Date().toISOString(),
+          city: details.city,
+          region: details.state,
+          country: details.country,
+        },
+        authVerificationFactsFromUser(useAuthStore.getState().user)
+      );
+      if (useAuthStore.getState().user?.uid !== expectedUid) return;
+      const confirmed = resolution.snapshot.location;
+      if (confirmed) {
+        setFormData((current) => ({
+          ...current,
+          location: {
+            latitude: coordinates.latitude,
+            longitude: coordinates.longitude,
+            accuracyMeters: confirmed.accuracyMeters,
+            city: confirmed.city || '',
+            region: confirmed.region,
+            country: confirmed.country || '',
+            capturedAt: confirmed.capturedAt,
+            confirmedAt: confirmed.confirmedAt,
+          },
+        }));
+      }
+      setIsDirty(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not confirm current location.');
+    } finally {
+      if (useAuthStore.getState().user?.uid === expectedUid) setLocating(false);
+    }
+  }, [locating, user]);
 
   const toggleInterest = (interest: string) => {
     setFormData((prev) => ({
@@ -227,18 +403,52 @@ export default function ProfileEditForm() {
     setSuccess(false);
 
     try {
+      const basicInfoChanged =
+        formData.displayName.trim() !== (profile?.displayName || '') ||
+        formData.birthDate !== (profile?.birthDate?.slice(0, 10) || '') ||
+        formData.gender !== (profile?.gender || '') ||
+        formData.sexualOrientation !== (profile?.sexualOrientation || '');
+      const authFacts = authVerificationFactsFromUser(useAuthStore.getState().user);
+      if (basicInfoChanged) {
+        await onboardingService.saveStep(
+          'basicInfo',
+          {
+            firstName: formData.displayName.trim(),
+            birthDate: formData.birthDate,
+            gender: formData.gender,
+            sexualOrientation:
+              formData.gender === 'non_binary' ? formData.sexualOrientation || null : null,
+          },
+          authFacts
+        );
+      }
+      await onboardingService.saveStep('aboutMe', { bio: formData.bio.trim() }, authFacts);
+      await onboardingService.saveStep('interests', { interestIds: formData.interests }, authFacts);
+      const approvedMediaIds = photoRecords
+        .filter((photo) => photo.status === 'approved')
+        .map((photo) => photo.mediaId)
+        .filter(Boolean);
+      // The photos step requires 1–9 media IDs. Accounts whose photos predate
+      // the trusted-media pipeline have none; skipping keeps their existing
+      // photos instead of failing the entire save.
+      if (approvedMediaIds.length > 0) {
+        await onboardingService.saveStep('photos', { mediaIds: approvedMediaIds }, authFacts);
+      }
+      await onboardingService.saveStep(
+        'workEducation',
+        {
+          school: formData.lifestyle.education.trim(),
+        },
+        authFacts,
+        !formData.lifestyle.education.trim()
+      );
       await userService.updateUserProfile(user.uid, {
-        displayName: formData.displayName.trim(),
-        bio: formData.bio.trim(),
-        interests: formData.interests,
         prompts: formData.prompts.filter((p) => p.answer.trim()),
-        photos,
-        primaryPhotoIndex: 0,
-        profilePhotoUrl: photos[0] || undefined,
-        location: formData.location.city ? formData.location : undefined,
         lifestyle: {
           height: formData.lifestyle.height,
-          education: formData.lifestyle.education,
+          // Canonical school is persisted through saveOnboardingStep above;
+          // do not recreate the legacy profile.educationLevel alias.
+          education: undefined,
           drinking: formData.lifestyle.drinking || undefined,
           smoking: formData.lifestyle.smoking || undefined,
           workout: formData.lifestyle.workout || undefined,
@@ -260,7 +470,7 @@ export default function ProfileEditForm() {
     } finally {
       setSaving(false);
     }
-  }, [user, completionState, formData, photos, refreshProfile, router]);
+  }, [user, profile, completionState, formData, photoRecords, refreshProfile, router]);
 
   if (!profile) {
     return (
@@ -457,6 +667,79 @@ export default function ProfileEditForm() {
                 />
               </div>
 
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Date of birth
+                  </label>
+                  <Input
+                    type="date"
+                    value={formData.birthDate}
+                    max={latestAllowedAdultBirthDate()}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, birthDate: e.target.value }))
+                    }
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {calculateCalendarAge(formData.birthDate) !== undefined
+                      ? `Age ${calculateCalendarAge(formData.birthDate)}. `
+                      : ''}
+                    DOB changes are protected by the 30-day server cooldown.
+                  </p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Gender
+                  </label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => {
+                      const gender = e.target.value as FormData['gender'];
+                      setFormData((prev) => ({
+                        ...prev,
+                        gender,
+                        sexualOrientation: gender === 'non_binary' ? prev.sexualOrientation : '',
+                      }));
+                    }}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select</option>
+                    <option value="male">Man</option>
+                    <option value="female">Woman</option>
+                    <option value="non_binary">Non-binary</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {formData.gender === 'non_binary' && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Sexual orientation <span className="font-normal text-gray-500">(optional)</span>
+                  </label>
+                  <select
+                    value={formData.sexualOrientation}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        sexualOrientation: e.target.value as FormData['sexualOrientation'],
+                      }))
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Prefer not to say</option>
+                    <option value="straight">Straight</option>
+                    <option value="gay">Gay</option>
+                    <option value="lesbian">Lesbian</option>
+                    <option value="bisexual">Bisexual</option>
+                    <option value="pansexual">Pansexual</option>
+                    <option value="asexual">Asexual</option>
+                    <option value="other">Other</option>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Bio
@@ -471,46 +754,51 @@ export default function ProfileEditForm() {
                 <div className="mt-1 flex items-center justify-between gap-3 text-xs">
                   <p
                     className={cn(
-                      formData.bio.trim().length >= 20 ? 'text-gray-500' : 'text-red-500'
+                      formData.bio.trim().length >= 7 ? 'text-gray-500' : 'text-red-500'
                     )}
                   >
-                    Minimum 20 characters required for matching.
+                    Minimum 7 characters required for matching.
                   </p>
                   <p className="text-gray-500">{formData.bio.length}/500</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    City
-                  </label>
-                  <Input
-                    value={formData.location?.city || ''}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        location: { city: e.target.value, country: prev.location?.country || '' },
-                      }))
-                    }
-                    placeholder="Your city"
-                  />
+              <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                <div className="mb-3 flex items-start gap-3">
+                  <MapPin className="mt-0.5 h-5 w-5 text-primary" />
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {formData.location.confirmedAt
+                        ? 'Current location confirmed'
+                        : 'Current location required'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {formData.location.confirmedAt
+                        ? [
+                            formData.location.city,
+                            formData.location.region,
+                            formData.location.country,
+                          ]
+                            .filter(Boolean)
+                            .join(', ') || 'Secure coordinates captured'
+                        : 'Typed city/country values do not satisfy discovery readiness.'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Country
-                  </label>
-                  <Input
-                    value={formData.location?.country || ''}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        location: { city: prev.location?.city || '', country: e.target.value },
-                      }))
-                    }
-                    placeholder="Your country"
-                  />
-                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => void handleCaptureLocation()}
+                  disabled={locating}
+                >
+                  {locating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <MapPin className="mr-2 h-4 w-4" />
+                  )}
+                  {locating ? 'Capturing…' : 'Capture and confirm current location'}
+                </Button>
               </div>
             </Card>
 
@@ -636,20 +924,20 @@ export default function ProfileEditForm() {
                     formData.interests.length >= 3 ? 'text-gray-500' : 'font-medium text-red-500'
                   )}
                 >
-                  {formData.interests.length}/10 selected
+                  {formData.interests.length}/{MAX_INTERESTS} selected
                 </span>
               </div>
               <p className="mb-4 text-sm text-gray-500">
-                Select at least 3 and up to 10 interests to help find better matches.
+                Select at least 3 and up to {MAX_INTERESTS} interests to help find better matches.
               </p>
 
               <div className="flex flex-wrap gap-2">
-                {AVAILABLE_INTERESTS.map((interest) => {
-                  const isSelected = formData.interests.includes(interest);
+                {AVAILABLE_INTERESTS.map(([interestId, interestLabel]) => {
+                  const isSelected = formData.interests.includes(interestId);
                   return (
                     <button
-                      key={interest}
-                      onClick={() => toggleInterest(interest)}
+                      key={interestId}
+                      onClick={() => toggleInterest(interestId)}
                       className={cn(
                         'rounded-full px-3 py-1.5 text-sm font-medium transition-all',
                         isSelected
@@ -657,7 +945,7 @@ export default function ProfileEditForm() {
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
                       )}
                     >
-                      {interest}
+                      {interestLabel}
                     </button>
                   );
                 })}

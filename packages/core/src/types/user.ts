@@ -7,6 +7,7 @@ export interface UserProfile {
   email?: string;
   phoneNumber?: string;
   displayName: string;
+  lastName?: string;
   username?: string;
   bio?: string;
   birthDate?: string;
@@ -19,6 +20,19 @@ export interface UserProfile {
   profilePhotoUrl?: string;
   location?: GeoLocation;
   interests?: string[];
+  /** Server-owned media records. A URL without an approved record is not readiness proof. */
+  photoRecords?: Array<{
+    mediaId?: string;
+    storagePath?: string;
+    downloadUrl?: string;
+    status: 'uploading' | 'processing' | 'approved' | 'rejected' | 'failed' | 'unknown';
+    reason?: string;
+    isPrimary?: boolean;
+  }>;
+  jobTitle?: string;
+  company?: string;
+  school?: string;
+  favourites?: Record<string, string>;
   prompts?: UserPrompt[];
   lifestyle?: LifestyleInfo;
   isVerified: boolean;
@@ -48,16 +62,16 @@ export interface UserProfile {
   // the onboarding gate derivation.
   hasSkippedBasicInfo?: boolean;
   hasSkippedProfileSetup?: boolean;
-  // Onboarding ROUTING GATE, derived by mapUserDocumentToUserProfile the same
-  // way the mobile app derives it (terms + basic info + >=1 photo, honouring
-  // skip flags). NOT the raw Firestore field: the backend mirror trigger
-  // rewrites the top-level onboardingComplete/profileComplete doc fields to
-  // advanced-discovery ELIGIBILITY (false for incognito/hidden users), which
-  // must never bounce an onboarded user back into onboarding.
+  // Compatibility view only. Routes must call resolveOnboardingState because
+  // legacy root completion fields are discovery mirrors, not onboarding truth.
   onboardingComplete: boolean;
   profileComplete: boolean;
   isEmailVerified?: boolean;
   isPhoneVerified?: boolean;
+  onboardingSchemaVersion?: number;
+  onboardingCompletedSteps?: string[];
+  onboardingSkippedSteps?: string[];
+  onboardingCompletedAt?: string;
   boost?: {
     expiresAt?: string;
     activatedAt?: string;
@@ -81,8 +95,12 @@ export type Gender = 'male' | 'female' | 'non_binary' | 'other';
 export interface GeoLocation {
   latitude?: number;
   longitude?: number;
+  accuracyMeters?: number;
   city?: string;
+  region?: string;
   country?: string;
+  capturedAt?: string;
+  confirmedAt?: string;
 }
 
 export interface LifestyleInfo {
@@ -177,11 +195,28 @@ export interface UserStats {
  */
 export function calculateAge(birthDate: string | undefined | null): number | undefined {
   if (!birthDate) return undefined;
-  const birth = new Date(birthDate);
-  if (isNaN(birth.getTime())) return undefined;
-  const ageDiffMs = Date.now() - birth.getTime();
-  const ageDate = new Date(ageDiffMs);
-  return Math.abs(ageDate.getUTCFullYear() - 1970);
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(birthDate);
+  if (!match) return undefined;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+  const now = new Date();
+  let age = now.getUTCFullYear() - year;
+  if (
+    now.getUTCMonth() + 1 < month ||
+    (now.getUTCMonth() + 1 === month && now.getUTCDate() < day)
+  ) {
+    age -= 1;
+  }
+  return age >= 0 ? age : undefined;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {

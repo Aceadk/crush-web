@@ -93,20 +93,12 @@ class MatchServiceV2 {
    * message subscription for unread state. (Follow-up: expose unread via a
    * dedicated field or callable if list badges are needed.)
    */
-  private mapDocToMatch(
-    id: string,
-    data: Record<string, unknown>,
-    viewerId: string
-  ): Match {
-    const userIds = Array.isArray(data.userIds)
-      ? (data.userIds as string[])
-      : [];
+  private mapDocToMatch(id: string, data: Record<string, unknown>, viewerId: string): Match {
+    const userIds = Array.isArray(data.userIds) ? (data.userIds as string[]) : [];
     const otherUserId = userIds.find((uid) => uid !== viewerId) ?? '';
 
-    const pinnedForUser =
-      (data.pinnedForUser as Record<string, boolean> | undefined) ?? {};
-    const preMatchRequests =
-      (data.preMatchRequests as Record<string, number> | undefined) ?? {};
+    const pinnedForUser = (data.pinnedForUser as Record<string, boolean> | undefined) ?? {};
+    const preMatchRequests = (data.preMatchRequests as Record<string, number> | undefined) ?? {};
 
     return {
       id,
@@ -116,19 +108,14 @@ class MatchServiceV2 {
       preMatchMessageRequestsCount: preMatchRequests[viewerId] ?? 0,
       pinnedForUser: Boolean(pinnedForUser[viewerId]),
       otherUserName: (data.otherUserName as string | undefined) ?? undefined,
-      otherUserPhotoUrl:
-        (data.otherUserPhotoUrl as string | undefined) ?? undefined,
+      otherUserPhotoUrl: (data.otherUserPhotoUrl as string | undefined) ?? undefined,
       createdAt: this.toIsoString(data.createdAt),
       // Backend has no `updatedAt`; lastMessageAt is the freshest signal.
       updatedAt: this.toIsoString(data.lastMessageAt ?? data.createdAt),
-      lastMessageAt: data.lastMessageAt
-        ? this.toIsoString(data.lastMessageAt)
-        : undefined,
+      lastMessageAt: data.lastMessageAt ? this.toIsoString(data.lastMessageAt) : undefined,
       // Older mobile builds encrypted texts, so the denormalized preview can
       // be "enc_v1:..." ciphertext — mask it rather than showing gibberish.
-      lastMessage: maskLegacyPreview(
-        (data.lastMessageContent as string | undefined) ?? undefined
-      ),
+      lastMessage: maskLegacyPreview((data.lastMessageContent as string | undefined) ?? undefined),
       unreadCount: 0,
       isSuperLike: Boolean(data.isSuperLike),
     };
@@ -141,9 +128,14 @@ class MatchServiceV2 {
    */
   async swipeRight(
     targetUserId: string,
-    attachedMessage?: string
+    attachedMessage?: string,
+    superLike = false
   ): Promise<{ isMatch: boolean; matchId: string | null; match: Match | null }> {
-    const result = await callables.swipeRight({ targetUserId, attachedMessage });
+    const result = await callables.swipeRight({
+      targetUserId,
+      attachedMessage,
+      ...(superLike ? { superLike: true } : {}),
+    });
     if (result.matched && result.matchId) {
       const match = await this.getMatch(result.matchId);
       return { isMatch: true, matchId: result.matchId, match };
@@ -188,9 +180,7 @@ class MatchServiceV2 {
     );
 
     const snapshot = await getDocs(q);
-    const matches = snapshot.docs.map((d) =>
-      this.mapDocToMatch(d.id, d.data(), viewerId)
-    );
+    const matches = snapshot.docs.map((d) => this.mapDocToMatch(d.id, d.data(), viewerId));
     return this.hydratePeerProfiles(matches);
   }
 
@@ -213,9 +203,7 @@ class MatchServiceV2 {
     let latestSnapshotSeq = 0;
     return onSnapshot(q, (snapshot) => {
       const seq = ++latestSnapshotSeq;
-      const matches = snapshot.docs.map((d) =>
-        this.mapDocToMatch(d.id, d.data(), viewerId)
-      );
+      const matches = snapshot.docs.map((d) => this.mapDocToMatch(d.id, d.data(), viewerId));
       // One row per person: historical swipe races created duplicate match
       // docs for the same pair. The query is newest-activity-first, so keeping
       // the first doc per peer makes every client converge on the same one.
@@ -260,17 +248,12 @@ class MatchServiceV2 {
    * hydration must never break the matches list.
    */
   private async hydratePeerProfiles(matches: Match[]): Promise<Match[]> {
-    const missing = matches.filter(
-      (m) => !m.otherUserName || !m.otherUserPhotoUrl
-    );
+    const missing = matches.filter((m) => !m.otherUserName || !m.otherUserPhotoUrl);
     if (missing.length === 0) return matches;
 
     const db = getFirebaseDb();
     const uniquePeerIds = [...new Set(missing.map((m) => m.otherUserId))];
-    const profileByUid = new Map<
-      string,
-      { name?: string; photoUrl?: string }
-    >();
+    const profileByUid = new Map<string, { name?: string; photoUrl?: string }>();
 
     await Promise.all(
       uniquePeerIds.map(async (uid) => {
@@ -279,17 +262,11 @@ class MatchServiceV2 {
           if (!snap.exists()) return;
           const data = snap.data() as Record<string, unknown>;
           const profile = (data.profile ?? {}) as Record<string, unknown>;
-          const photoUrls = Array.isArray(profile.photoUrls)
-            ? (profile.photoUrls as string[])
-            : [];
+          const photoUrls = Array.isArray(profile.photoUrls) ? (profile.photoUrls as string[]) : [];
           const primaryIndex =
-            typeof profile.primaryPhotoIndex === 'number'
-              ? profile.primaryPhotoIndex
-              : 0;
+            typeof profile.primaryPhotoIndex === 'number' ? profile.primaryPhotoIndex : 0;
           profileByUid.set(uid, {
-            name:
-              (profile.name as string | undefined) ??
-              (data.displayName as string | undefined),
+            name: (profile.name as string | undefined) ?? (data.displayName as string | undefined),
             photoUrl:
               photoUrls[primaryIndex] ??
               photoUrls[0] ??

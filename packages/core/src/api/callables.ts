@@ -20,13 +20,7 @@ import { getFirebaseFunctions } from '../firebase/config';
 // Request/Response contracts (verified against functions/src/index.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type CallableMessageType =
-  | 'text'
-  | 'image'
-  | 'video'
-  | 'audio'
-  | 'voice'
-  | 'gift';
+export type CallableMessageType = 'text' | 'image' | 'video' | 'audio' | 'voice' | 'gift';
 
 /** Standard backend success envelope. */
 export interface OkResponse {
@@ -37,6 +31,7 @@ export interface OkResponse {
 export interface SwipeRightRequest {
   targetUserId: string;
   attachedMessage?: string;
+  superLike?: boolean;
 }
 
 export interface SwipeRightResponse {
@@ -46,6 +41,55 @@ export interface SwipeRightResponse {
 
 export interface SwipeLeftRequest {
   targetUserId: string;
+}
+
+/** Exact schema-v2 keys accepted and returned by the shared backend. */
+export type OnboardingWireStepKey =
+  | 'emailVerification'
+  | 'phoneVerification'
+  | 'terms'
+  | 'username'
+  | 'basicInfo'
+  | 'idVerification'
+  | 'discoveryPreferences'
+  | 'photos'
+  | 'aboutMe'
+  | 'location'
+  | 'workEducation'
+  | 'interests'
+  | 'favourites'
+  | 'ready'
+  | 'discovery';
+
+export interface SaveOnboardingStepRequest {
+  stepKey: OnboardingWireStepKey;
+  data: Record<string, unknown>;
+  skipped?: boolean;
+}
+
+export interface ClaimUsernameRequest {
+  username: string;
+}
+
+export interface CheckUsernameAvailabilityResponse {
+  available: boolean;
+  normalized: string;
+}
+
+export interface ConfirmCurrentLocationRequest {
+  latitude: number;
+  longitude: number;
+  accuracyMeters?: number;
+  capturedAt: string;
+  city?: string;
+  region?: string;
+  country?: string;
+}
+
+export interface ValidateProfilePhotoRequest {
+  storagePath: string;
+  downloadUrl?: string;
+  isPrimary?: boolean;
 }
 
 export interface UnmatchRequest {
@@ -246,13 +290,34 @@ async function invokeCallable<TRequest, TResponse>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const callables = {
+  // Versioned onboarding. Responses are normalized defensively by
+  // services/onboarding because the backend may add canonical snapshot fields.
+  resolveOnboardingState: (data: Record<string, never>) =>
+    invokeCallable<Record<string, never>, unknown>('resolveOnboardingState', data),
+  saveOnboardingStep: (data: SaveOnboardingStepRequest) =>
+    invokeCallable<SaveOnboardingStepRequest, unknown>('saveOnboardingStep', data),
+  completeOnboarding: (data: Record<string, never>) =>
+    invokeCallable<Record<string, never>, unknown>('completeOnboarding', data),
+  claimUsername: (data: ClaimUsernameRequest) =>
+    invokeCallable<ClaimUsernameRequest, unknown>('claimUsername', data),
+  checkUsernameAvailability: (data: ClaimUsernameRequest) =>
+    invokeCallable<ClaimUsernameRequest, CheckUsernameAvailabilityResponse>(
+      'checkUsernameAvailability',
+      data
+    ),
+  syncEmailVerification: (data: Record<string, never>) =>
+    invokeCallable<Record<string, never>, unknown>('syncEmailVerification', data),
+  confirmCurrentLocation: (data: ConfirmCurrentLocationRequest) =>
+    invokeCallable<ConfirmCurrentLocationRequest, unknown>('confirmCurrentLocation', data),
+  validateProfilePhoto: (data: ValidateProfilePhotoRequest) =>
+    invokeCallable<ValidateProfilePhotoRequest, unknown>('validateProfilePhoto', data),
+
   // Discovery & Matching
   swipeRight: (data: SwipeRightRequest) =>
     invokeCallable<SwipeRightRequest, SwipeRightResponse>('swipeRight', data),
   swipeLeft: (data: SwipeLeftRequest) =>
     invokeCallable<SwipeLeftRequest, OkResponse>('swipeLeft', data),
-  unmatch: (data: UnmatchRequest) =>
-    invokeCallable<UnmatchRequest, OkResponse>('unmatch', data),
+  unmatch: (data: UnmatchRequest) => invokeCallable<UnmatchRequest, OkResponse>('unmatch', data),
   setMatchPinned: (data: SetMatchPinnedRequest) =>
     invokeCallable<SetMatchPinnedRequest, OkResponse>('setMatchPinned', data),
 
@@ -264,17 +329,11 @@ export const callables = {
   editMessage: (data: EditMessageRequest) =>
     invokeCallable<EditMessageRequest, OkResponse>('editMessage', data),
   markMessagesRead: (data: MarkMessagesReadRequest) =>
-    invokeCallable<MarkMessagesReadRequest, MarkMessagesReadResponse>(
-      'markMessagesRead',
-      data
-    ),
+    invokeCallable<MarkMessagesReadRequest, MarkMessagesReadResponse>('markMessagesRead', data),
   setTyping: (data: SetTypingRequest) =>
     invokeCallable<SetTypingRequest, OkResponse>('setTyping', data),
   setPresenceStatus: (data: SetPresenceStatusRequest) =>
-    invokeCallable<SetPresenceStatusRequest, OkResponse>(
-      'setPresenceStatus',
-      data
-    ),
+    invokeCallable<SetPresenceStatusRequest, OkResponse>('setPresenceStatus', data),
   addReaction: (data: AddReactionRequest) =>
     invokeCallable<AddReactionRequest, OkResponse>('addReaction', data),
   removeReaction: (data: RemoveReactionRequest) =>
@@ -293,31 +352,19 @@ export const callables = {
   unblockUser: (data: BlockUserRequest) =>
     invokeCallable<BlockUserRequest, OkResponse>('unblockUser', data),
   getBlockedUsers: () =>
-    invokeCallable<Record<string, never>, GetBlockedUsersResponse>(
-      'getBlockedUsers',
-      {}
-    ),
+    invokeCallable<Record<string, never>, GetBlockedUsersResponse>('getBlockedUsers', {}),
 
   // Entitlement-affecting actions (server-owned)
   activateBoost: () =>
-    invokeCallable<Record<string, never>, ActivateBoostResponse>(
-      'activateBoost',
-      {}
-    ),
+    invokeCallable<Record<string, never>, ActivateBoostResponse>('activateBoost', {}),
   validatePromoCode: (data: PromoRequest) =>
     invokeCallable<PromoRequest, ValidatePromoResponse>('validatePromoCode', data),
   redeemPromoCode: (data: PromoRequest) =>
     invokeCallable<PromoRequest, RedeemPromoResponse>('redeemPromoCode', data),
   getStreakStatus: () =>
-    invokeCallable<Record<string, never>, StreakStatusResponse>(
-      'getStreakStatus',
-      {}
-    ),
+    invokeCallable<Record<string, never>, StreakStatusResponse>('getStreakStatus', {}),
   recordStreakActivity: () =>
-    invokeCallable<Record<string, never>, RecordStreakResponse>(
-      'recordStreakActivity',
-      {}
-    ),
+    invokeCallable<Record<string, never>, RecordStreakResponse>('recordStreakActivity', {}),
 } as const;
 
 export { invokeCallable };

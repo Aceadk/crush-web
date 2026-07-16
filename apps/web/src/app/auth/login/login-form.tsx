@@ -4,7 +4,15 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
-import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@crush/ui';
+import {
+  Button,
+  Input,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@crush/ui';
 import { Mail, Lock, Eye, EyeOff, Chrome, Phone } from 'lucide-react';
 import { useAnalytics } from '@/components/analytics';
 import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
@@ -22,7 +30,6 @@ export default function LoginForm() {
 
   const {
     user,
-    profile,
     signInWithEmail,
     signInWithGoogle,
     sendEmailSignInLink,
@@ -52,14 +59,11 @@ export default function LoginForm() {
         return;
       }
 
-      // Check if user needs onboarding
-      if (profile && !profile.onboardingComplete) {
-        router.push('/onboarding');
-      } else {
-        router.push(redirect);
-      }
+      // The onboarding resolver, not a cached profile boolean, decides whether
+      // this UID resumes a step or immediately reaches the requested route.
+      router.push(appendRedirectParam('/onboarding', redirect));
     }
-  }, [user, profile, initialized, loading, redirect, router]);
+  }, [user, initialized, loading, redirect, router]);
 
   useEffect(() => {
     if (timeoutReason === 'timeout') {
@@ -164,17 +168,17 @@ export default function LoginForm() {
         <div className="space-y-3">
           <Button
             variant="outline"
-            className="w-full h-12"
+            className="h-12 w-full"
             onClick={handleGoogleLogin}
             disabled={isLoading}
           >
-            <Chrome className="w-5 h-5 mr-2" />
+            <Chrome className="mr-2 h-5 w-5" />
             {t('auth.continueWithGoogle')}
           </Button>
 
           <Link href={phoneHref}>
-            <Button variant="outline" className="w-full h-12" disabled={isLoading}>
-              <Phone className="w-5 h-5 mr-2" />
+            <Button variant="outline" className="h-12 w-full" disabled={isLoading}>
+              <Phone className="mr-2 h-5 w-5" />
               {t('auth.continueWithPhone')}
             </Button>
           </Link>
@@ -195,7 +199,7 @@ export default function LoginForm() {
         {/* Email form */}
         <form onSubmit={handleEmailLogin} className="space-y-4">
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="email"
               placeholder={t('auth.emailPlaceholder')}
@@ -207,7 +211,7 @@ export default function LoginForm() {
           </div>
 
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               type={showPassword ? 'text' : 'password'}
               placeholder={t('auth.password')}
@@ -221,18 +225,16 @@ export default function LoginForm() {
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
 
           {(error || validationError) && (
-            <p className="text-sm text-destructive text-center">
-              {error || validationError}
-            </p>
+            <p className="text-center text-sm text-destructive">{error || validationError}</p>
           )}
 
           {emailLinkSuccess && (
-            <p className="text-sm text-green-600 text-center">{emailLinkSuccess}</p>
+            <p className="text-center text-sm text-green-600">{emailLinkSuccess}</p>
           )}
 
           <div className="flex items-center justify-between gap-3">
@@ -249,20 +251,20 @@ export default function LoginForm() {
 
             <Link
               href={forgotPasswordHref}
-              className="text-sm text-primary hover:underline whitespace-nowrap"
+              className="whitespace-nowrap text-sm text-primary hover:underline"
             >
               {t('auth.forgotPassword')}
             </Link>
           </div>
 
-          <Button type="submit" className="w-full h-12" loading={isLoading}>
+          <Button type="submit" className="h-12 w-full" loading={isLoading}>
             {isSigningIn ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
 
           <Button
             type="button"
             variant="outline"
-            className="w-full h-12"
+            className="h-12 w-full"
             onClick={handleEmailLinkLogin}
             loading={isSendingEmailLink}
             disabled={isLoading}
@@ -274,7 +276,7 @@ export default function LoginForm() {
         {/* Sign up link */}
         <p className="text-center text-sm text-muted-foreground">
           {t('auth.noAccount')}{' '}
-          <Link href={signupHref} className="text-primary hover:underline font-medium">
+          <Link href={signupHref} className="font-medium text-primary hover:underline">
             {t('auth.signUp')}
           </Link>
         </p>

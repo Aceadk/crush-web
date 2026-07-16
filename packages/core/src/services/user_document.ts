@@ -12,8 +12,12 @@ type FirestoreUserData = Record<string, unknown>;
 type GeoLocationPatch = {
   latitude?: number;
   longitude?: number;
+  accuracyMeters?: number;
   city?: string;
+  region?: string;
   country?: string;
+  capturedAt?: string;
+  confirmedAt?: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -152,19 +156,78 @@ function normalizeLocation(value: unknown): GeoLocationPatch | undefined {
 
   const latitude = toNumber(source.latitude);
   const longitude = toNumber(source.longitude);
+  const accuracyMeters = toNumber(source.accuracyMeters) ?? toNumber(source.accuracy);
   const city = toString(source.city);
+  const region = toString(source.region) ?? toString(source.state);
   const country = toString(source.country);
+  const capturedAt = normalizeTimestampToString(source.capturedAt);
+  const confirmedAt =
+    normalizeTimestampToString(source.confirmedAt) ??
+    normalizeTimestampToString(source.locationConfirmedAt);
 
-  if (latitude === undefined && longitude === undefined && !city && !country) {
+  if (
+    latitude === undefined &&
+    longitude === undefined &&
+    !city &&
+    !region &&
+    !country &&
+    !confirmedAt
+  ) {
     return undefined;
   }
 
   return {
     latitude,
     longitude,
+    accuracyMeters,
     city,
+    region,
     country,
+    capturedAt,
+    confirmedAt,
   };
+}
+
+function normalizePhotoRecords(value: unknown): NonNullable<UserProfile['photoRecords']> {
+  if (!Array.isArray(value)) return [];
+  const validStatuses = new Set([
+    'uploading',
+    'processing',
+    'approved',
+    'rejected',
+    'failed',
+    'unknown',
+  ]);
+  return value.flatMap((entry, index) => {
+    const source = asRecord(entry);
+    const downloadUrl =
+      toString(source.downloadUrl) ?? toString(source.url) ?? toString(source.photoUrl);
+    const mediaId = toString(source.mediaId) ?? toString(source.id);
+    if (!downloadUrl && !mediaId) return [];
+    const rawStatus = toString(source.status);
+    const status = validStatuses.has(rawStatus ?? '')
+      ? (rawStatus as NonNullable<UserProfile['photoRecords']>[number]['status'])
+      : 'unknown';
+    return [
+      {
+        mediaId,
+        storagePath: toString(source.storagePath),
+        downloadUrl,
+        status,
+        reason: toString(source.reason),
+        isPrimary: toBoolean(source.isPrimary) ?? index === 0,
+      },
+    ];
+  });
+}
+
+function normalizeStringMap(value: unknown): Record<string, string> | undefined {
+  const source = asRecord(value);
+  const entries = Object.entries(source).flatMap(([key, entry]) => {
+    const resolved = toString(entry);
+    return resolved ? [[key, resolved] as const] : [];
+  });
+  return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
 function normalizePrompts(value: unknown): UserPrompt[] | undefined {
@@ -264,31 +327,15 @@ function deriveCompletionFlags(params: {
 }
 
 /**
- * Onboarding ROUTING GATE — mirrors the mobile app's derivation exactly
- * (Crush App lib/shared/dto/user.dart, CrushUser.isOnboardingComplete):
- * terms accepted AND basic info present (age >= 18 and a gender, unless the
- * user skipped that step) AND at least one photo (unless skipped).
- *
- * Deliberately IGNORES the top-level onboardingComplete/profileComplete doc
- * fields: the backend mirror trigger (syncLegacyDiscoveryFields in
- * functions/src/index.ts) continuously rewrites those to the user's
- * advanced-discovery ELIGIBILITY, which flips false for incognito/hidden/
- * moderated users. Routing on them would bounce a fully-onboarded user back
- * into onboarding — and treat the same account differently than mobile does.
+ * Legacy view-model convenience only. Actual routing calls
+ * resolveOnboardingState; root onboardingComplete/profileComplete are mutable
+ * discovery mirrors and partial field inference is not trusted.
  */
 export function deriveOnboardingGate(params: {
-  hasAcceptedTerms: boolean;
-  hasSkippedBasicInfo?: boolean;
-  hasSkippedProfileSetup?: boolean;
-  age?: number;
-  gender?: Gender;
-  photos: string[];
+  schemaVersion?: number;
+  completedAt?: unknown;
 }): boolean {
-  if (!params.hasAcceptedTerms) return false;
-  const basicInfoDone =
-    params.hasSkippedBasicInfo === true || ((params.age ?? 0) >= 18 && Boolean(params.gender));
-  const profileSetupDone = params.hasSkippedProfileSetup === true || params.photos.length > 0;
-  return basicInfoDone && profileSetupDone;
+  return (params.schemaVersion ?? 0) >= 2 && Boolean(params.completedAt);
 }
 
 /**
@@ -320,55 +367,29 @@ export function buildUserProfileCreateData(
   nowIso: string
 ): Record<string, unknown> {
   const displayName = data.displayName?.trim() ?? '';
-  const photos =
-    data.photos && data.photos.length > 0
-      ? data.photos
-      : data.profilePhotoUrl
-        ? [data.profilePhotoUrl]
-        : [];
-  const primaryPhotoIndex = normalizePrimaryPhotoIndex(data.primaryPhotoIndex, photos.length);
-  const displayPhotoUrl = photos[primaryPhotoIndex];
   const settings = { ...DEFAULT_USER_SETTINGS, ...(data.settings ?? {}) };
   const interestedIn = normalizeInterestedIn(data.interestedIn);
+  const normalizedGender = normalizeGender(data.gender);
   const location = normalizeLocation(data.location);
   const prompts = data.prompts?.filter((prompt) => prompt.answer.trim().length > 0);
-  const completion = deriveCompletionFlags({
-    explicitOnboardingComplete: data.onboardingComplete,
-    explicitProfileComplete: data.profileComplete,
-    displayName,
-    gender: normalizeGender(data.gender),
-    birthDate: data.birthDate,
-    age: data.age,
-    interestedIn,
-    photos,
-  });
+  // This builder is intentionally limited to fields Firestore Rules classify
+  // as client-owned. Runtime auth bootstrap uses resolveOnboardingState/Admin
+  // SDK; keeping this helper safe prevents future callers from reintroducing a
+  // client-authored trust/entitlement/onboarding document.
   const canonicalProfile: Record<string, unknown> = {
     name: displayName,
-    birthDate: data.birthDate,
-    age: data.age ?? 0,
-    gender: normalizeGender(data.gender) ?? '',
-    sexualOrientation: data.sexualOrientation,
+    gender: normalizedGender ?? '',
+    sexualOrientation: normalizedGender === 'non_binary' ? data.sexualOrientation : null,
     bio: data.bio ?? '',
-    photoUrls: photos,
-    primaryPhotoIndex,
     interests: data.interests ?? [],
     city: location?.city ?? '',
     country: location?.country ?? '',
-    isVerified: data.isVerified ?? false,
-    // Present-but-empty defaults mirroring the mobile create
-    // (_ensureUserDocumentExists in firebase_auth_repository.dart).
-    lastName: '',
+    lastName: data.lastName?.trim() ?? '',
     videoUrls: [] as string[],
     languages: [] as string[],
     preferences: buildCanonicalPreferences(interestedIn, settings),
   };
 
-  if (location?.latitude != null) {
-    canonicalProfile.latitude = location.latitude;
-  }
-  if (location?.longitude != null) {
-    canonicalProfile.longitude = location.longitude;
-  }
   if (prompts != null) {
     canonicalProfile.profilePrompts = prompts;
   }
@@ -396,44 +417,22 @@ export function buildUserProfileCreateData(
     email: data.email ?? null,
     phoneNumber: data.phoneNumber ?? '',
     displayName,
-    username: data.username ?? null,
-    usernameLower: data.username ? data.username.toLowerCase() : null,
+    // username, usernameLower, and lastUsernameChangeAt are callable-owned.
+    // claimUsername is the only trusted writer for the uniqueness tuple.
     // Canonical demographic/profile data lives ONLY under profile.* — the
     // Firestore rules reject legacy flat root keys (bio, birthDate, age, gender,
     // sexualOrientation, interests, isVerified, …). See firestore.rules
     // legacyFlatProfileKeys() and docs/contracts/canonical_user_document.fixture.json.
     interestedIn,
-    photos,
-    profilePhotoUrl: displayPhotoUrl ?? data.profilePhotoUrl,
-    location,
     prompts,
     lifestyle: data.lifestyle,
-    // Canonical entitlement field (backend/rules source of truth) plus the
-    // legacy alias web historically wrote; both default to free, matching the
-    // mobile create in _ensureUserDocumentExists.
-    plan: 'free',
-    subscriptionTier: data.subscriptionTier ?? 'free',
-    isIdVerified: false,
     themePreference: 'system',
-    billingPeriod: data.billingPeriod,
-    premiumExpiresAt: data.premiumExpiresAt,
-    premiumAutoRenew: data.premiumAutoRenew,
-    stripeCustomerId: data.stripeCustomerId,
-    stripeSubscriptionId: data.stripeSubscriptionId,
-    createdAt: nowIso,
     updatedAt: nowIso,
     lastActive: data.lastActive ?? nowIso,
     isOnline: data.isOnline,
     settings,
     notificationPrefs: data.notificationPrefs ?? data.notificationSettings,
     notificationSettings: data.notificationSettings,
-    hasAcceptedTerms: data.hasAcceptedTerms ?? false,
-    termsAcceptedAt: data.termsAcceptedAt,
-    onboardingComplete: completion.onboardingComplete,
-    profileComplete: completion.profileComplete,
-    isEmailVerified: data.isEmailVerified ?? false,
-    isPhoneVerified: data.isPhoneVerified ?? Boolean(data.phoneNumber),
-    boost: data.boost,
     profile: canonicalProfile,
   });
 }
@@ -443,61 +442,38 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
   const settingsPatch = data.settings;
   const interestedIn =
     data.interestedIn !== undefined ? normalizeInterestedIn(data.interestedIn) : undefined;
-  const location = data.location !== undefined ? normalizeLocation(data.location) : undefined;
   const prompts =
     data.prompts !== undefined
       ? data.prompts.filter((prompt) => prompt.answer.trim().length > 0)
       : undefined;
+  const updatedGender = data.gender !== undefined ? normalizeGender(data.gender) : undefined;
 
   if (data.displayName !== undefined) {
     updates.displayName = data.displayName.trim();
     updates['profile.name'] = data.displayName.trim();
   }
-  // Canonical demographic fields are written under profile.* ONLY. Writing the
-  // legacy flat root keys (bio/birthDate/age/gender/sexualOrientation/interests/
-  // isVerified) is rejected by the Firestore rules.
+  // DOB/age, media/order, exact or confirmed location, verification,
+  // entitlement, and completion fields are deliberately absent here. Their
+  // trusted schema-v2 callables own those mutations.
   if (data.bio !== undefined) {
     updates['profile.bio'] = data.bio.trim();
   }
-  if (data.birthDate !== undefined) {
-    updates['profile.birthDate'] = data.birthDate;
-  }
-  if (data.age !== undefined) {
-    updates['profile.age'] = data.age;
-  }
   if (data.gender !== undefined) {
-    updates['profile.gender'] = normalizeGender(data.gender);
+    updates['profile.gender'] = updatedGender;
+    if (updatedGender !== 'non_binary') {
+      updates['profile.sexualOrientation'] = null;
+    }
   }
-  if (data.sexualOrientation !== undefined) {
+  if (
+    data.sexualOrientation !== undefined &&
+    (data.gender === undefined || updatedGender === 'non_binary')
+  ) {
     updates['profile.sexualOrientation'] = data.sexualOrientation;
   }
   if (interestedIn !== undefined) {
     updates.interestedIn = interestedIn;
     updates['profile.preferences.showMeGenders'] =
       interestedIn.length > 0 ? interestedIn : ['male', 'female'];
-  }
-  if (data.photos !== undefined) {
-    const primaryPhotoIndex = normalizePrimaryPhotoIndex(
-      data.primaryPhotoIndex,
-      data.photos.length
-    );
-    updates.photos = data.photos;
-    updates.profilePhotoUrl = data.photos[primaryPhotoIndex] ?? null;
-    updates['profile.photoUrls'] = data.photos;
-    updates['profile.primaryPhotoIndex'] = primaryPhotoIndex;
-  } else if (data.primaryPhotoIndex !== undefined) {
-    updates['profile.primaryPhotoIndex'] = Math.max(0, Math.trunc(data.primaryPhotoIndex));
-  }
-  if (location !== undefined) {
-    updates.location = location;
-    updates['profile.city'] = location.city ?? '';
-    updates['profile.country'] = location.country ?? '';
-    if (location.latitude !== undefined) {
-      updates['profile.latitude'] = location.latitude;
-    }
-    if (location.longitude !== undefined) {
-      updates['profile.longitude'] = location.longitude;
-    }
   }
   if (data.interests !== undefined) {
     updates['profile.interests'] = data.interests;
@@ -523,15 +499,6 @@ export function buildUserProfileUpdateData(data: Partial<UserProfile>): Record<s
     if (data.lifestyle.workout !== undefined) {
       updates['profile.workout'] = data.lifestyle.workout;
     }
-  }
-  if (data.isVerified !== undefined) {
-    updates['profile.isVerified'] = data.isVerified;
-  }
-  if (data.onboardingComplete !== undefined) {
-    updates.onboardingComplete = data.onboardingComplete;
-  }
-  if (data.profileComplete !== undefined) {
-    updates.profileComplete = data.profileComplete;
   }
   if (settingsPatch !== undefined) {
     updates.settings = settingsPatch;
@@ -597,8 +564,12 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
     normalizeLocation({
       latitude: profile.latitude,
       longitude: profile.longitude,
+      accuracyMeters: profile.locationAccuracyMeters,
       city: profile.city,
+      region: profile.region,
       country: profile.country,
+      capturedAt: profile.locationCapturedAt,
+      confirmedAt: profile.locationConfirmedAt,
     });
   const prompts = normalizePrompts(data.prompts) ?? normalizePrompts(profile.profilePrompts);
   const settingsFromDoc = (data.settings as Partial<UserSettings> | undefined) ?? {};
@@ -635,11 +606,12 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
         : (settingsFromDoc.showInDiscovery ?? true),
   };
   const displayName = toString(data.displayName) ?? toString(profile.name) ?? '';
+  const resolvedGender = normalizeGender(data.gender) ?? normalizeGender(profile.gender);
   const completion = deriveCompletionFlags({
     explicitOnboardingComplete: toBoolean(data.onboardingComplete),
     explicitProfileComplete: toBoolean(data.profileComplete),
     displayName,
-    gender: normalizeGender(data.gender) ?? normalizeGender(profile.gender),
+    gender: resolvedGender,
     birthDate: canonicalBirthDate,
     age: toNumber(data.age) ?? toNumber(profile.age) ?? deriveAgeFromBirthDate(canonicalBirthDate),
     interestedIn,
@@ -651,13 +623,17 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
     email: toString(data.email),
     phoneNumber: toString(data.phoneNumber),
     displayName,
+    lastName: toString(profile.lastName) ?? toString(data.lastName),
     username: toString(data.username),
     bio: toString(data.bio) ?? toString(profile.bio),
     birthDate: canonicalBirthDate,
     age: toNumber(data.age) ?? toNumber(profile.age) ?? deriveAgeFromBirthDate(canonicalBirthDate),
-    gender: normalizeGender(data.gender) ?? normalizeGender(profile.gender),
-    sexualOrientation: (toString(data.sexualOrientation) ??
-      toString(profile.sexualOrientation)) as UserProfile['sexualOrientation'],
+    gender: resolvedGender,
+    sexualOrientation:
+      resolvedGender === 'non_binary'
+        ? ((toString(data.sexualOrientation) ??
+            toString(profile.sexualOrientation)) as UserProfile['sexualOrientation'])
+        : undefined,
     interestedIn,
     photos,
     // The web view-model presents the selected display photo first so existing
@@ -669,6 +645,16 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
       toStringArray(data.interests).length > 0
         ? toStringArray(data.interests)
         : toStringArray(profile.interests),
+    photoRecords:
+      normalizePhotoRecords(data.photoRecords).length > 0
+        ? normalizePhotoRecords(data.photoRecords)
+        : normalizePhotoRecords(profile.photoRecords).length > 0
+          ? normalizePhotoRecords(profile.photoRecords)
+          : normalizePhotoRecords(asRecord(data.onboarding).photos),
+    jobTitle: toString(profile.jobTitle),
+    company: toString(profile.company),
+    school: toString(profile.school) ?? toString(profile.education),
+    favourites: normalizeStringMap(profile.favourites),
     prompts,
     lifestyle: (data.lifestyle as UserProfile['lifestyle']) ?? undefined,
     isVerified: toBoolean(data.isVerified) ?? toBoolean(profile.isVerified) ?? false,
@@ -700,19 +686,28 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
     termsAcceptedAt: toString(data.termsAcceptedAt),
     hasSkippedBasicInfo: toBoolean(data.hasSkippedBasicInfo),
     hasSkippedProfileSetup: toBoolean(data.hasSkippedProfileSetup),
-    // Routing gate (mobile-parity derivation) — NOT the trigger-managed
-    // top-level doc field; see deriveOnboardingGate.
+    // Convenience only; protected routing calls resolveOnboardingState.
     onboardingComplete: deriveOnboardingGate({
-      hasAcceptedTerms: toBoolean(data.hasAcceptedTerms) ?? false,
-      hasSkippedBasicInfo: toBoolean(data.hasSkippedBasicInfo),
-      hasSkippedProfileSetup: toBoolean(data.hasSkippedProfileSetup),
-      age: toNumber(data.age) ?? toNumber(profile.age) ?? deriveAgeFromBirthDate(canonicalBirthDate),
-      gender: normalizeGender(data.gender) ?? normalizeGender(profile.gender),
-      photos,
+      schemaVersion:
+        toNumber(asRecord(data.onboarding).schemaVersion) ?? toNumber(data.onboardingSchemaVersion),
+      completedAt: asRecord(data.onboarding).completedAt ?? data.onboardingCompletedAt,
     }),
     profileComplete: completion.profileComplete,
     isEmailVerified: toBoolean(data.isEmailVerified),
     isPhoneVerified: toBoolean(data.isPhoneVerified),
+    onboardingSchemaVersion:
+      toNumber(asRecord(data.onboarding).schemaVersion) ?? toNumber(data.onboardingSchemaVersion),
+    onboardingCompletedSteps:
+      toStringArray(asRecord(data.onboarding).completedStepKeys).length > 0
+        ? toStringArray(asRecord(data.onboarding).completedStepKeys)
+        : toStringArray(asRecord(data.onboarding).completedSteps),
+    onboardingSkippedSteps:
+      toStringArray(asRecord(data.onboarding).skippedOptionalStepKeys).length > 0
+        ? toStringArray(asRecord(data.onboarding).skippedOptionalStepKeys)
+        : toStringArray(asRecord(data.onboarding).skippedSteps),
+    onboardingCompletedAt:
+      normalizeTimestampToString(asRecord(data.onboarding).completedAt) ??
+      normalizeTimestampToString(data.onboardingCompletedAt),
     boost: {
       expiresAt: normalizeTimestampToString(asRecord(data.boost).expiresAt),
       activatedAt: normalizeTimestampToString(asRecord(data.boost).activatedAt),

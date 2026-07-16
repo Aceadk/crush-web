@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   locationService,
-  userService,
+  onboardingService,
+  authVerificationFactsFromUser,
   useAuthStore,
   LocationDetails,
   LocationPermissionStatus,
@@ -42,7 +43,7 @@ interface UseLocationReturn {
   toggleLocation: () => Promise<void>;
 }
 
-const LOCATION_ENABLED_KEY = 'crush_location_enabled';
+const locationEnabledKey = (uid: string) => `crush:location-enabled:${uid}`;
 
 export function useLocation(options: UseLocationOptions = {}): UseLocationReturn {
   const { autoRequest = false, watchPosition = false, updateProfile = false } = options;
@@ -63,7 +64,7 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
     mountedRef.current = true;
 
     // Check saved preference
-    const savedEnabled = localStorage.getItem(LOCATION_ENABLED_KEY);
+    const savedEnabled = user ? localStorage.getItem(locationEnabledKey(user.uid)) : null;
     if (savedEnabled === 'true') {
       setIsLocationEnabled(true);
     }
@@ -91,7 +92,7 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
         locationService.stopWatching(watchIdRef.current);
       }
     };
-  }, [profile?.location]);
+  }, [profile?.location, user]);
 
   // Watch position if enabled
   useEffect(() => {
@@ -125,25 +126,30 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
     setError(null);
 
     try {
-      const locationDetails = await locationService.getCurrentLocation(true);
+      const coordinates = await locationService.requestLocation({ maximumAge: 0 });
+      const locationDetails = await locationService.reverseGeocode(coordinates);
 
       if (mountedRef.current) {
         setLocation(locationDetails);
         setPermissionStatus('granted');
         setIsLocationEnabled(true);
-        localStorage.setItem(LOCATION_ENABLED_KEY, 'true');
+        if (user) localStorage.setItem(locationEnabledKey(user.uid), 'true');
       }
 
       // Update user profile if requested
       if (updateProfile && user && locationDetails) {
-        await userService.updateUserProfile(user.uid, {
-          location: {
+        await onboardingService.confirmCurrentLocation(
+          {
             latitude: locationDetails.latitude,
             longitude: locationDetails.longitude,
+            accuracyMeters: coordinates.accuracy,
+            capturedAt: new Date().toISOString(),
             city: locationDetails.city,
+            region: locationDetails.state,
             country: locationDetails.country,
           },
-        });
+          authVerificationFactsFromUser(useAuthStore.getState().user)
+        );
         await refreshProfile();
       }
     } catch (err) {
@@ -181,24 +187,16 @@ export function useLocation(options: UseLocationOptions = {}): UseLocationReturn
 
   const enableLocation = useCallback(async () => {
     setIsLocationEnabled(true);
-    localStorage.setItem(LOCATION_ENABLED_KEY, 'true');
+    if (user) localStorage.setItem(locationEnabledKey(user.uid), 'true');
     await requestLocation();
-  }, [requestLocation]);
+  }, [requestLocation, user]);
 
   const disableLocation = useCallback(async () => {
     setIsLocationEnabled(false);
-    localStorage.setItem(LOCATION_ENABLED_KEY, 'false');
-
-    // Optionally clear location from profile
-    if (user) {
-      await userService.updateUserProfile(user.uid, {
-        location: undefined,
-      });
-      await refreshProfile();
-    }
+    if (user) localStorage.setItem(locationEnabledKey(user.uid), 'false');
 
     clearLocation();
-  }, [user, refreshProfile, clearLocation]);
+  }, [user, clearLocation]);
 
   const toggleLocation = useCallback(async () => {
     if (isLocationEnabled) {
@@ -256,9 +254,7 @@ export function useDistance(otherLocation?: { latitude?: number; longitude?: num
     }
   }, [location, otherLocation]);
 
-  const formattedDistance = distance !== null
-    ? locationService.formatDistance(distance)
-    : null;
+  const formattedDistance = distance !== null ? locationService.formatDistance(distance) : null;
 
   return {
     distance,

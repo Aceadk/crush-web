@@ -135,6 +135,7 @@ interface AuthState {
   sendPasswordReset: (email: string) => Promise<void>;
   setProfile: (profile: UserProfile | null) => void;
   refreshProfile: () => Promise<void>;
+  refreshEmailVerification: () => Promise<boolean>;
   refreshSession: (options?: { forceRefresh?: boolean }) => Promise<void>;
   clearError: () => void;
 }
@@ -192,12 +193,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
               // Create profile if it doesn't exist
               if (!profile) {
-                profile = await userService.createUserProfile(user.uid, {
-                  email: user.email || undefined,
-                  phoneNumber: user.phoneNumber || undefined,
-                  displayName: user.displayName || '',
-                  profilePhotoUrl: user.photoURL || undefined,
-                });
+                profile = await userService.bootstrapUserProfile(user.uid);
               }
 
               // Update last active
@@ -295,10 +291,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const user = await authService.signUpWithEmail(email, password, displayName);
 
       // Create user profile
-      const profile = await userService.createUserProfile(user.uid, {
-        email,
-        displayName: displayName || '',
-      });
+      const profile = await userService.bootstrapUserProfile(user.uid);
 
       // Send verification email immediately after account creation.
       try {
@@ -456,9 +449,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // Create or get profile
       let profile = await userService.getUserProfile(user.uid);
       if (!profile) {
-        profile = await userService.createUserProfile(user.uid, {
-          phoneNumber: user.phoneNumber || undefined,
-        });
+        profile = await userService.bootstrapUserProfile(user.uid);
       }
 
       set({
@@ -537,6 +528,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     } catch (error) {
       console.error('Failed to refresh profile:', error);
     }
+  },
+
+  refreshEmailVerification: async () => {
+    const expectedUid = get().user?.uid;
+    if (!expectedUid) return false;
+
+    const verified = await authService.refreshAndCheckEmailVerification();
+    const refreshedUser = authService.getCurrentUser();
+    if (!refreshedUser || refreshedUser.uid !== expectedUid) return false;
+
+    set({ user: refreshedUser });
+    // The token was already forced above; refresh the cookie and profile mirror
+    // from that same authenticated account. Both are best-effort convenience
+    // state and never override the Auth result.
+    await Promise.all([get().refreshSession(), get().refreshProfile()]);
+    return verified;
   },
 
   // Refresh session cookie with current Firebase ID token

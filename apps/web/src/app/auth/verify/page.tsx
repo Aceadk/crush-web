@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Heart, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Suspense } from 'react';
-import { userService } from '@crush/core';
+import { authService } from '@crush/core';
 
 function VerifyContent() {
   const router = useRouter();
@@ -32,15 +32,11 @@ function VerifyContent() {
 
         await applyActionCode(auth, oobCode);
 
-        // Sync verification status to Firestore for cross-platform consistency
+        // Refresh Firebase Auth + token first; the trusted callable repairs the
+        // Firestore mirror. Never self-write a verification boolean.
         const currentUser = auth.currentUser;
         if (currentUser) {
-          try {
-            await userService.updateUserProfile(currentUser.uid, { isEmailVerified: true });
-          } catch {
-            // Non-blocking — Firebase Auth is the source of truth
-            console.error('Failed to sync isEmailVerified to Firestore');
-          }
+          await authService.refreshAndCheckEmailVerification();
         }
 
         setStatus('success');
@@ -52,7 +48,9 @@ function VerifyContent() {
         } else if (firebaseError?.code === 'auth/expired-action-code') {
           setErrorMessage('This verification link has expired. Please request a new one.');
         } else {
-          setErrorMessage(err instanceof Error ? err.message : 'Verification failed. The link may have expired.');
+          setErrorMessage(
+            err instanceof Error ? err.message : 'Verification failed. The link may have expired.'
+          );
         }
       }
     }
@@ -70,30 +68,32 @@ function VerifyContent() {
   }, [status, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <div className="max-w-md w-full text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-6">
-          <Heart className="w-8 h-8 text-primary" />
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md text-center">
+        <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+          <Heart className="h-8 w-8 text-primary" />
         </div>
 
         {status === 'loading' && (
           <>
-            <h1 className="text-2xl font-bold mb-2">Verifying Your Email...</h1>
-            <p className="text-muted-foreground mb-6">Please wait while we verify your email address.</p>
-            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
+            <h1 className="mb-2 text-2xl font-bold">Verifying Your Email...</h1>
+            <p className="mb-6 text-muted-foreground">
+              Please wait while we verify your email address.
+            </p>
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
           </>
         )}
 
         {status === 'success' && (
           <>
-            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Email Verified!</h1>
-            <p className="text-muted-foreground mb-6">
+            <CheckCircle className="mx-auto mb-4 h-12 w-12 text-green-500" />
+            <h1 className="mb-2 text-2xl font-bold">Email Verified!</h1>
+            <p className="mb-6 text-muted-foreground">
               Your email has been successfully verified. We are taking you to the next step.
             </p>
             <Link
               href="/auth/verify-email?verified=1"
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Continue
             </Link>
@@ -102,12 +102,12 @@ function VerifyContent() {
 
         {status === 'error' && (
           <>
-            <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-2">Verification Failed</h1>
-            <p className="text-muted-foreground mb-6">{errorMessage}</p>
+            <XCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
+            <h1 className="mb-2 text-2xl font-bold">Verification Failed</h1>
+            <p className="mb-6 text-muted-foreground">{errorMessage}</p>
             <Link
               href="/auth/login"
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Back to Login
             </Link>
@@ -120,11 +120,13 @@ function VerifyContent() {
 
 export default function VerifyPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
       <VerifyContent />
     </Suspense>
   );

@@ -22,6 +22,7 @@ import {
   signInWithEmailLink,
 } from 'firebase/auth';
 import { getFirebaseAuth } from '../firebase/config';
+import { callables } from '../api/callables';
 
 export interface AuthState {
   user: User | null;
@@ -106,10 +107,7 @@ class AuthService {
   /**
    * Send passwordless email sign-in link
    */
-  async sendEmailSignInLink(
-    email: string,
-    options?: { redirectPath?: string }
-  ): Promise<void> {
+  async sendEmailSignInLink(email: string, options?: { redirectPath?: string }): Promise<void> {
     if (typeof window === 'undefined') {
       throw new Error('Email link sign-in is only supported in the browser');
     }
@@ -152,21 +150,14 @@ class AuthService {
   /**
    * Start phone number verification
    */
-  async startPhoneVerification(
-    phoneNumber: string,
-    recaptchaContainerId: string
-  ): Promise<void> {
+  async startPhoneVerification(phoneNumber: string, recaptchaContainerId: string): Promise<void> {
     const auth = getFirebaseAuth();
 
     const recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
       size: 'invisible',
     });
 
-    this.confirmationResult = await signInWithPhoneNumber(
-      auth,
-      phoneNumber,
-      recaptchaVerifier
-    );
+    this.confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
   }
 
   /**
@@ -283,26 +274,53 @@ class AuthService {
     if (!user) {
       throw new Error('No authenticated user');
     }
-    await firebaseSendEmailVerification(user);
+    if (typeof window === 'undefined') {
+      await firebaseSendEmailVerification(user);
+      return;
+    }
+    const continueUrl = new URL('/auth/verify-email', window.location.origin);
+    continueUrl.searchParams.set('verified', '1');
+    await firebaseSendEmailVerification(user, {
+      url: continueUrl.toString(),
+      handleCodeInApp: false,
+    });
   }
 
   /**
    * Reload current user and return latest email verification status.
    */
-  async checkEmailVerification(): Promise<boolean> {
-    const user = this.getCurrentUser();
-    if (!user) {
+  async refreshAndCheckEmailVerification(): Promise<boolean> {
+    const auth = getFirebaseAuth();
+    const initialUser = auth.currentUser;
+    if (!initialUser) {
       throw new Error('No authenticated user');
     }
+    const expectedUid = initialUser.uid;
 
-    // Phone-only users do not require email verification.
-    if (!user.email) {
-      return true;
+    await initialUser.reload();
+    const refreshedUser = auth.currentUser;
+    if (!refreshedUser || refreshedUser.uid !== expectedUid) return false;
+
+    // Force a fresh token so callable middleware and Security Rules see the
+    // updated email_verified claim immediately, without logout/restart.
+    await refreshedUser.getIdToken(true);
+    const verified = refreshedUser.email ? refreshedUser.emailVerified : true;
+
+    if (refreshedUser.email && verified) {
+      try {
+        await callables.syncEmailVerification({});
+      } catch (error) {
+        // Firebase Auth remains authoritative. A failed convenience-mirror
+        // repair must never turn a genuinely verified account false again.
+        console.warn('Email verification mirror sync will be retried later:', error);
+      }
     }
+    return verified;
+  }
 
-    await user.reload();
-    const refreshedUser = this.getCurrentUser();
-    return Boolean(refreshedUser?.emailVerified);
+  /** @deprecated Prefer refreshAndCheckEmailVerification. */
+  async checkEmailVerification(): Promise<boolean> {
+    return this.refreshAndCheckEmailVerification();
   }
 }
 

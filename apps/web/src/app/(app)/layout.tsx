@@ -1,8 +1,15 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuthStore, useUIStore, useMatchStore } from '@crush/core';
+import {
+  authVerificationFactsFromUser,
+  isAccountVerified,
+  onboardingService,
+  useAuthStore,
+  useUIStore,
+  useMatchStore,
+} from '@crush/core';
 import { Sidebar } from '@/shared/components/layout/app-sidebar';
 import { AuthLoadingShell, AuthRedirectingShell } from '@/shared/components/layout/auth-shell';
 import { useIsMobile } from '@/shared/hooks';
@@ -15,7 +22,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const {
     user,
-    profile,
     loading,
     initialized,
     deviceTrusted,
@@ -26,10 +32,12 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { setIsMobile } = useUIStore();
   const { subscribeToMatches, cleanup } = useMatchStore();
   const isMobile = useIsMobile();
-  // Phone-verified accounts are exempt (mobile parity: account verification is
-  // email OR phone; the backend's requireEmailVerified also exempts phone
-  // sign-in). Only unverified email/password accounts are gated.
-  const needsEmailVerification = Boolean(user?.email && !user.emailVerified && !user.phoneNumber);
+  // Firebase can mutate and reuse the same User object during reload(). Read
+  // verification primitives on every store render instead of memoizing by
+  // object identity, or a freshly verified account can remain locally false.
+  const authFacts = authVerificationFactsFromUser(user);
+  const needsEmailVerification = Boolean(user && !isAccountVerified(authFacts));
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Note: Auth is initialized globally in AuthInitializer provider
 
@@ -39,14 +47,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   // Subscribe to matches when authenticated
   useEffect(() => {
-    if (user && !needsEmailVerification) {
+    if (user && !needsEmailVerification && onboardingChecked) {
       subscribeToMatches(user.uid);
     }
 
     return () => {
       cleanup();
     };
-  }, [user, needsEmailVerification, subscribeToMatches, cleanup]);
+  }, [user, needsEmailVerification, onboardingChecked, subscribeToMatches, cleanup]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -113,12 +121,48 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     router,
   ]);
 
-  // Redirect to onboarding if not completed
+  // The server resolver is the sole routing gate. Root booleans are legacy
+  // discovery mirrors and are intentionally ignored here.
   useEffect(() => {
-    if (profile && !profile.onboardingComplete && !needsEmailVerification) {
-      router.push('/onboarding');
-    }
-  }, [profile, needsEmailVerification, router]);
+    setOnboardingChecked(false);
+    if (!initialized || loading || !user || needsEmailVerification) return;
+    const expectedUid = user.uid;
+    let cancelled = false;
+    void onboardingService
+      .resolve(authVerificationFactsFromUser(useAuthStore.getState().user))
+      .then((resolution) => {
+        if (cancelled || useAuthStore.getState().user?.uid !== expectedUid) return;
+        const destination = String(resolution.destination);
+        if (
+          destination === 'discovery' ||
+          destination === '/discover' ||
+          destination.startsWith('/discover?')
+        ) {
+          setOnboardingChecked(true);
+          return;
+        }
+        const currentSearch = typeof window !== 'undefined' ? window.location.search : '';
+        const currentPath = `${pathname}${currentSearch}`;
+        const step = resolution.readiness.firstIncompleteStep;
+        const onboardingPath =
+          step === 'discovery'
+            ? '/onboarding'
+            : step === 'emailVerification'
+              ? '/auth/verify-email'
+              : step === 'phoneVerification'
+                ? '/auth/phone'
+                : `/onboarding?step=${encodeURIComponent(step)}`;
+        router.replace(appendRedirectParam(onboardingPath, currentPath));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const currentSearch = typeof window !== 'undefined' ? window.location.search : '';
+        router.replace(appendRedirectParam('/onboarding', `${pathname}${currentSearch}`));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialized, loading, needsEmailVerification, pathname, router, user]);
 
   // Loading state
   if (
@@ -128,7 +172,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       hasUser: Boolean(user),
       needsEmailVerification,
       deviceTrustChecked,
-    })
+    }) ||
+    !onboardingChecked
   ) {
     return <AuthLoadingShell />;
   }
@@ -148,7 +193,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
 
       {/* Main content. md:ml-64 matches the useIsMobile (768px) breakpoint that

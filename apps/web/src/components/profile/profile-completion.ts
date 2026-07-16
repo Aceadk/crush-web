@@ -1,7 +1,11 @@
 import type { UserProfile } from '@crush/core';
 
 export type ProfileCompletionRequirementId =
+  | 'verification'
+  | 'username'
   | 'displayName'
+  | 'basicInfo'
+  | 'discoveryPreferences'
   | 'photos'
   | 'bio'
   | 'interests'
@@ -17,8 +21,14 @@ export interface ProfileCompletionRequirement {
 }
 
 export interface ProfileCompletionInput {
+  accountVerified?: boolean;
+  username?: string;
   displayName?: string;
+  birthDate?: string;
+  gender?: UserProfile['gender'];
+  interestedIn?: UserProfile['interestedIn'];
   photos?: string[];
+  photoRecords?: UserProfile['photoRecords'];
   bio?: string;
   interests?: string[];
   location?: UserProfile['location'];
@@ -39,10 +49,28 @@ export function buildProfileCompletionState(input: ProfileCompletionInput): Prof
   const interestCount = input.interests?.length ?? 0;
   const promptCount =
     input.prompts?.filter((prompt) => prompt.answer.trim().length > 0).length ?? 0;
-  const hasLocation =
-    Boolean(input.location?.city?.trim()) && Boolean(input.location?.country?.trim());
+  // Resolver snapshots deliberately withhold exact coordinates. A trusted
+  // server confirmation timestamp is the client-visible completion proof.
+  const hasLocation = Boolean(input.location?.confirmedAt);
+  const hasApprovedPhoto =
+    input.photoRecords?.some((photo) => photo.status === 'approved') ?? false;
+  const interestCountIsValid = interestCount >= 3 && interestCount <= 5;
 
   const requirements: ProfileCompletionRequirement[] = [
+    {
+      id: 'verification',
+      label: 'Verify your account',
+      description: 'Firebase Authentication or a verified phone provider must confirm the account.',
+      complete: input.accountVerified === true,
+      required: true,
+    },
+    {
+      id: 'username',
+      label: 'Choose a username',
+      description: 'Your unique server-claimed username is required for discovery.',
+      complete: /^[a-zA-Z0-9_]{3,20}$/.test(input.username ?? ''),
+      required: true,
+    },
     {
       id: 'displayName',
       label: 'Add your display name',
@@ -51,30 +79,44 @@ export function buildProfileCompletionState(input: ProfileCompletionInput): Prof
       required: true,
     },
     {
+      id: 'basicInfo',
+      label: 'Complete basic information',
+      description: 'Add your adult date of birth and gender.',
+      complete: Boolean(input.birthDate) && Boolean(input.gender),
+      required: true,
+    },
+    {
+      id: 'discoveryPreferences',
+      label: 'Choose discovery preferences',
+      description: 'Select at least one gender you would like to discover.',
+      complete: (input.interestedIn?.length ?? 0) > 0,
+      required: false,
+    },
+    {
       id: 'photos',
       label: 'Add at least 1 profile photo',
       description: 'A clear photo is required before your profile can be visible.',
-      complete: (input.photos?.length ?? 0) >= 1,
+      complete: hasApprovedPhoto,
       required: true,
     },
     {
       id: 'bio',
       label: 'Write a short bio',
-      description: 'Use at least 20 characters so people have a conversation starter.',
-      complete: bioLength >= 20,
+      description: 'Use at least 7 characters so people have a conversation starter.',
+      complete: bioLength >= 7,
       required: true,
     },
     {
       id: 'interests',
       label: 'Pick 3 interests',
       description: 'Interests improve match quality and make your profile easier to scan.',
-      complete: interestCount >= 3,
+      complete: interestCountIsValid,
       required: true,
     },
     {
       id: 'location',
-      label: 'Add city and country',
-      description: 'Location keeps distance and nearby discovery behavior predictable.',
+      label: 'Confirm your current location',
+      description: 'A server-confirmed coordinate capture keeps nearby discovery accurate.',
       complete: hasLocation,
       required: true,
     },
@@ -87,24 +129,6 @@ export function buildProfileCompletionState(input: ProfileCompletionInput): Prof
     },
   ];
 
-  const weightedScore = requirements.reduce((score, requirement) => {
-    if (!requirement.complete) return score;
-    switch (requirement.id) {
-      case 'displayName':
-        return score + 15;
-      case 'photos':
-        return score + 25;
-      case 'bio':
-        return score + 20;
-      case 'interests':
-        return score + 20;
-      case 'location':
-        return score + 10;
-      case 'prompts':
-        return score + 10;
-    }
-  }, 0);
-
   const missingRequired = requirements.filter(
     (requirement) => requirement.required && !requirement.complete
   );
@@ -113,7 +137,11 @@ export function buildProfileCompletionState(input: ProfileCompletionInput): Prof
   );
 
   return {
-    percent: Math.min(weightedScore, 100),
+    percent: Math.round(
+      (requirements.filter((requirement) => requirement.required && requirement.complete).length /
+        requirements.filter((requirement) => requirement.required).length) *
+        100
+    ),
     requirements,
     missingRequired,
     missingRecommended,
@@ -123,14 +151,23 @@ export function buildProfileCompletionState(input: ProfileCompletionInput): Prof
 }
 
 export function buildProfileCompletionStateFromProfile(
-  profile: UserProfile | null | undefined
+  profile: UserProfile | null | undefined,
+  accountVerified: boolean
 ): ProfileCompletionState {
   return buildProfileCompletionState({
+    // Authentication truth must be supplied by the caller. Firestore mirrors
+    // are display/query conveniences and must never become an authorization gate.
+    accountVerified,
+    username: profile?.username,
     displayName: profile?.displayName,
+    birthDate: profile?.birthDate,
+    gender: profile?.gender,
+    interestedIn: profile?.interestedIn,
     bio: profile?.bio,
     interests: profile?.interests,
     location: profile?.location,
     photos: profile?.photos,
+    photoRecords: profile?.photoRecords,
     prompts: profile?.prompts,
   });
 }

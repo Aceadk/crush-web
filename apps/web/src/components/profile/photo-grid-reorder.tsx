@@ -1,7 +1,13 @@
 'use client';
 
 import { cn } from '@crush/ui';
-import { MAX_PROFILE_PHOTOS } from '@crush/core';
+import {
+  MAX_PROFILE_PHOTOS,
+  PROFILE_PHOTO_ALLOWED_MIME_TYPES,
+  PROFILE_PHOTO_MAX_BYTES,
+  PROFILE_PHOTO_MAX_DIMENSION_PX,
+  PROFILE_PHOTO_MIN_DIMENSION_PX,
+} from '@crush/core';
 import {
   closestCenter,
   DndContext,
@@ -49,8 +55,8 @@ interface PhotoGridReorderProps {
   onError?: (message: string) => void;
 }
 
-const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = new Set<string>(PROFILE_PHOTO_ALLOWED_MIME_TYPES);
+const CROPPABLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function createStablePhotoId(url: string, index: number, allPhotos: string[]): string {
   const duplicateIndex =
@@ -156,13 +162,23 @@ export function PhotoGridReorder({
     }
 
     if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-      setPickerError('Choose a JPG, PNG, or WebP image.');
+      setPickerError('Choose a JPEG, PNG, WebP, HEIC, or HEIF image.');
       e.target.value = '';
       return;
     }
 
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    if (file.size > PROFILE_PHOTO_MAX_BYTES) {
       setPickerError('Choose an image smaller than 10 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    // Browser crop/decode support for HEIC/HEIF is inconsistent. Preserve the
+    // canonical iOS-friendly upload contract and let the shared upload precheck
+    // use createImageBitmap when available, otherwise defer dimensions to the
+    // authoritative server validator.
+    if (!CROPPABLE_IMAGE_TYPES.has(file.type)) {
+      onAddPhoto(file);
       e.target.value = '';
       return;
     }
@@ -252,7 +268,7 @@ export function PhotoGridReorder({
             type="file"
             ref={fileInputRef}
             onChange={handleFileSelect}
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
             className="hidden"
           />
         </SortableContext>
@@ -270,6 +286,10 @@ export function PhotoGridReorder({
         {photos.length === 0
           ? 'Add a clear first photo before your profile is visible.'
           : 'Drag photos or use the move buttons to reorder. First photo is your main profile picture.'}
+      </p>
+      <p className="mt-1 text-center text-xs text-muted-foreground">
+        JPEG, PNG, WebP, HEIC, or HEIF; {PROFILE_PHOTO_MIN_DIMENSION_PX}–
+        {PROFILE_PHOTO_MAX_DIMENSION_PX}px per side; maximum 10 MB. Server checks remain final.
       </p>
       {localError && (
         <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-300">

@@ -8,8 +8,8 @@
  *
  * Authority for each value:
  * - photos: mobile `ProfileMediaLimits.maxPhotos` = 9; rules bound photoUrls ≤ 9.
- * - interests: mobile `save_profile_details` rejects > 10; rules bound ≤ 20.
- * - photo size/mime: backend `PROFILE_PHOTO_MAX_BYTES` (10MB) + allowed MIME set.
+ * - interests: onboarding V2 product contract requires 3–5 stable interest IDs.
+ * - photo media: backend upload validation (bytes, MIME, dimensions, decoded pixels).
  * - prompts: mobile/web profile editor cap = 3.
  * See docs/contracts/profile_settings_capability_matrix_2026-06-07.md.
  */
@@ -18,12 +18,18 @@
 export const MAX_PROFILE_PHOTOS = 9;
 /** Min photos required to complete a profile. */
 export const MIN_PROFILE_PHOTOS = 1;
-/** Max interests (product limit; rules ceiling is 20). */
-export const MAX_INTERESTS = 10;
+/** Max interests in the cross-platform onboarding/profile contract. */
+export const MAX_INTERESTS = 5;
 /** Max profile prompts (question/answer pairs). */
 export const MAX_PROMPTS = 3;
 /** Max bytes per profile photo (10 MB), matching the backend upload limit. */
 export const PROFILE_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+/** Smallest accepted width and height for a profile photo. */
+export const PROFILE_PHOTO_MIN_DIMENSION_PX = 320;
+/** Largest accepted width and height for a profile photo. */
+export const PROFILE_PHOTO_MAX_DIMENSION_PX = 4096;
+/** Maximum decoded pixel count (4096 × 4096), independent of compressed bytes. */
+export const PROFILE_PHOTO_MAX_PIXELS = 16_777_216;
 /** Allowed profile photo MIME types (mirrors backend PROFILE_PHOTO_ALLOWED_MIME_TYPES). */
 export const PROFILE_PHOTO_ALLOWED_MIME_TYPES = [
   'image/jpeg',
@@ -47,6 +53,9 @@ export const PROFILE_CAPABILITIES = {
   maxInterests: MAX_INTERESTS,
   maxPrompts: MAX_PROMPTS,
   photoMaxBytes: PROFILE_PHOTO_MAX_BYTES,
+  photoMinDimensionPx: PROFILE_PHOTO_MIN_DIMENSION_PX,
+  photoMaxDimensionPx: PROFILE_PHOTO_MAX_DIMENSION_PX,
+  photoMaxPixels: PROFILE_PHOTO_MAX_PIXELS,
   photoAllowedMimeTypes: PROFILE_PHOTO_ALLOWED_MIME_TYPES,
   verificationServerOwned: VERIFICATION_IS_SERVER_OWNED,
 } as const;

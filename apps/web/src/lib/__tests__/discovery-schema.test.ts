@@ -12,7 +12,7 @@ import { DEFAULT_DISCOVERY_FILTERS } from '@crush/core/types/match';
 import { DEFAULT_USER_SETTINGS, type UserProfile } from '@crush/core/types/user';
 
 describe('web user document compatibility helpers', () => {
-  it('writes both flat and canonical nested fields for newly completed web profiles', () => {
+  it('keeps client bootstrap payloads free of server-owned readiness fields', () => {
     const created = buildUserProfileCreateData(
       {
         id: 'web-user',
@@ -34,20 +34,15 @@ describe('web user document compatibility helpers', () => {
     );
 
     expect(created.displayName).toBe('Alice Web');
-    expect(created.photos).toEqual(['https://img.example.com/alice.jpg']);
-    expect(created.onboardingComplete).toBe(true);
-    expect(created.profileComplete).toBe(true);
+    expect(created.photos).toBeUndefined();
+    expect(created.onboardingComplete).toBeUndefined();
+    expect(created.profileComplete).toBeUndefined();
     expect(created.lastActive).toBe('2026-03-13T01:00:00.000Z');
     expect(created.profile).toMatchObject({
       name: 'Alice Web',
-      birthDate: '1998-05-10',
       gender: 'female',
-      photoUrls: ['https://img.example.com/alice.jpg'],
-      primaryPhotoIndex: 0,
       city: 'Austin',
       country: 'US',
-      latitude: 30.2672,
-      longitude: -97.7431,
       preferences: {
         minAge: 18,
         maxAge: 50,
@@ -55,6 +50,19 @@ describe('web user document compatibility helpers', () => {
         showMeGenders: ['male'],
       },
     });
+    const nestedProfile = created.profile as Record<string, unknown>;
+    for (const key of [
+      'birthDate',
+      'age',
+      'photoUrls',
+      'primaryPhotoIndex',
+      'latitude',
+      'longitude',
+      'locationConfirmedAt',
+      'isVerified',
+    ]) {
+      expect(nestedProfile[key]).toBeUndefined();
+    }
   });
 
   it('maps canonical nested mobile documents back into the shared web user model', () => {

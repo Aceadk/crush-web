@@ -16,6 +16,64 @@ import type { UserProfile } from '@crush/core/types/user';
 import fixture from '@/__fixtures__/canonical_user_document.json';
 
 const REJECTED_FLAT_ROOT_KEYS = fixture.rejectedFlatRootKeys as string[];
+const PROTECTED_ROOT_KEYS = [
+  'username',
+  'usernameLower',
+  'lastUsernameChangeAt',
+  'plan',
+  'isIdVerified',
+  'idVerified',
+  'stripeCustomerId',
+  'stripeSubscriptionId',
+  'isEmailVerified',
+  'emailVerified',
+  'emailVerifiedViaOtp',
+  'isPhoneVerified',
+  'phoneVerified',
+  'createdAt',
+  'kycVerificationStatus',
+  'verificationStatus',
+  'boost',
+  'subscriptionExpiresAt',
+  'subscriptionLifecycle',
+  'subscriptionTier',
+  'isPremium',
+  'premiumPlan',
+  'safetyFlags',
+  'photos',
+  'profilePhotoUrl',
+  'onboarding',
+  'onboardingVersion',
+  'onboardingComplete',
+  'profileComplete',
+  'requiredProfileComplete',
+  'onboardingCompletedAt',
+  'hasAcceptedTerms',
+  'termsAcceptedAt',
+  'privacyAcceptedAt',
+  'location',
+  'latitude',
+  'longitude',
+] as const;
+const PROTECTED_PROFILE_KEYS = [
+  'birthDate',
+  'dateOfBirth',
+  'age',
+  'dobLastChangedAt',
+  'lastDobChangeAt',
+  'latitude',
+  'longitude',
+  'locationConfirmedAt',
+  'approvedPhotoCount',
+  'approvedPhotoUrls',
+  'photoApprovalStatus',
+  'photoModerationStatus',
+  'photoUrls',
+  'primaryPhotoIndex',
+  'photos',
+  'profilePhotoUrl',
+  'isVerified',
+] as const;
 
 function rootKeysIn(doc: Record<string, unknown>): string[] {
   return Object.keys(doc).filter((k) => !k.includes('.'));
@@ -67,22 +125,20 @@ describe('buildUserProfileCreateData — canonical only', () => {
   it('writes demographic data under profile.*', () => {
     expect(created.profile).toMatchObject({
       name: 'Alice Web',
-      birthDate: '1998-05-10',
       gender: 'female',
       bio: 'Coffee and trails.',
-      sexualOrientation: 'straight',
+      sexualOrientation: null,
       interests: ['Hiking', 'Coffee'],
-      photoUrls: ['https://img.example.com/alice.jpg'],
-      primaryPhotoIndex: 0,
     });
   });
 
-  it('retains allowed root identity/lifecycle fields', () => {
+  it('retains client-owned identity fields without manufacturing server state', () => {
     expect(created.displayName).toBe('Alice Web');
     expect(created.email).toBe('alice@example.com');
-    expect(created.photos).toEqual(['https://img.example.com/alice.jpg']);
-    expect(created.onboardingComplete).toBe(true);
-    expect(created.createdAt).toBe('2026-06-01T00:00:00.000Z');
+    expect(created.themePreference).toBe('system');
+    for (const key of PROTECTED_ROOT_KEYS) expect(created[key]).toBeUndefined();
+    const profile = created.profile as Record<string, unknown>;
+    for (const key of PROTECTED_PROFILE_KEYS) expect(profile[key]).toBeUndefined();
   });
 });
 
@@ -96,11 +152,11 @@ describe('buildUserProfileUpdateData — canonical only', () => {
 
   it('routes demographic mutations to profile.* paths', () => {
     expect(updates['profile.bio']).toBe('Coffee and trails.');
-    expect(updates['profile.birthDate']).toBe('1998-05-10');
     expect(updates['profile.gender']).toBe('female');
-    expect(updates['profile.sexualOrientation']).toBe('straight');
+    expect(updates['profile.sexualOrientation']).toBeNull();
     expect(updates['profile.interests']).toEqual(['Hiking', 'Coffee']);
-    expect(updates['profile.isVerified']).toBe(true);
+    expect(updates['profile.birthDate']).toBeUndefined();
+    expect(updates['profile.isVerified']).toBeUndefined();
     // No flat counterparts.
     expect(updates.bio).toBeUndefined();
     expect(updates.age).toBeUndefined();
@@ -109,13 +165,13 @@ describe('buildUserProfileUpdateData — canonical only', () => {
     expect(updates.isVerified).toBeUndefined();
   });
 
-  it('keeps allowed root mirrors (displayName, photos, location)', () => {
+  it('keeps allowed display-name writes and omits callable-owned mutations', () => {
     expect(updates.displayName).toBe('Alice Web');
-    expect(updates.photos).toEqual(['https://img.example.com/alice.jpg']);
-    expect(updates.profilePhotoUrl).toBe('https://img.example.com/alice.jpg');
-    expect(updates['profile.primaryPhotoIndex']).toBe(0);
-    expect(updates.location).toBeDefined();
     expect(updates['profile.name']).toBe('Alice Web');
+    for (const key of PROTECTED_ROOT_KEYS) expect(updates[key]).toBeUndefined();
+    for (const key of PROTECTED_PROFILE_KEYS) {
+      expect(updates[`profile.${key}`]).toBeUndefined();
+    }
   });
 
   it('strips nested undefined values (updateDoc rejects them)', () => {

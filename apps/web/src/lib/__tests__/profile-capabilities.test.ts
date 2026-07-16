@@ -17,23 +17,34 @@ import {
   MAX_INTERESTS,
   MAX_PROMPTS,
   PROFILE_PHOTO_MAX_BYTES,
+  PROFILE_PHOTO_MIN_DIMENSION_PX,
+  PROFILE_PHOTO_MAX_DIMENSION_PX,
+  PROFILE_PHOTO_MAX_PIXELS,
   PROFILE_PHOTO_ALLOWED_MIME_TYPES,
   VERIFICATION_IS_SERVER_OWNED,
 } from '@crush/core';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(here, '../../..'); // apps/web
+const coreRoot = path.resolve(appRoot, '../../packages/core/src');
 
 function read(rel: string): string {
   return fs.readFileSync(path.join(appRoot, rel), 'utf8');
 }
 
+function readCore(rel: string): string {
+  return fs.readFileSync(path.join(coreRoot, rel), 'utf8');
+}
+
 describe('canonical profile capability values', () => {
   it('matches the documented mobile/backend limits', () => {
     expect(MAX_PROFILE_PHOTOS).toBe(9); // mobile ProfileMediaLimits.maxPhotos + rules ≤ 9
-    expect(MAX_INTERESTS).toBe(10); // mobile save_profile_details (> 10 rejected)
+    expect(MAX_INTERESTS).toBe(5); // schema-v2 onboarding/backend require 3–5 stable IDs
     expect(MAX_PROMPTS).toBe(3);
     expect(PROFILE_PHOTO_MAX_BYTES).toBe(10 * 1024 * 1024);
+    expect(PROFILE_PHOTO_MIN_DIMENSION_PX).toBe(320);
+    expect(PROFILE_PHOTO_MAX_DIMENSION_PX).toBe(4096);
+    expect(PROFILE_PHOTO_MAX_PIXELS).toBe(16_777_216);
     expect([...PROFILE_PHOTO_ALLOWED_MIME_TYPES]).toEqual([
       'image/jpeg',
       'image/png',
@@ -59,15 +70,21 @@ describe('web profile surfaces consume the shared constants', () => {
       expect(src, `${name} should reference MAX_PROFILE_PHOTOS`).toContain(
         'maxPhotos={MAX_PROFILE_PHOTOS}'
       );
-      expect(src, `${name} should not hardcode maxPhotos={6}`).not.toContain(
-        'maxPhotos={6}'
-      );
+      expect(src, `${name} should not hardcode maxPhotos={6}`).not.toContain('maxPhotos={6}');
     }
   });
 
   it('PhotoGridReorder defaults to the canonical max', () => {
     const grid = read('src/components/profile/photo-grid-reorder.tsx');
     expect(grid).toContain('maxPhotos = MAX_PROFILE_PHOTOS');
+    expect(grid).toContain('PROFILE_PHOTO_MIN_DIMENSION_PX');
+    expect(grid).toContain('PROFILE_PHOTO_MAX_DIMENSION_PX');
+    expect(grid).toContain('image/heic,image/heif');
+  });
+
+  it('runs shared async dimension preflight before a staging upload', () => {
+    const storage = readCore('services/storage.ts');
+    expect(storage).toContain('await validateProfilePhotoForUpload(file)');
   });
 
   it('edit form caps interests + prompts via the shared constants', () => {

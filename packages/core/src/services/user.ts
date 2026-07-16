@@ -13,11 +13,7 @@ import {
 import { getFirebaseDb } from '../firebase/config';
 import { callables } from '../api/callables';
 import { DEFAULT_USER_SETTINGS, UserProfile, UserSettings } from '../types/user';
-import {
-  buildUserProfileCreateData,
-  buildUserProfileUpdateData,
-  mapUserDocumentToUserProfile,
-} from './user_document';
+import { buildUserProfileUpdateData, mapUserDocumentToUserProfile } from './user_document';
 
 const USERS_COLLECTION = 'users';
 
@@ -36,39 +32,20 @@ class UserService {
     return this.mapDocToUserProfile(userDoc.id, userDoc.data());
   }
 
-  /**
-   * Create a new user profile
-   */
-  async createUserProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile> {
-    const db = getFirebaseDb();
-    const now = new Date().toISOString();
-    const profile = buildUserProfileCreateData(
-      {
-        id: userId,
-        displayName: data.displayName || '',
-        photos: data.photos || [],
-        isVerified: false,
-        subscriptionTier: 'free',
-        createdAt: now,
-        updatedAt: now,
-        hasAcceptedTerms: false,
-        onboardingComplete: false,
-        profileComplete: false,
-        isEmailVerified: false,
-        isPhoneVerified: Boolean(data.phoneNumber),
-        settings: DEFAULT_USER_SETTINGS,
-        ...data,
-      },
-      now
-    );
+  /** Bootstrap users/{uid} through Admin SDK so clients never manufacture
+   * protected verification, entitlement, DOB, media, or onboarding fields. */
+  async bootstrapUserProfile(userId: string): Promise<UserProfile> {
+    await callables.resolveOnboardingState({});
+    const profile = await this.getUserProfile(userId);
+    if (!profile) {
+      throw new Error('The backend could not initialize this user profile. Please retry.');
+    }
+    return profile;
+  }
 
-    await setDoc(doc(db, USERS_COLLECTION, userId), {
-      ...profile,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    return mapUserDocumentToUserProfile(userId, profile);
+  /** @deprecated Use bootstrapUserProfile; retained for source compatibility. */
+  async createUserProfile(userId: string, _data: Partial<UserProfile>): Promise<UserProfile> {
+    return this.bootstrapUserProfile(userId);
   }
 
   /**
@@ -104,8 +81,7 @@ class UserService {
     // keys from the stale top-level settings and clobber values the user set
     // on mobile (e.g. their age range).
     const profilePreferences =
-      (docData.profile as { preferences?: Record<string, unknown> } | undefined)?.preferences ??
-      {};
+      (docData.profile as { preferences?: Record<string, unknown> } | undefined)?.preferences ?? {};
     const canonicalAsSettings: Partial<UserSettings> = {};
     if (typeof profilePreferences.maxDistanceKm === 'number') {
       canonicalAsSettings.maxDistance = profilePreferences.maxDistanceKm;
@@ -188,39 +164,6 @@ class UserService {
       isOnline: false,
       lastActive: serverTimestamp(),
     });
-  }
-
-  /**
-   * Check if username is available
-   */
-  async isUsernameAvailable(username: string): Promise<boolean> {
-    const db = getFirebaseDb();
-    const q = query(
-      collection(db, USERS_COLLECTION),
-      where('username', '==', username.toLowerCase())
-    );
-
-    const snapshot = await getDocs(q);
-    return snapshot.empty;
-  }
-
-  /**
-   * Accept terms and conditions
-   */
-  async acceptTermsAndConditions(userId: string): Promise<void> {
-    const db = getFirebaseDb();
-    await updateDoc(doc(db, USERS_COLLECTION, userId), {
-      hasAcceptedTerms: true,
-      termsAcceptedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-  }
-
-  /**
-   * Mark onboarding as complete
-   */
-  async completeOnboarding(userId: string): Promise<void> {
-    await this.updateUserProfile(userId, { onboardingComplete: true });
   }
 
   /**

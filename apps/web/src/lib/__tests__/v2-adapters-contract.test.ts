@@ -8,37 +8,36 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { v2Mock, matchV2Mock, legacyMatchMock, callableMock, firestoreMock } =
-  vi.hoisted(() => ({
-    v2Mock: {
-      subscribeToMessages: vi.fn(),
-      subscribeToTyping: vi.fn(),
-      getMessages: vi.fn(),
-      sendMessage: vi.fn(),
-      markMessagesRead: vi.fn(),
-      setTyping: vi.fn(),
-      addReaction: vi.fn(),
-      removeReaction: vi.fn(),
-      editMessage: vi.fn(),
-      unsendMessage: vi.fn(),
-    },
-    matchV2Mock: {
-      getMatches: vi.fn(),
-      subscribeToMatches: vi.fn(),
-      swipeLeft: vi.fn(),
-      swipeRight: vi.fn(),
-      unmatch: vi.fn(),
-      setPinned: vi.fn(),
-    },
-    legacyMatchMock: {
-      getDiscoveryProfiles: vi.fn(),
-    },
-    callableMock: {
-      blockUser: vi.fn(),
-      unblockUser: vi.fn(),
-    },
-    firestoreMock: { getDoc: vi.fn() },
-  }));
+const { v2Mock, matchV2Mock, legacyMatchMock, callableMock, firestoreMock } = vi.hoisted(() => ({
+  v2Mock: {
+    subscribeToMessages: vi.fn(),
+    subscribeToTyping: vi.fn(),
+    getMessages: vi.fn(),
+    sendMessage: vi.fn(),
+    markMessagesRead: vi.fn(),
+    setTyping: vi.fn(),
+    addReaction: vi.fn(),
+    removeReaction: vi.fn(),
+    editMessage: vi.fn(),
+    unsendMessage: vi.fn(),
+  },
+  matchV2Mock: {
+    getMatches: vi.fn(),
+    subscribeToMatches: vi.fn(),
+    swipeLeft: vi.fn(),
+    swipeRight: vi.fn(),
+    unmatch: vi.fn(),
+    setPinned: vi.fn(),
+  },
+  legacyMatchMock: {
+    getDiscoveryProfiles: vi.fn(),
+  },
+  callableMock: {
+    blockUser: vi.fn(),
+    unblockUser: vi.fn(),
+  },
+  firestoreMock: { getDoc: vi.fn() },
+}));
 
 vi.mock('@crush/core/services/message_v2', () => ({
   messageServiceV2: v2Mock,
@@ -68,10 +67,10 @@ describe('messageServiceV2Adapter', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('getOrCreateConversation synthesizes a conversation keyed by matchId', async () => {
-    const convo = await messageServiceV2Adapter.getOrCreateConversation(
-      'match-1',
-      ['viewer-uid', 'other']
-    );
+    const convo = await messageServiceV2Adapter.getOrCreateConversation('match-1', [
+      'viewer-uid',
+      'other',
+    ]);
     expect(convo.id).toBe('match-1');
     expect(convo.matchId).toBe('match-1');
     expect(convo.participants).toEqual(['viewer-uid', 'other']);
@@ -104,12 +103,7 @@ describe('messageServiceV2Adapter', () => {
     });
     v2Mock.sendMessage.mockResolvedValue({ messageId: 'm-1' });
 
-    const msg = await messageServiceV2Adapter.sendMessage(
-      'match-1',
-      'viewer-uid',
-      'hi',
-      'text'
-    );
+    const msg = await messageServiceV2Adapter.sendMessage('match-1', 'viewer-uid', 'hi', 'text');
 
     expect(v2Mock.sendMessage).toHaveBeenCalledWith('match-1', 'hi', 'text', {
       mediaUrl: undefined,
@@ -130,10 +124,8 @@ describe('messageServiceV2Adapter', () => {
       return () => {};
     });
     const results: (unknown | null)[] = [];
-    messageServiceV2Adapter.subscribeToTypingIndicator(
-      'match-1',
-      'viewer-uid',
-      (indicator) => results.push(indicator)
+    messageServiceV2Adapter.subscribeToTypingIndicator('match-1', 'viewer-uid', (indicator) =>
+      results.push(indicator)
     );
     // Other user typing → indicator; only self typing → null.
     captured!(['other']);
@@ -149,12 +141,7 @@ describe('messageServiceV2Adapter', () => {
     firestoreMock.getDoc.mockResolvedValueOnce({
       data: () => ({ reactions: { 'viewer-uid': '❤️' } }),
     });
-    await messageServiceV2Adapter.toggleReaction(
-      'match-1',
-      'msg-1',
-      'viewer-uid',
-      '❤️'
-    );
+    await messageServiceV2Adapter.toggleReaction('match-1', 'msg-1', 'viewer-uid', '❤️');
     expect(v2Mock.removeReaction).toHaveBeenCalledWith('match-1', 'msg-1');
     expect(v2Mock.addReaction).not.toHaveBeenCalled();
 
@@ -164,12 +151,7 @@ describe('messageServiceV2Adapter', () => {
     firestoreMock.getDoc.mockResolvedValueOnce({
       data: () => ({ reactions: {} }),
     });
-    await messageServiceV2Adapter.toggleReaction(
-      'match-1',
-      'msg-1',
-      'viewer-uid',
-      '😂'
-    );
+    await messageServiceV2Adapter.toggleReaction('match-1', 'msg-1', 'viewer-uid', '😂');
     expect(v2Mock.addReaction).toHaveBeenCalledWith('match-1', 'msg-1', '😂');
     expect(v2Mock.removeReaction).not.toHaveBeenCalled();
   });
@@ -185,11 +167,7 @@ describe('messageServiceV2Adapter', () => {
       data: () => ({ userIds: ['viewer-uid', 'blocked-user'] }),
     });
     callableMock.blockUser.mockResolvedValue({ ok: true });
-    await messageServiceV2Adapter.setConversationBlocked(
-      'match-1',
-      'viewer-uid',
-      true
-    );
+    await messageServiceV2Adapter.setConversationBlocked('match-1', 'viewer-uid', true);
     expect(callableMock.blockUser).toHaveBeenCalledWith({
       blockedId: 'blocked-user',
     });
@@ -209,10 +187,7 @@ describe('matchServiceV2Adapter', () => {
   it('getDiscoveryProfiles delegates to legacy (REST-backed) service', async () => {
     legacyMatchMock.getDiscoveryProfiles.mockResolvedValue([{ id: 'p-1' }]);
     const filters = { minAge: 18, maxAge: 50, maxDistance: 50 };
-    const profiles = await matchServiceV2Adapter.getDiscoveryProfiles(
-      'viewer-uid',
-      filters
-    );
+    const profiles = await matchServiceV2Adapter.getDiscoveryProfiles('viewer-uid', filters);
     expect(legacyMatchMock.getDiscoveryProfiles).toHaveBeenCalledWith(
       'viewer-uid',
       filters,
@@ -237,6 +212,12 @@ describe('matchServiceV2Adapter', () => {
     const result = await matchServiceV2Adapter.swipe('viewer', 'target', 'like');
     expect(matchV2Mock.swipeRight).toHaveBeenCalledWith('target');
     expect(result).toEqual({ isMatch: true, matchId: 'm-9' });
+  });
+
+  it('swipe superlike preserves the backend super-like flag', async () => {
+    matchV2Mock.swipeRight.mockResolvedValue({ isMatch: false, matchId: null, match: null });
+    await matchServiceV2Adapter.swipe('viewer', 'target', 'superlike');
+    expect(matchV2Mock.swipeRight).toHaveBeenCalledWith('target', undefined, true);
   });
 
   it('unmatch routes to V2', async () => {

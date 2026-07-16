@@ -29,6 +29,7 @@ export function VoiceNoteRecorder({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [recorderError, setRecorderError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -55,13 +56,30 @@ export function VoiceNoteRecorder({
   }, [audioUrl]);
 
   const startRecording = useCallback(async () => {
+    setRecorderError(null);
     try {
+      // System default microphone via getUserMedia.
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus',
-      });
+      // Pick the first container this browser can actually record.
+      // audio/mp4 (AAC) is preferred because every platform — including
+      // iOS — can also PLAY it back; Chrome/Firefox fall back to webm/opus.
+      // The previous hard-coded 'audio/webm;codecs=opus' threw
+      // NotSupportedError on Safari, so recording never started there.
+      const mimeType = [
+        'audio/mp4',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+      ].find(
+        (candidate) =>
+          typeof MediaRecorder !== 'undefined' &&
+          MediaRecorder.isTypeSupported(candidate)
+      );
+
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -72,7 +90,13 @@ export function VoiceNoteRecorder({
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        // Keep the recorder's real container type so the upload contentType
+        // and the receiver's <audio> element agree on the format.
+        const blobType =
+          mediaRecorder.mimeType && mediaRecorder.mimeType.length > 0
+            ? mediaRecorder.mimeType.split(';')[0]
+            : 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: blobType });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
 
@@ -96,7 +120,11 @@ export function VoiceNoteRecorder({
       }, 1000);
     } catch (error) {
       console.error('Failed to start recording:', error);
-      console.error('Microphone access denied:', error);
+      setRecorderError(
+        error instanceof DOMException && error.name === 'NotAllowedError'
+          ? 'Microphone access was denied. Allow it in your browser settings and try again.'
+          : 'Could not start recording on this browser.'
+      );
     }
   }, [maxDuration]);
 
@@ -274,6 +302,9 @@ export function VoiceNoteRecorder({
             <p className="text-xs text-gray-500 dark:text-gray-500">
               Max {maxDuration} seconds
             </p>
+            {recorderError && (
+              <p className="mt-1 text-xs text-red-500">{recorderError}</p>
+            )}
           </div>
 
           {/* Record button */}

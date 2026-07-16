@@ -1,13 +1,16 @@
 'use client';
 
-import { buildProfileCompletionStateFromProfile } from '@/components/profile/profile-completion';
+import { buildProfileCompletionState } from '@/components/profile/profile-completion';
 import {
   calculateAge,
+  authVerificationFactsFromUser,
   describeProfilePhotoUploadError,
   locationService,
+  onboardingService,
+  PROFILE_PHOTO_ALLOWED_MIME_TYPES,
+  PROFILE_PHOTO_MAX_BYTES,
   storageService,
   useAuthStore,
-  userService,
 } from '@crush/core';
 import { Badge, Button, Card, cn } from '@crush/ui';
 import {
@@ -31,16 +34,36 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = new Set<string>(PROFILE_PHOTO_ALLOWED_MIME_TYPES);
 
 export default function ProfileView() {
-  const { user, profile, setProfile, refreshProfile } = useAuthStore();
+  const { user, profile, refreshProfile } = useAuthStore();
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [trustedPhotoRecords, setTrustedPhotoRecords] = useState(profile?.photoRecords ?? []);
+  const [trustedLocation, setTrustedLocation] = useState(profile?.location);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const expectedUid = user.uid;
+    let cancelled = false;
+    void onboardingService
+      .resolve(authVerificationFactsFromUser(user))
+      .then((resolution) => {
+        if (cancelled || useAuthStore.getState().user?.uid !== expectedUid) return;
+        setTrustedPhotoRecords(resolution.snapshot.photos);
+        setTrustedLocation(resolution.snapshot.location ?? undefined);
+      })
+      .catch((caught) => {
+        if (!cancelled) console.warn('Could not hydrate trusted profile readiness:', caught);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,12 +72,12 @@ export default function ProfileView() {
     setPhotoError(null);
 
     if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-      setPhotoError('Choose a JPG, PNG, or WebP image.');
+      setPhotoError('Choose a JPG, PNG, WebP, HEIC, or HEIF image.');
       e.target.value = '';
       return;
     }
 
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    if (file.size > PROFILE_PHOTO_MAX_BYTES) {
       setPhotoError('Choose an image smaller than 10 MB.');
       e.target.value = '';
       return;
@@ -62,22 +85,39 @@ export default function ProfileView() {
 
     setUploading(true);
     try {
-      const photoUrl = await storageService.uploadProfilePhoto(user.uid, file);
-      const currentPhotos = profile?.photos || [];
-      const newPhotos = [...currentPhotos, photoUrl];
-      await userService.updateUserProfile(user.uid, {
-        photos: newPhotos,
-        primaryPhotoIndex: 0,
-        profilePhotoUrl: currentPhotos.length === 0 ? photoUrl : profile?.profilePhotoUrl,
+      const upload = await storageService.uploadProfilePhotoForValidation(user.uid, file);
+      const validated = await onboardingService.validateProfilePhoto({
+        storagePath: upload.storagePath,
+        isPrimary: (profile?.photos.length ?? 0) === 0,
       });
-      if (profile) {
-        setProfile({
-          ...profile,
-          photos: newPhotos,
-          primaryPhotoIndex: 0,
-          profilePhotoUrl: currentPhotos.length === 0 ? photoUrl : profile.profilePhotoUrl,
-        });
+      URL.revokeObjectURL(upload.downloadUrl);
+      if (validated.status !== 'approved') {
+        setPhotoError(
+          validated.status === 'rejected'
+            ? validated.reason || 'That photo did not pass the profile-photo checks.'
+            : validated.status === 'failed'
+              ? 'The photo check failed. Please retry with another image.'
+              : 'That photo is still processing and will appear after server approval.'
+        );
+        return;
       }
+      const trustedSnapshot =
+        validated.snapshot ??
+        (
+          await onboardingService.resolve(
+            authVerificationFactsFromUser(useAuthStore.getState().user)
+          )
+        ).snapshot;
+      setTrustedPhotoRecords(trustedSnapshot.photos);
+      const approvedIds = trustedSnapshot.photos
+        .filter((photo) => photo.status === 'approved')
+        .map((photo) => photo.mediaId)
+        .filter((id): id is string => Boolean(id));
+      await onboardingService.saveStep(
+        'photos',
+        { mediaIds: approvedIds },
+        authVerificationFactsFromUser(useAuthStore.getState().user)
+      );
       await refreshProfile();
     } catch (error) {
       console.error('Failed to upload photo:', error);
@@ -91,45 +131,60 @@ export default function ProfileView() {
   const handleRemovePhoto = async (index: number) => {
     if (!user || !profile) return;
 
-    const newPhotos = [...profile.photos];
-    newPhotos.splice(index, 1);
-
-    await userService.updateUserProfile(user.uid, {
-      photos: newPhotos,
-      primaryPhotoIndex: 0,
-      profilePhotoUrl: newPhotos[0] || undefined,
-    });
-    setProfile({
-      ...profile,
-      photos: newPhotos,
-      primaryPhotoIndex: 0,
-      profilePhotoUrl: newPhotos[0],
-    });
+    const removedUrl = profile.photos[index];
+    const resolution = await onboardingService.resolve(
+      authVerificationFactsFromUser(useAuthStore.getState().user)
+    );
+    setTrustedPhotoRecords(resolution.snapshot.photos);
+    const mediaIds = resolution.snapshot.photos
+      .filter((photo) => photo.status === 'approved' && photo.downloadUrl !== removedUrl)
+      .map((photo) => photo.mediaId)
+      .filter((id): id is string => Boolean(id));
+    await onboardingService.saveStep(
+      'photos',
+      { mediaIds },
+      authVerificationFactsFromUser(useAuthStore.getState().user)
+    );
     await refreshProfile();
   };
 
   const handleSetMainPhoto = async (index: number) => {
     if (!user || !profile || index === 0) return;
 
-    const newPhotos = [...profile.photos];
-    const [photo] = newPhotos.splice(index, 1);
-    newPhotos.unshift(photo);
-
-    await userService.updateUserProfile(user.uid, {
-      photos: newPhotos,
-      primaryPhotoIndex: 0,
-      profilePhotoUrl: photo,
-    });
-    setProfile({
-      ...profile,
-      photos: newPhotos,
-      primaryPhotoIndex: 0,
-      profilePhotoUrl: photo,
-    });
+    const primaryUrl = profile.photos[index];
+    const resolution = await onboardingService.resolve(
+      authVerificationFactsFromUser(useAuthStore.getState().user)
+    );
+    setTrustedPhotoRecords(resolution.snapshot.photos);
+    const approvedRecords = resolution.snapshot.photos.filter(
+      (photo) => photo.status === 'approved' && photo.mediaId
+    );
+    const mediaIds = [
+      ...approvedRecords.filter((photo) => photo.downloadUrl === primaryUrl),
+      ...approvedRecords.filter((photo) => photo.downloadUrl !== primaryUrl),
+    ].map((photo) => photo.mediaId as string);
+    await onboardingService.saveStep(
+      'photos',
+      { mediaIds },
+      authVerificationFactsFromUser(useAuthStore.getState().user)
+    );
     await refreshProfile();
   };
 
-  const completionState = buildProfileCompletionStateFromProfile(profile);
+  const completionState = buildProfileCompletionState({
+    accountVerified: Boolean(user && (!user.email || user.emailVerified)),
+    username: profile?.username,
+    displayName: profile?.displayName,
+    birthDate: profile?.birthDate,
+    gender: profile?.gender,
+    interestedIn: profile?.interestedIn,
+    bio: profile?.bio,
+    interests: profile?.interests,
+    location: trustedLocation,
+    photos: profile?.photos,
+    photoRecords: trustedPhotoRecords,
+    prompts: profile?.prompts,
+  });
   const completeness = completionState.percent;
 
   if (!profile) {
@@ -201,7 +256,7 @@ export default function ProfileView() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
               onChange={handlePhotoUpload}
               className="hidden"
             />

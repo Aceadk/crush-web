@@ -115,6 +115,11 @@ export type {
   SwipeRightRequest,
   SwipeRightResponse,
   SwipeLeftRequest,
+  SaveOnboardingStepRequest,
+  ClaimUsernameRequest,
+  CheckUsernameAvailabilityResponse,
+  ConfirmCurrentLocationRequest,
+  ValidateProfilePhotoRequest,
   UnmatchRequest,
   SetMatchPinnedRequest,
   ReportUserRequest,
@@ -129,8 +134,58 @@ export type {
   RecordStreakResponse,
 } from './api/callables';
 export { describeProfilePhotoUploadError, storageService } from './services/storage';
-export type { UploadProgress } from './services/storage';
+export type { UploadProgress, ProfilePhotoUpload } from './services/storage';
+export {
+  assertProfilePhotoDimensions,
+  assertProfilePhotoFileEnvelope,
+  validateProfilePhotoForUpload,
+} from './services/profile_photo_validation';
+export type { ProfilePhotoDimensions } from './services/profile_photo_validation';
 export { userService } from './services/user';
+export {
+  ONBOARDING_SCHEMA_VERSION,
+  MIN_ONBOARDING_BIO_LENGTH,
+  MIN_ONBOARDING_INTERESTS,
+  MAX_ONBOARDING_INTERESTS,
+  ONBOARDING_STEP_REGISTRY,
+  WEB_ONBOARDING_STEP_KEYS,
+  ONBOARDING_INTEREST_OPTIONS,
+  resolveWebOnboardingStep,
+  buildOnboardingStepQuery,
+  OnboardingServiceError,
+  authVerificationFactsFromUser,
+  isAccountVerified,
+  calculateCalendarAge,
+  latestAllowedAdultBirthDate,
+  normalizeInterestId,
+  normalizeOnboardingSnapshot,
+  normalizeOnboardingResolution,
+  hydrateOnboardingDraft,
+  snapshotFromProfile,
+  evaluateOnboardingReadiness,
+  onboardingDraftStorageKey,
+  loadOnboardingDraft,
+  saveOnboardingDraft,
+  clearOnboardingDraft,
+  onboardingService,
+} from './services/onboarding';
+export type {
+  OnboardingStepKey,
+  OnboardingStepDefinition,
+  OnboardingPhotoStatus,
+  OnboardingPhoto,
+  ConfirmedOnboardingLocation,
+  OnboardingWorkEducation,
+  OnboardingFavourites,
+  CanonicalOnboardingSnapshot,
+  AuthVerificationFacts,
+  OnboardingMissingRequirement,
+  OnboardingCompletionMetric,
+  OnboardingReadiness,
+  OnboardingResolution,
+  ValidateProfilePhotoResult,
+} from './services/onboarding';
+export type { OnboardingWireStepKey } from './api/callables';
 export {
   notificationService,
   resolveNotificationRoute,
@@ -188,6 +243,9 @@ export {
   MAX_INTERESTS,
   MAX_PROMPTS,
   PROFILE_PHOTO_MAX_BYTES,
+  PROFILE_PHOTO_MIN_DIMENSION_PX,
+  PROFILE_PHOTO_MAX_DIMENSION_PX,
+  PROFILE_PHOTO_MAX_PIXELS,
   PROFILE_PHOTO_ALLOWED_MIME_TYPES,
   VERIFICATION_IS_SERVER_OWNED,
   PROFILE_CAPABILITIES,

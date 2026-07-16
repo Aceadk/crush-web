@@ -2,7 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore, userService, locationService, type Gender, type GeoLocation } from '@crush/core';
+import {
+  authVerificationFactsFromUser,
+  locationService,
+  onboardingService,
+  useAuthStore,
+  userService,
+  type Gender,
+  type GeoLocation,
+} from '@crush/core';
 import { Button, Card, Input } from '@crush/ui';
 import { cn } from '@crush/ui';
 import { PlusFeatureGate } from '@/features/premium';
@@ -64,18 +72,18 @@ function Slider({ value, min, max, step = 1, onChange, disabled }: SliderProps) 
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
         className={cn(
-          "w-full h-2 rounded-full appearance-none cursor-pointer",
-          "bg-gray-200 dark:bg-gray-700",
-          "[&::-webkit-slider-thumb]:appearance-none",
-          "[&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5",
-          "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary",
-          "[&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md",
-          "[&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white",
-          "[&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5",
-          "[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary",
-          "[&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2",
-          "[&::-moz-range-thumb]:border-white",
-          disabled && "opacity-50 cursor-not-allowed"
+          'h-2 w-full cursor-pointer appearance-none rounded-full',
+          'bg-gray-200 dark:bg-gray-700',
+          '[&::-webkit-slider-thumb]:appearance-none',
+          '[&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5',
+          '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary',
+          '[&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md',
+          '[&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white',
+          '[&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5',
+          '[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary',
+          '[&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2',
+          '[&::-moz-range-thumb]:border-white',
+          disabled && 'cursor-not-allowed opacity-50'
         )}
         style={{
           background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${percentage}%, rgb(229 231 235) ${percentage}%, rgb(229 231 235) 100%)`,
@@ -104,13 +112,13 @@ function RangeSlider({
   step = 1,
   onMinChange,
   onMaxChange,
-  disabled
+  disabled,
 }: RangeSliderProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         <div className="flex-1">
-          <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Min</label>
+          <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">Min</label>
           <Slider
             value={minValue}
             min={min}
@@ -121,7 +129,7 @@ function RangeSlider({
           />
         </div>
         <div className="flex-1">
-          <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Max</label>
+          <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">Max</label>
           <Slider
             value={maxValue}
             min={minValue + step}
@@ -149,11 +157,11 @@ function GenderButton({ label, selected, onChange, disabled }: GenderButtonProps
       onClick={() => !disabled && onChange(!selected)}
       disabled={disabled}
       className={cn(
-        "px-4 py-2 rounded-full text-sm font-medium transition-colors",
+        'rounded-full px-4 py-2 text-sm font-medium transition-colors',
         selected
-          ? "bg-primary text-white"
-          : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700",
-        disabled && "opacity-50 cursor-not-allowed"
+          ? 'bg-primary text-white'
+          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
+        disabled && 'cursor-not-allowed opacity-50'
       )}
     >
       {label}
@@ -205,63 +213,67 @@ export default function DiscoverySettingsPage() {
     }
   }, [profile]);
 
-  const updateSettings = useCallback(async (
-    key: keyof DiscoverySettings,
-    value: number | Gender[]
-  ) => {
-    if (!user) return;
+  const updateSettings = useCallback(
+    async (key: keyof DiscoverySettings, value: number | Gender[]) => {
+      if (!user) return;
 
-    setSavingField(key);
-    setSettings(prev => ({ ...prev, [key]: value }));
+      setSavingField(key);
+      setSettings((prev) => ({ ...prev, [key]: value }));
 
-    try {
-      if (key === 'interestedIn') {
-        // Update profile field directly
-        await userService.updateUserProfile(user.uid, {
-          interestedIn: value as Gender[],
-        });
+      try {
+        if (key === 'interestedIn') {
+          await onboardingService.saveStep(
+            'discoveryPreferences',
+            { interestedIn: value as Gender[] },
+            authVerificationFactsFromUser(useAuthStore.getState().user)
+          );
+        } else {
+          // Update settings object
+          const settingsUpdate: Record<string, number> = {};
+          settingsUpdate[key] = value as number;
+          await userService.updateUserSettings(user.uid, settingsUpdate);
+        }
+
+        await refreshProfile();
+
+        // Show saved indicator
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } catch (error) {
+        console.error('Failed to update discovery setting:', error);
+        // Revert on error
+        if (profile) {
+          setSettings({
+            maxDistance: profile.settings?.maxDistance ?? 50,
+            ageRangeMin: profile.settings?.ageRangeMin ?? 18,
+            ageRangeMax: profile.settings?.ageRangeMax ?? 50,
+            interestedIn: profile.interestedIn ?? ['female'],
+          });
+        }
+      } finally {
+        setSavingField(null);
+      }
+    },
+    [user, profile, refreshProfile]
+  );
+
+  const toggleGender = useCallback(
+    (gender: Gender) => {
+      const currentInterests = settings.interestedIn;
+      let newInterests: Gender[];
+
+      if (currentInterests.includes(gender)) {
+        // Don't allow deselecting all genders
+        if (currentInterests.length === 1) return;
+        newInterests = currentInterests.filter((g) => g !== gender);
       } else {
-        // Update settings object
-        const settingsUpdate: Record<string, number> = {};
-        settingsUpdate[key] = value as number;
-        await userService.updateUserSettings(user.uid, settingsUpdate);
+        newInterests = [...currentInterests, gender];
       }
 
-      await refreshProfile();
-
-      // Show saved indicator
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (error) {
-      console.error('Failed to update discovery setting:', error);
-      // Revert on error
-      if (profile) {
-        setSettings({
-          maxDistance: profile.settings?.maxDistance ?? 50,
-          ageRangeMin: profile.settings?.ageRangeMin ?? 18,
-          ageRangeMax: profile.settings?.ageRangeMax ?? 50,
-          interestedIn: profile.interestedIn ?? ['female'],
-        });
-      }
-    } finally {
-      setSavingField(null);
-    }
-  }, [user, profile, refreshProfile]);
-
-  const toggleGender = useCallback((gender: Gender) => {
-    const currentInterests = settings.interestedIn;
-    let newInterests: Gender[];
-
-    if (currentInterests.includes(gender)) {
-      // Don't allow deselecting all genders
-      if (currentInterests.length === 1) return;
-      newInterests = currentInterests.filter(g => g !== gender);
-    } else {
-      newInterests = [...currentInterests, gender];
-    }
-
-    updateSettings('interestedIn', newInterests);
-  }, [settings.interestedIn, updateSettings]);
+      updateSettings('interestedIn', newInterests);
+    },
+    [settings.interestedIn, updateSettings]
+  );
 
   const toPassportGeoLocation = useCallback((value: PassportState): GeoLocation | undefined => {
     const city = value.city.trim();
@@ -281,51 +293,50 @@ export default function DiscoverySettingsPage() {
     };
   }, []);
 
-  const persistPassportSettings = useCallback(async (
-    nextMode: boolean,
-    nextLocation: PassportState,
-    analyticsFeature: string
-  ) => {
-    if (!user) return;
+  const persistPassportSettings = useCallback(
+    async (nextMode: boolean, nextLocation: PassportState, analyticsFeature: string) => {
+      if (!user) return;
 
-    const normalizedLocation = toPassportGeoLocation(nextLocation);
-    if (nextMode && !normalizedLocation) {
-      setPassportError('Set a destination before enabling Passport mode.');
-      return;
-    }
-
-    setSavingField('passport');
-    setPassportError(null);
-
-    try {
-      const settingsPayload: { passportMode: boolean; passportLocation?: GeoLocation } = {
-        passportMode: nextMode,
-      };
-      if (normalizedLocation) {
-        settingsPayload.passportLocation = normalizedLocation;
+      const normalizedLocation = toPassportGeoLocation(nextLocation);
+      if (nextMode && !normalizedLocation) {
+        setPassportError('Set a destination before enabling Passport mode.');
+        return;
       }
 
-      await userService.updateUserSettings(user.uid, settingsPayload);
-      setPassportMode(nextMode);
-      setPassportLocation(nextLocation);
-      analytics.track({
-        name: 'feature_used',
-        properties: { feature: analyticsFeature },
-      });
-      await refreshProfile();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (error) {
-      console.error('Failed to update passport settings:', error);
-      setPassportError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to update passport settings. Please try again.'
-      );
-    } finally {
-      setSavingField(null);
-    }
-  }, [user, toPassportGeoLocation, refreshProfile]);
+      setSavingField('passport');
+      setPassportError(null);
+
+      try {
+        const settingsPayload: { passportMode: boolean; passportLocation?: GeoLocation } = {
+          passportMode: nextMode,
+        };
+        if (normalizedLocation) {
+          settingsPayload.passportLocation = normalizedLocation;
+        }
+
+        await userService.updateUserSettings(user.uid, settingsPayload);
+        setPassportMode(nextMode);
+        setPassportLocation(nextLocation);
+        analytics.track({
+          name: 'feature_used',
+          properties: { feature: analyticsFeature },
+        });
+        await refreshProfile();
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } catch (error) {
+        console.error('Failed to update passport settings:', error);
+        setPassportError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to update passport settings. Please try again.'
+        );
+      } finally {
+        setSavingField(null);
+      }
+    },
+    [user, toPassportGeoLocation, refreshProfile]
+  );
 
   const handleTogglePassportMode = useCallback(async () => {
     if (!isPremium) {
@@ -370,11 +381,7 @@ export default function DiscoverySettingsPage() {
         latitude: detected.latitude,
         longitude: detected.longitude,
       };
-      await persistPassportSettings(
-        passportMode,
-        nextLocation,
-        'passport_location_detected'
-      );
+      await persistPassportSettings(passportMode, nextLocation, 'passport_location_detected');
     } catch (error) {
       setPassportError(
         error instanceof Error
@@ -391,58 +398,51 @@ export default function DiscoverySettingsPage() {
       city: passportLocation.city.trim(),
       country: passportLocation.country.trim(),
     };
-    await persistPassportSettings(
-      passportMode,
-      nextLocation,
-      'passport_destination_updated'
-    );
+    await persistPassportSettings(passportMode, nextLocation, 'passport_destination_updated');
   }, [passportLocation.city, passportLocation.country, passportMode, persistPassportSettings]);
 
-  const passportDestinationLabel = [
-    passportLocation.city.trim(),
-    passportLocation.country.trim(),
-  ]
+  const passportDestinationLabel = [passportLocation.city.trim(), passportLocation.country.trim()]
     .filter(Boolean)
     .join(', ');
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-20 dark:bg-gray-900">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
+      <div className="sticky top-0 z-20 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div className="mx-auto flex max-w-2xl items-center gap-4 px-4 py-4">
           <button
             onClick={() => router.back()}
-            className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            className="-ml-2 p-2 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="h-6 w-6" />
           </button>
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white flex-1">
+          <h1 className="flex-1 text-lg font-semibold text-gray-900 dark:text-white">
             Discovery Settings
           </h1>
           {saved && (
-            <div className="flex items-center gap-1 text-green-500 text-sm">
-              <Check className="w-4 h-4" />
+            <div className="flex items-center gap-1 text-sm text-green-500">
+              <Check className="h-4 w-4" />
               <span>Saved</span>
             </div>
           )}
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
         {/* Distance Preference */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Location
             </h2>
           </div>
-          <div className="p-4 space-y-4">
+          <div className="space-y-4 p-4">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                <MapPin className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                <MapPin className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </div>
               <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2 flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">Maximum Distance</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -451,7 +451,7 @@ export default function DiscoverySettingsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {savingField === 'maxDistance' && (
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
                     )}
                     <span className="text-lg font-semibold text-primary">
                       {settings.maxDistance} km
@@ -466,7 +466,7 @@ export default function DiscoverySettingsPage() {
                   onChange={(value) => updateSettings('maxDistance', value)}
                   disabled={savingField === 'maxDistance'}
                 />
-                <div className="flex justify-between mt-1 text-xs text-gray-500">
+                <div className="mt-1 flex justify-between text-xs text-gray-500">
                   <span>1 km</span>
                   <span>200 km</span>
                 </div>
@@ -474,9 +474,9 @@ export default function DiscoverySettingsPage() {
             </div>
 
             {profile?.location && (
-              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="mt-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <Compass className="w-4 h-4" />
+                  <Compass className="h-4 w-4" />
                   <span>
                     Current location: {profile.location.city || 'Unknown'}
                     {profile.location.country && `, ${profile.location.country}`}
@@ -489,18 +489,18 @@ export default function DiscoverySettingsPage() {
 
         {/* Age Range */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Age Preference
             </h2>
           </div>
           <div className="p-4">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                <Calendar className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                <Calendar className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </div>
               <div className="flex-1">
-                <div className="flex items-center justify-between mb-4">
+                <div className="mb-4 flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">Age Range</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -509,7 +509,7 @@ export default function DiscoverySettingsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {(savingField === 'ageRangeMin' || savingField === 'ageRangeMax') && (
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
                     )}
                     <span className="text-lg font-semibold text-primary">
                       {settings.ageRangeMin} - {settings.ageRangeMax}
@@ -526,7 +526,7 @@ export default function DiscoverySettingsPage() {
                   onMaxChange={(value) => updateSettings('ageRangeMax', value)}
                   disabled={savingField === 'ageRangeMin' || savingField === 'ageRangeMax'}
                 />
-                <div className="flex justify-between mt-1 text-xs text-gray-500">
+                <div className="mt-1 flex justify-between text-xs text-gray-500">
                   <span>18</span>
                   <span>100</span>
                 </div>
@@ -537,15 +537,15 @@ export default function DiscoverySettingsPage() {
 
         {/* Gender Preferences */}
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Show Me
             </h2>
           </div>
           <div className="p-4">
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                <Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </div>
               <div className="flex-1">
                 <div className="mb-4">
@@ -567,7 +567,7 @@ export default function DiscoverySettingsPage() {
                 </div>
                 {savingField === 'interestedIn' && (
                   <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     <span>Saving...</span>
                   </div>
                 )}
@@ -595,21 +595,27 @@ export default function DiscoverySettingsPage() {
           ]}
         >
           <Card className="overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Passport
               </h2>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="space-y-4 p-4">
               <div className="flex items-start gap-4">
-                <div className={cn(
-                  'w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
-                  passportMode ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-gray-100 dark:bg-gray-800'
-                )}>
-                  <Globe className={cn('w-5 h-5', passportMode ? 'text-amber-600' : 'text-gray-500')} />
+                <div
+                  className={cn(
+                    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full',
+                    passportMode
+                      ? 'bg-amber-100 dark:bg-amber-900/30'
+                      : 'bg-gray-100 dark:bg-gray-800'
+                  )}
+                >
+                  <Globe
+                    className={cn('h-5 w-5', passportMode ? 'text-amber-600' : 'text-gray-500')}
+                  />
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="mb-2 flex items-center justify-between gap-3">
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">
                         Passport Mode {passportMode ? 'On' : 'Off'}
@@ -622,15 +628,15 @@ export default function DiscoverySettingsPage() {
                       onClick={handleTogglePassportMode}
                       disabled={savingField === 'passport'}
                       className={cn(
-                        'relative w-12 h-7 rounded-full transition-colors',
+                        'relative h-7 w-12 rounded-full transition-colors',
                         passportMode ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600',
-                        savingField === 'passport' && 'opacity-60 cursor-not-allowed'
+                        savingField === 'passport' && 'cursor-not-allowed opacity-60'
                       )}
                       aria-label="Toggle Passport mode"
                     >
                       <div
                         className={cn(
-                          'absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform',
+                          'absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform',
                           passportMode ? 'translate-x-6' : 'translate-x-1'
                         )}
                       />
@@ -644,11 +650,9 @@ export default function DiscoverySettingsPage() {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Destination
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-3 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Destination</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Input
                     value={passportLocation.city}
                     onChange={(event) =>
@@ -684,9 +688,9 @@ export default function DiscoverySettingsPage() {
                     disabled={detectingPassportLocation || savingField === 'passport'}
                   >
                     {detectingPassportLocation ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
-                      <Navigation className="w-4 h-4 mr-2" />
+                      <Navigation className="mr-2 h-4 w-4" />
                     )}
                     Use Current Location
                   </Button>
@@ -696,9 +700,9 @@ export default function DiscoverySettingsPage() {
                     disabled={savingField === 'passport'}
                   >
                     {savingField === 'passport' ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
-                      <MapPin className="w-4 h-4 mr-2" />
+                      <MapPin className="mr-2 h-4 w-4" />
                     )}
                     Save Destination
                   </Button>
@@ -712,14 +716,14 @@ export default function DiscoverySettingsPage() {
         </PlusFeatureGate>
 
         {/* Info Note */}
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+        <div className="rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20">
           <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+            <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
             <div>
               <p className="font-medium text-blue-700 dark:text-blue-300">Discovery Tips</p>
-              <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                Expanding your distance and age range can help you find more potential matches.
-                Your preferences are saved automatically as you adjust them.
+              <p className="mt-1 text-sm text-blue-600 dark:text-blue-400">
+                Expanding your distance and age range can help you find more potential matches. Your
+                preferences are saved automatically as you adjust them.
               </p>
             </div>
           </div>

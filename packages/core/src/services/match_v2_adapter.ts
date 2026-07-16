@@ -42,7 +42,10 @@ export const matchServiceV2Adapter = {
       await matchServiceV2.swipeLeft(targetUserId);
       return { isMatch: false };
     }
-    const result = await matchServiceV2.swipeRight(targetUserId);
+    const result =
+      action === 'superlike'
+        ? await matchServiceV2.swipeRight(targetUserId, undefined, true)
+        : await matchServiceV2.swipeRight(targetUserId);
     return { isMatch: result.isMatch, matchId: result.matchId ?? undefined };
   },
 

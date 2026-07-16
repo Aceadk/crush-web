@@ -4,7 +4,15 @@ import { Suspense, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@crush/core';
-import { Button, Input, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@crush/ui';
+import {
+  Button,
+  Input,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@crush/ui';
 import { Phone, ArrowLeft, ChevronRight, ChevronDown, Timer } from 'lucide-react';
 import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
 
@@ -56,7 +64,8 @@ function PhoneAuthPageContent() {
   const loginHref = appendRedirectParam('/auth/login', redirect);
   const signupHref = appendRedirectParam('/auth/signup', redirect);
   const onboardingHref = appendRedirectParam('/onboarding', redirect);
-  const { user, profile, startPhoneVerification, verifyPhoneCode, loading, error, clearError, initialized } = useAuthStore();
+  const { user, startPhoneVerification, verifyPhoneCode, loading, error, clearError, initialized } =
+    useAuthStore();
 
   const [step, setStep] = useState<Step>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -93,14 +102,15 @@ function PhoneAuthPageContent() {
   // Redirect when user is authenticated
   useEffect(() => {
     if (initialized && user && !loading) {
-      // Check if user needs onboarding
-      if (profile && profile.onboardingComplete) {
-        router.push(redirect);
-      } else {
-        router.push(onboardingHref);
+      // A linked account with an email claim follows the backend rule: that
+      // email must be verified even when a phone provider is also linked.
+      if (user.email && !user.emailVerified) {
+        router.push(appendRedirectParam('/auth/verify-email', redirect));
+        return;
       }
+      router.push(onboardingHref);
     }
-  }, [user, profile, initialized, loading, redirect, onboardingHref, router]);
+  }, [user, initialized, loading, redirect, onboardingHref, router]);
 
   useEffect(() => {
     // Focus first code input when on code step
@@ -222,9 +232,9 @@ function PhoneAuthPageContent() {
         {step === 'code' && (
           <button
             onClick={() => setStep('phone')}
-            className="absolute left-6 top-6 p-2 hover:bg-muted rounded-full transition-colors"
+            className="absolute left-6 top-6 rounded-full p-2 transition-colors hover:bg-muted"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-5 w-5" />
           </button>
         )}
         <CardTitle className="text-2xl">
@@ -247,16 +257,16 @@ function PhoneAuthPageContent() {
                   type="button"
                   onClick={() => setShowCountryPicker(!showCountryPicker)}
                   disabled={isLoading}
-                  className="flex items-center gap-1 h-10 px-3 border rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+                  className="flex h-10 items-center gap-1 rounded-md border px-3 transition-colors hover:bg-muted disabled:opacity-50"
                 >
                   <span className="text-lg">{selectedCountry.flag}</span>
                   <span className="text-sm font-medium">{selectedCountry.code}</span>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </button>
 
                 {/* Country dropdown */}
                 {showCountryPicker && (
-                  <div className="absolute top-full left-0 mt-1 w-64 max-h-60 overflow-y-auto bg-background border rounded-lg shadow-lg z-50">
+                  <div className="absolute left-0 top-full z-50 mt-1 max-h-60 w-64 overflow-y-auto rounded-lg border bg-background shadow-lg">
                     {COUNTRY_CODES.map((country, index) => (
                       <button
                         key={`${country.code}-${country.country}-${index}`}
@@ -265,8 +275,9 @@ function PhoneAuthPageContent() {
                           setSelectedCountry(country);
                           setShowCountryPicker(false);
                         }}
-                        className={`w-full flex items-center gap-3 px-3 py-2 hover:bg-muted transition-colors text-left ${
-                          selectedCountry.country === country.country && selectedCountry.code === country.code
+                        className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted ${
+                          selectedCountry.country === country.country &&
+                          selectedCountry.code === country.code
                             ? 'bg-primary/10'
                             : ''
                         }`}
@@ -282,7 +293,7 @@ function PhoneAuthPageContent() {
 
               {/* Phone input */}
               <div className="relative flex-1">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="tel"
                   placeholder="Phone number"
@@ -295,14 +306,12 @@ function PhoneAuthPageContent() {
             </div>
 
             {(error || validationError) && (
-              <p className="text-sm text-destructive text-center">
-                {error || validationError}
-              </p>
+              <p className="text-center text-sm text-destructive">{error || validationError}</p>
             )}
 
-            <Button type="submit" className="w-full h-12" loading={isLoading}>
+            <Button type="submit" className="h-12 w-full" loading={isLoading}>
               Send Code
-              <ChevronRight className="w-5 h-5 ml-2" />
+              <ChevronRight className="ml-2 h-5 w-5" />
             </Button>
 
             {/* Recaptcha container */}
@@ -315,26 +324,26 @@ function PhoneAuthPageContent() {
               {code.map((digit, index) => (
                 <input
                   key={index}
-                  ref={(el) => { codeInputRefs.current[index] = el; }}
+                  ref={(el) => {
+                    codeInputRefs.current[index] = el;
+                  }}
                   type="text"
                   inputMode="numeric"
                   maxLength={6}
                   value={digit}
                   onChange={(e) => handleCodeChange(index, e.target.value)}
                   onKeyDown={(e) => handleCodeKeyDown(index, e)}
-                  className="w-12 h-14 text-center text-xl font-semibold border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                  className="h-14 w-12 rounded-xl border text-center text-xl font-semibold transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isLoading}
                 />
               ))}
             </div>
 
             {(error || validationError) && (
-              <p className="text-sm text-destructive text-center">
-                {error || validationError}
-              </p>
+              <p className="text-center text-sm text-destructive">{error || validationError}</p>
             )}
 
-            <Button type="submit" className="w-full h-12" loading={isLoading}>
+            <Button type="submit" className="h-12 w-full" loading={isLoading}>
               {isVerifying ? 'Verifying...' : 'Verify'}
             </Button>
 
@@ -342,14 +351,14 @@ function PhoneAuthPageContent() {
               Didn't receive a code?{' '}
               {resendCooldown > 0 ? (
                 <span className="inline-flex items-center gap-1 text-muted-foreground">
-                  <Timer className="w-3.5 h-3.5" />
+                  <Timer className="h-3.5 w-3.5" />
                   Resend in {resendCooldown}s
                 </span>
               ) : (
                 <button
                   type="button"
                   onClick={handleResendCode}
-                  className="text-primary hover:underline font-medium"
+                  className="font-medium text-primary hover:underline"
                   disabled={isLoading}
                 >
                   Resend
@@ -393,7 +402,7 @@ export default function PhoneAuthPage() {
         <Card className="border-0 shadow-lg">
           <CardContent className="py-12">
             <div className="flex items-center justify-center gap-3 text-muted-foreground">
-              <Phone className="w-5 h-5 animate-pulse" />
+              <Phone className="h-5 w-5 animate-pulse" />
               <span>Loading phone sign in...</span>
             </div>
           </CardContent>

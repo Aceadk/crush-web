@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   buildUserProfileCreateData,
   deriveOnboardingGate,
@@ -35,28 +37,66 @@ describe('buildUserProfileCreateData (web signup payload)', () => {
     expect(undefinedPaths(payload)).toEqual([]);
   });
 
-  it('mirrors the mobile create shape (plan/isIdVerified/themePreference/profile defaults)', () => {
+  it('contains only Rules-approved client defaults and no manufactured trust fields', () => {
     const payload = buildUserProfileCreateData(
       { id: 'u1', email: 'a@b.com', displayName: 'Alex' },
       new Date().toISOString()
     ) as Record<string, unknown>;
     const profile = payload.profile as Record<string, unknown>;
 
-    expect(payload.plan).toBe('free');
-    expect(payload.isIdVerified).toBe(false);
+    expect(payload.plan).toBeUndefined();
+    expect(payload.isIdVerified).toBeUndefined();
+    expect(payload.createdAt).toBeUndefined();
+    expect(payload.hasAcceptedTerms).toBeUndefined();
+    expect(payload.onboardingComplete).toBeUndefined();
+    expect(payload.profileComplete).toBeUndefined();
+    expect(payload.isEmailVerified).toBeUndefined();
+    expect(payload.isPhoneVerified).toBeUndefined();
     expect(payload.themePreference).toBe('system');
     expect(payload.phoneNumber).toBe('');
-    expect(payload.username).toBeNull();
-    expect(payload.usernameLower).toBeNull();
+    expect(payload.username).toBeUndefined();
+    expect(payload.usernameLower).toBeUndefined();
+    expect(payload.lastUsernameChangeAt).toBeUndefined();
     expect(profile.gender).toBe('');
-    expect(profile.age).toBe(0);
+    expect(profile.age).toBeUndefined();
+    expect(profile.birthDate).toBeUndefined();
+    expect(profile.photoUrls).toBeUndefined();
+    expect(profile.isVerified).toBeUndefined();
     expect(profile.lastName).toBe('');
     expect(profile.videoUrls).toEqual([]);
     expect(profile.languages).toEqual([]);
   });
 });
 
-describe('onboarding routing gate (mobile-parity derivation)', () => {
+describe('authenticated user bootstrap', () => {
+  it('uses the trusted resolver instead of a direct client create', () => {
+    const coreRoot = path.resolve(process.cwd(), '../../packages/core/src');
+    const authStore = fs.readFileSync(path.join(coreRoot, 'stores/auth.ts'), 'utf8');
+    const userService = fs.readFileSync(path.join(coreRoot, 'services/user.ts'), 'utf8');
+
+    expect(authStore).not.toContain('userService.createUserProfile');
+    expect(authStore).toContain('userService.bootstrapUserProfile');
+    expect(userService).toContain('callables.resolveOnboardingState({})');
+    expect(userService).not.toContain('await setDoc(doc(db, USERS_COLLECTION, userId)');
+  });
+
+  it('does not memoize mutable Firebase verification facts by User object identity', () => {
+    const webRoot = path.resolve(process.cwd());
+    const protectedLayout = fs.readFileSync(path.join(webRoot, 'src/app/(app)/layout.tsx'), 'utf8');
+    const onboardingFlow = fs.readFileSync(
+      path.join(webRoot, 'src/app/onboarding/onboarding-flow.tsx'),
+      'utf8'
+    );
+    const staleIdentityMemo = 'useMemo(() => authVerificationFactsFromUser(user), [user])';
+
+    expect(protectedLayout).not.toContain(staleIdentityMemo);
+    expect(onboardingFlow).not.toContain(staleIdentityMemo);
+    expect(protectedLayout).toContain('authVerificationFactsFromUser(user)');
+    expect(onboardingFlow).toContain('authVerificationFactsFromUser(useAuthStore.getState().user)');
+  });
+});
+
+describe('onboarding compatibility marker (routing uses resolver)', () => {
   const completeDoc = {
     hasAcceptedTerms: true,
     profile: {
@@ -67,18 +107,20 @@ describe('onboarding routing gate (mobile-parity derivation)', () => {
     },
   };
 
-  it('is complete for terms + age>=18 + gender + one photo', () => {
+  it('does not infer completion from a partial legacy profile', () => {
     const profile = mapUserDocumentToUserProfile('u1', completeDoc);
-    expect(profile.onboardingComplete).toBe(true);
+    expect(profile.onboardingComplete).toBe(false);
   });
 
-  it('IGNORES the trigger-managed onboardingComplete doc field (incognito users must not loop back into onboarding)', () => {
-    // The backend mirror trigger rewrites top-level onboardingComplete to
-    // discovery ELIGIBILITY, which is false for incognito/hidden users.
+  it('uses only a version-2 completion marker and ignores the trigger-managed root boolean', () => {
     const profile = mapUserDocumentToUserProfile('u1', {
       ...completeDoc,
       onboardingComplete: false,
       profileComplete: false,
+      onboarding: {
+        schemaVersion: 2,
+        completedAt: '2026-07-15T12:00:00.000Z',
+      },
       profile: {
         ...completeDoc.profile,
         preferences: { incognitoMode: true },
@@ -87,40 +129,27 @@ describe('onboarding routing gate (mobile-parity derivation)', () => {
     expect(profile.onboardingComplete).toBe(true);
   });
 
-  it('requires accepted terms', () => {
-    const profile = mapUserDocumentToUserProfile('u1', {
-      ...completeDoc,
-      hasAcceptedTerms: false,
-    });
-    expect(profile.onboardingComplete).toBe(false);
-  });
-
-  it('honours mobile skip flags in place of content', () => {
+  it('does not treat legacy skip flags as completion', () => {
     const profile = mapUserDocumentToUserProfile('u1', {
       hasAcceptedTerms: true,
       hasSkippedBasicInfo: true,
       hasSkippedProfileSetup: true,
       profile: {},
     });
-    expect(profile.onboardingComplete).toBe(true);
-  });
-
-  it('is incomplete without a photo (unless skipped)', () => {
-    const profile = mapUserDocumentToUserProfile('u1', {
-      ...completeDoc,
-      profile: { ...completeDoc.profile, photoUrls: [] },
-    });
     expect(profile.onboardingComplete).toBe(false);
   });
 
-  it('derives age from birthDate when age is absent', () => {
+  it('requires both schema version and completion timestamp', () => {
     expect(
       deriveOnboardingGate({
-        hasAcceptedTerms: true,
-        age: undefined,
-        gender: 'female',
-        photos: ['x'],
+        schemaVersion: 2,
       })
     ).toBe(false);
+    expect(
+      deriveOnboardingGate({
+        schemaVersion: 2,
+        completedAt: '2026-07-15T12:00:00.000Z',
+      })
+    ).toBe(true);
   });
 });
