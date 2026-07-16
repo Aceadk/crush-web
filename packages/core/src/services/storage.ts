@@ -139,7 +139,7 @@ class StorageService {
     file: File,
     onProgress?: (progress: UploadProgress) => void
   ): Promise<string> {
-    this.validateFile(file);
+    this.validateChatMediaFile(file);
 
     const storage = getFirebaseStorage();
     const fileName = `${Date.now()}_${file.name}`;
@@ -356,6 +356,31 @@ class StorageService {
         `File type ${file.type} is not allowed. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}`
       );
     }
+  }
+
+  /**
+   * Validate chat media (image or video) before upload. Storage rules allow
+   * chat videos up to 50MB and images up to 10MB on this path.
+   */
+  private validateChatMediaFile(file: File): void {
+    if (ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
+      }
+      return;
+    }
+    if (ALLOWED_STORY_VIDEO_TYPES.includes(file.type)) {
+      if (file.size > 50 * 1024 * 1024) {
+        throw new Error('Video exceeds 50MB limit');
+      }
+      return;
+    }
+    throw new Error(
+      `File type ${file.type} is not allowed. Allowed types: ${[
+        ...ALLOWED_IMAGE_TYPES,
+        ...ALLOWED_STORY_VIDEO_TYPES,
+      ].join(', ')}`
+    );
   }
 
   /**

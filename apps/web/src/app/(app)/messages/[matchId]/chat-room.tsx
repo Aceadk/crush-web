@@ -79,6 +79,7 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
     openConversation,
     sendMessage,
     sendImageMessage,
+    sendVideoMessage,
     sendVoiceMessage,
     retryFailedMessage,
     markAsRead,
@@ -443,22 +444,26 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
       const file = e.target.files?.[0];
       if (!file) return;
 
+      const isVideoFile = file.type.startsWith('video/');
       // Validate file type
-      if (!file.type.startsWith('image/')) {
+      if (!file.type.startsWith('image/') && !isVideoFile) {
         addToast({
           type: 'error',
           title: 'Invalid file',
-          description: 'Please select an image.',
+          description: 'Please select an image or a video.',
         });
         return;
       }
 
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
+      // Validate file size (5MB images, 50MB videos — matches storage rules)
+      const maxBytes = isVideoFile ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+      if (file.size > maxBytes) {
         addToast({
           type: 'error',
-          title: 'Image too large',
-          description: 'Image must be less than 5MB.',
+          title: isVideoFile ? 'Video too large' : 'Image too large',
+          description: isVideoFile
+            ? 'Video must be less than 50MB.'
+            : 'Image must be less than 5MB.',
         });
         return;
       }
@@ -504,32 +509,38 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
 
     setUploadingImage(true);
 
+    const isVideoFile = selectedFile.type.startsWith('video/');
     try {
-      // Upload image to storage
-      const imageUrl = await storageService.uploadChatImage(
+      // Upload media to storage (same chat_media path for images and videos)
+      const mediaUrl = await storageService.uploadChatImage(
         currentConversation.id,
         user.uid,
         selectedFile
       );
 
-      // Send image message
-      await sendImageMessage(imageUrl, user.uid);
+      if (isVideoFile) {
+        await sendVideoMessage(mediaUrl, user.uid);
+      } else {
+        await sendImageMessage(mediaUrl, user.uid);
+      }
       analytics.track({
         name: 'message_sent',
         properties: {
           matchId: conversationMatchId || matchId,
-          messageType: 'image',
+          messageType: isVideoFile ? 'video' : 'image',
         },
       });
 
       // Clear preview
       cancelImageSelection();
     } catch (error) {
-      console.error('Failed to send image:', error);
+      console.error('Failed to send media:', error);
       addToast({
         type: 'error',
-        title: 'Image failed',
-        description: 'Failed to send image. Please try again.',
+        title: isVideoFile ? 'Video failed' : 'Image failed',
+        description: isVideoFile
+          ? 'Failed to send video. Please try again.'
+          : 'Failed to send image. Please try again.',
       });
     } finally {
       setUploadingImage(false);
@@ -541,6 +552,7 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
     currentConversation,
     isOnline,
     sendImageMessage,
+    sendVideoMessage,
     cancelImageSelection,
     addToast,
     conversationMatchId,
@@ -959,14 +971,23 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
         {imagePreview && (
           <div className="border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
             <div className="relative inline-block">
-              <Image
-                src={imagePreview}
-                alt="Preview"
-                width={128}
-                height={128}
-                className="max-h-32 w-auto rounded-lg object-cover"
-                unoptimized
-              />
+              {selectedFile?.type.startsWith('video/') ? (
+                <video
+                  src={imagePreview}
+                  controls
+                  playsInline
+                  className="max-h-32 w-auto rounded-lg"
+                />
+              ) : (
+                <Image
+                  src={imagePreview}
+                  alt="Preview"
+                  width={128}
+                  height={128}
+                  className="max-h-32 w-auto rounded-lg object-cover"
+                  unoptimized
+                />
+              )}
               <button
                 onClick={cancelImageSelection}
                 className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
@@ -1006,7 +1027,7 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             onChange={handleImageSelect}
             className="hidden"
           />
@@ -1255,12 +1276,18 @@ function MessageBubble({
   const time = format(new Date(message.timestamp), 'h:mm a');
   const isImage = message.type === 'image';
   const isAudio = message.type === 'audio';
+  const isVideo = message.type === 'video';
   const isDeleted = message.isDeleted;
 
   // Check if message can be edited (within 15 minutes)
   const messageTime = new Date(message.timestamp).getTime();
   const canEdit =
-    isOwn && !isDeleted && !isImage && !isAudio && Date.now() - messageTime < 15 * 60 * 1000;
+    isOwn &&
+    !isDeleted &&
+    !isImage &&
+    !isAudio &&
+    !isVideo &&
+    Date.now() - messageTime < 15 * 60 * 1000;
   const canDelete = isOwn && !isDeleted;
 
   const handleEdit = async () => {
@@ -1509,6 +1536,16 @@ function MessageBubble({
               duration={message.metadata?.audioDuration}
               isOwn={isOwn}
             />
+          ) : isVideo ? (
+            // Native controls keep sound, scrubbing and fullscreen working on
+            // every browser; playsInline avoids iOS hijacking the page.
+            <video
+              src={message.metadata?.videoUrl || message.content}
+              controls
+              playsInline
+              preload="metadata"
+              className="max-h-[320px] max-w-full rounded-xl"
+            />
           ) : (
             <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
               {message.content}
@@ -1518,7 +1555,7 @@ function MessageBubble({
             className={cn(
               'mt-1 flex items-center gap-1',
               isOwn ? 'justify-end' : 'justify-start',
-              (isImage || isAudio) && 'px-2 pb-1'
+              (isImage || isAudio || isVideo) && 'px-2 pb-1'
             )}
           >
             {/* Edited indicator */}

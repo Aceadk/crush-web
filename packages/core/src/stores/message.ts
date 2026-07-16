@@ -113,6 +113,7 @@ interface MessageState {
   loadMoreMessages: (conversationId: string) => Promise<void>;
   sendMessage: (content: string, currentUserId: string, type?: MessageType, metadata?: MessageMetadata) => Promise<void>;
   sendImageMessage: (imageUrl: string, currentUserId: string, thumbnailUrl?: string) => Promise<void>;
+  sendVideoMessage: (videoUrl: string, currentUserId: string) => Promise<void>;
   sendVoiceMessage: (audioUrl: string, duration: number, currentUserId: string) => Promise<void>;
   retryFailedMessage: (messageId: string, currentUserId: string) => Promise<void>;
   markAsRead: (userId: string, messageIds: string[]) => Promise<void>;
@@ -301,6 +302,12 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
       thumbnailUrl: thumbnailUrl || imageUrl,
     };
     await get().sendMessage(imageUrl, currentUserId, 'image', metadata);
+  },
+
+  // Send a video message
+  sendVideoMessage: async (videoUrl, currentUserId) => {
+    const metadata: MessageMetadata = { videoUrl };
+    await get().sendMessage(videoUrl, currentUserId, 'video', metadata);
   },
 
   // Send a voice message

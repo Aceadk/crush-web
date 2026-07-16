@@ -158,8 +158,18 @@ class MessageServiceV2 {
       }
     }
 
-    const type = (data.type as MessageType) ?? 'text';
-    const mediaUrl = data.mediaUrl as string | undefined;
+    // Mobile historically writes type 'voice' for audio notes; normalize so
+    // both platforms agree. Older mobile builds also stored the media URL in
+    // content with no mediaUrl field — fall back so their media stays playable.
+    const rawType = ((data.type as string) ?? 'text').toLowerCase();
+    const type: MessageType =
+      rawType === 'voice' ? 'audio' : ((rawType as MessageType) || 'text');
+    const rawContent = (data.content as string) ?? '';
+    const mediaUrl =
+      (data.mediaUrl as string | undefined) ??
+      (type !== 'text' && /^https?:\/\//.test(rawContent)
+        ? rawContent
+        : undefined);
     const metadata: MessageMetadata | undefined = mediaUrl
       ? {
           imageUrl: type === 'image' ? mediaUrl : undefined,
