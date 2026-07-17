@@ -27,7 +27,7 @@ export default function AuthCallbackPage() {
           router.push('/auth/login');
         }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
+        setError((await import('@crush/core')).errorText(err, 'Authentication failed. Please try again.'));
       }
     }
     handleCallback();

@@ -23,11 +23,16 @@ export default function FinishSignInPage() {
         // getFirebaseApp() initializes the app on first use.
         const { getFirebaseAuth } = await import('@crush/core');
         const auth = getFirebaseAuth();
+        // Capture the full link, then immediately scrub the address bar: the
+        // Firebase email link carries apiKey/oobCode query params that must
+        // not stay visible (or end up in history/screenshots).
+        const signInLink = window.location.href;
         const redirectPath = sanitizeRedirectPath(
-          new URL(window.location.href).searchParams.get('redirect')
+          new URL(signInLink).searchParams.get('redirect')
         );
+        window.history.replaceState(null, '', window.location.pathname);
 
-        if (isSignInWithEmailLink(auth, window.location.href)) {
+        if (isSignInWithEmailLink(auth, signInLink)) {
           let email = window.localStorage.getItem('emailForSignIn');
           if (!email) {
             email = window.prompt('Please provide your email for confirmation');
@@ -37,7 +42,7 @@ export default function FinishSignInPage() {
             setErrorMessage('Email is required to complete sign-in.');
             return;
           }
-          await signInWithEmailLink(auth, email, window.location.href);
+          await signInWithEmailLink(auth, email, signInLink);
           window.localStorage.removeItem('emailForSignIn');
           setStatus('success');
           setTimeout(() => router.push(redirectPath), 1500);
@@ -46,8 +51,9 @@ export default function FinishSignInPage() {
           setErrorMessage('Invalid sign-in link. Please request a new one.');
         }
       } catch (err: unknown) {
+        const { errorText } = await import('@crush/core');
         setStatus('error');
-        setErrorMessage(err instanceof Error ? err.message : 'Failed to complete sign-in.');
+        setErrorMessage(errorText(err, 'Failed to complete sign-in.'));
       }
     }
     completeSignIn();

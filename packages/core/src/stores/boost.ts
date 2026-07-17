@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { errorText } from '../utils/errors';
 import { boostService } from '../services/boost';
 import { BoostStatus } from '../types/boost';
 
@@ -25,7 +26,7 @@ export const useBoostStore = create<BoostState>()((set) => ({
       set({ status, loading: false });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to load boost status';
+        errorText(error, 'Failed to load boost status');
       set({ error: message, loading: false });
     }
   },
@@ -38,7 +39,7 @@ export const useBoostStore = create<BoostState>()((set) => ({
       return status;
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to activate boost';
+        errorText(error, 'Failed to activate boost');
       set({ error: message, activating: false });
       throw error;
     }

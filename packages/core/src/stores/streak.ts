@@ -3,6 +3,7 @@
  */
 
 import { create } from 'zustand';
+import { errorText } from '../utils/errors';
 import { streakService } from '../services/streak';
 import {
   StreakData,
@@ -65,7 +66,7 @@ export const useStreakStore = create<StreakState>()((set) => ({
         loading: false,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load streak data';
+      const message = errorText(error, 'Failed to load streak data');
       set({ error: message, loading: false });
     }
   },
@@ -106,7 +107,7 @@ export const useStreakStore = create<StreakState>()((set) => ({
         });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to record activity';
+      const message = errorText(error, 'Failed to record activity');
       set({ error: message });
     }
   },
@@ -125,7 +126,7 @@ export const useStreakStore = create<StreakState>()((set) => ({
 
       return { success: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to use like';
+      const message = errorText(error, 'Failed to use like');
       set({ error: message });
       return { success: false, error: message };
     }

@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand';
+import { errorText } from '../utils/errors';
 import { promoCodeService } from '../services/promo';
 import { PromoCodeValidationResult, ApplyPromoResult } from '../types/promo';
 
@@ -55,7 +56,7 @@ export const usePromoCodeStore = create<PromoCodeState>((set) => ({
       });
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to validate promo code';
+      const errorMessage = errorText(error, 'Failed to validate promo code');
       set({
         isValidating: false,
         error: errorMessage,
@@ -78,7 +79,7 @@ export const usePromoCodeStore = create<PromoCodeState>((set) => ({
       });
       return result;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to apply promo code';
+      const errorMessage = errorText(error, 'Failed to apply promo code');
       set({
         isApplying: false,
         error: errorMessage,

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { errorText } from '../utils/errors';
 import { User } from 'firebase/auth';
 import { authService } from '../services/auth';
 import { getAuthErrorMessage } from '../services/auth_errors';
@@ -370,7 +371,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         trustedDevices: toDeviceState(trustResult.trustedDevices, trustResult.currentDeviceId),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to trust this device';
+      const message = errorText(error, 'Failed to trust this device');
       set({ error: message, deviceTrustLoading: false });
       throw error;
     }
@@ -392,7 +393,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         deviceTrustLoading: false,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load trusted devices';
+      const message = errorText(error, 'Failed to load trusted devices');
       set({ error: message, deviceTrustLoading: false });
       throw error;
     }
@@ -419,7 +420,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         deviceTrustLoading: false,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to revoke trusted device';
+      const message = errorText(error, 'Failed to revoke trusted device');
       set({ error: message, deviceTrustLoading: false });
       throw error;
     }
@@ -496,7 +497,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         trustedDevices: [],
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Sign out failed';
+      const message = errorText(error, 'Sign out failed');
       set({ error: message, loading: false });
       throw error;
     }

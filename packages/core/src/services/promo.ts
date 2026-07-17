@@ -11,6 +11,7 @@
  * the rules do not permit direct client access.
  */
 
+import { errorText } from '../utils/errors';
 import {
   collection,
   doc,
@@ -53,7 +54,7 @@ class PromoCodeService {
       };
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to validate promo code.';
+        errorText(error, 'Failed to validate promo code.');
       return { isValid: false, error: message };
     }
   }
@@ -78,7 +79,7 @@ class PromoCodeService {
       };
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to apply promo code.';
+        errorText(error, 'Failed to apply promo code.');
       return { success: false, error: message };
     }
   }

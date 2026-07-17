@@ -93,6 +93,7 @@ export type { ProfileStory, StoryMediaType } from './types/story';
 export { authService } from './services/auth';
 export type { AuthState } from './services/auth';
 export { getAuthErrorMessage, getAuthErrorKey } from './services/auth_errors';
+export { sanitizeErrorText, errorText } from './utils/errors';
 
 export { matchService } from './services/match';
 export { messageService } from './services/message';

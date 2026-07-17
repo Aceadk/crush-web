@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { errorText } from '../utils/errors';
 import { storyService } from '../services/story';
 import { UploadProgress } from '../services/storage';
 import { ProfileStory, sortStoriesByNewest } from '../types/story';
@@ -67,7 +68,7 @@ export const useStoryStore = create<StoryState>()((set, get) => ({
       }));
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to load stories';
+        errorText(error, 'Failed to load stories');
       set((state) => ({
         error: message,
         loadingUsers: {
@@ -108,7 +109,7 @@ export const useStoryStore = create<StoryState>()((set, get) => ({
       }));
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to load stories';
+        errorText(error, 'Failed to load stories');
       set((state) => ({
         error: message,
         loadingUsers: {
@@ -155,7 +156,7 @@ export const useStoryStore = create<StoryState>()((set, get) => ({
       return story;
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to create story';
+        errorText(error, 'Failed to create story');
       set({
         error: message,
         uploading: false,
@@ -178,7 +179,7 @@ export const useStoryStore = create<StoryState>()((set, get) => ({
       }));
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to remove story';
+        errorText(error, 'Failed to remove story');
       set({ error: message });
       throw error;
     }
@@ -218,7 +219,7 @@ export const useStoryStore = create<StoryState>()((set, get) => ({
       }));
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to mark story viewed';
+        errorText(error, 'Failed to mark story viewed');
       set({ error: message });
     }
   },

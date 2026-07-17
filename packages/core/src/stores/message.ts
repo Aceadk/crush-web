@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { errorText } from '../utils/errors';
 import { messageService as legacyMessageService } from '../services/message';
 import { messageServiceV2Adapter } from '../services/message_v2_adapter';
 import { isV2ChatEnabled } from '../config/features';
@@ -151,7 +152,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
       );
       set({ conversations, loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load conversations';
+      const message = errorText(error, 'Failed to load conversations');
       set({ error: message, loading: false });
     }
   },
@@ -194,7 +195,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
 
       set({ unsubscribeMessages, unsubscribeTyping });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to open conversation';
+      const message = errorText(error, 'Failed to open conversation');
       set({ error: message, loading: false });
     }
   },
@@ -214,7 +215,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
         loading: false,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load messages';
+      const message = errorText(error, 'Failed to load messages');
       set({ error: message, loading: false });
     }
   },
@@ -237,7 +238,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
         loadingMore: false,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load more messages';
+      const message = errorText(error, 'Failed to load more messages');
       set({ error: message, loadingMore: false });
     }
   },
@@ -289,7 +290,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
         messages: get().messages.map((m) =>
           m.id === tempMessage.id ? { ...m, status: 'failed' as const } : m
         ),
-        error: error instanceof Error ? error.message : 'Failed to send message',
+        error: errorText(error, 'Failed to send message'),
       });
       throw error instanceof Error ? error : new Error('Failed to send message');
     }
@@ -363,7 +364,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
       });
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Failed to retry message';
+        errorText(error, 'Failed to retry message');
       set({
         error: errorMessage,
         messages: get().messages.map((message) =>
@@ -482,7 +483,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
     } catch (error) {
       // Revert on error
       set({ messages: originalMessages });
-      const errorMessage = error instanceof Error ? error.message : 'Failed to edit message';
+      const errorMessage = errorText(error, 'Failed to edit message');
       set({ error: errorMessage });
       throw error;
     }
@@ -514,7 +515,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
     } catch (error) {
       // Revert on error
       set({ messages: originalMessages });
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete message';
+      const errorMessage = errorText(error, 'Failed to delete message');
       set({ error: errorMessage });
       throw error;
     }
@@ -537,7 +538,7 @@ export const useMessageStore = create<MessageState>()((set, get) => ({
         loading: false,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to block conversation';
+      const message = errorText(error, 'Failed to block conversation');
       set({ error: message, loading: false });
     }
   },

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { errorText } from '../utils/errors';
 import { matchService as legacyMatchService } from '../services/match';
 import { matchServiceV2Adapter } from '../services/match_v2_adapter';
 import { isV2ChatEnabled } from '../config/features';
@@ -51,7 +52,7 @@ export const useMatchStore = create<MatchState>()((set, get) => ({
       const matches = await matchService.getMatches(userId, 'mutual');
       set({ matches, loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load matches';
+      const message = errorText(error, 'Failed to load matches');
       set({ error: message, loading: false });
     }
   },
@@ -78,7 +79,7 @@ export const useMatchStore = create<MatchState>()((set, get) => ({
       const profiles = await matchService.getDiscoveryProfiles(userId, filters);
       set({ discoveryProfiles: profiles, currentProfileIndex: 0, loading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load profiles';
+      const message = errorText(error, 'Failed to load profiles');
       set({ error: message, loading: false });
     }
   },
@@ -105,7 +106,7 @@ export const useMatchStore = create<MatchState>()((set, get) => ({
 
       return result;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Swipe failed';
+      const message = errorText(error, 'Swipe failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -124,7 +125,7 @@ export const useMatchStore = create<MatchState>()((set, get) => ({
         loading: false,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unmatch failed';
+      const message = errorText(error, 'Unmatch failed');
       set({ error: message, loading: false });
       throw error;
     }
@@ -143,7 +144,7 @@ export const useMatchStore = create<MatchState>()((set, get) => ({
         ),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Pin toggle failed';
+      const message = errorText(error, 'Pin toggle failed');
       set({ error: message });
     }
   },

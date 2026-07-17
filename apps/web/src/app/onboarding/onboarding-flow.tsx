@@ -17,6 +17,7 @@ import {
   hydrateOnboardingDraft,
   isAccountVerified,
   loadOnboardingDraft,
+  errorText,
   locationService,
   normalizeOnboardingSnapshot,
   onboardingService,
@@ -166,7 +167,7 @@ export default function OnboardingFlow() {
       }
     } catch (caught) {
       if (sequence !== requestSequence.current) return;
-      setError(caught instanceof Error ? caught.message : 'Could not load onboarding progress.');
+      setError(errorText(caught, 'Could not load onboarding progress.'));
     } finally {
       if (sequence === requestSequence.current) setHydrating(false);
     }
@@ -562,7 +563,7 @@ export default function OnboardingFlow() {
       const next = resolution.readiness.firstIncompleteStep;
       navigateToStep(next === 'discovery' ? 'ready' : next);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not skip this optional step.');
+      setError(errorText(caught, 'Could not skip this optional step.'));
     } finally {
       if (useAuthStore.getState().user?.uid === expectedUid) setSaving(false);
     }

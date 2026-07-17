@@ -5,6 +5,7 @@ import { buildProfileCompletionState } from '@/components/profile/profile-comple
 import {
   describeProfilePhotoUploadError,
   storageService,
+  errorText,
   useAuthStore,
   userService,
   MAX_PROFILE_PHOTOS,
@@ -333,7 +334,7 @@ export default function ProfileEditForm() {
       }
       setIsDirty(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not confirm current location.');
+      setError(errorText(err, 'Could not confirm current location.'));
     } finally {
       if (useAuthStore.getState().user?.uid === expectedUid) setLocating(false);
     }

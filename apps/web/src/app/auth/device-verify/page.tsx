@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuthStore } from '@crush/core';
+import { errorText, useAuthStore } from '@crush/core';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from '@crush/ui';
 import { AlertTriangle, Loader2, LogOut, MailCheck, Shield } from 'lucide-react';
 import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
@@ -83,7 +83,7 @@ function DeviceVerifyPageContent() {
       await sendEmailSignInLink(email, completePath);
       setSuccessMessage(`Verification link sent to ${email}. Open it on this device to continue.`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Failed to send verification link.');
+      setErrorMessage(errorText(error, 'Failed to send verification link.'));
     } finally {
       setSending(false);
     }

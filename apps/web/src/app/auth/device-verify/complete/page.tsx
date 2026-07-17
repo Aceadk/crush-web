@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuthStore } from '@crush/core';
+import { errorText, useAuthStore } from '@crush/core';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@crush/ui';
 import { CheckCircle2, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { appendRedirectParam, sanitizeRedirectPath } from '@/shared/lib/auth-redirect';
@@ -45,9 +45,7 @@ function DeviceVerifyCompletePageContent() {
       }, 900);
     } catch (error) {
       setStatus('error');
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Could not complete device verification.'
-      );
+      setErrorMessage(errorText(error, 'Could not complete device verification.'));
       runOnceRef.current = false;
     }
   }, [trustCurrentDevice, checkDeviceTrust, redirectPath, router]);
