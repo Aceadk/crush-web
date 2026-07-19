@@ -23,6 +23,8 @@ import {
   Shield,
   Sparkles,
   UserRound,
+  Vibrate,
+  Volume2,
 } from 'lucide-react';
 
 type PermissionState = NotificationPermission | 'unsupported';
@@ -115,6 +117,8 @@ function normalizePrefs(raw?: Record<string, unknown>): WebNotificationPrefs {
     ...WEB_NOTIFICATION_PREF_DEFAULTS,
     push: asBool(raw?.push ?? raw?.pushNotifications, WEB_NOTIFICATION_PREF_DEFAULTS.push),
     email: asBool(raw?.email ?? raw?.emailNotifications, WEB_NOTIFICATION_PREF_DEFAULTS.email),
+    sound: asBool(raw?.sound, WEB_NOTIFICATION_PREF_DEFAULTS.sound),
+    vibration: asBool(raw?.vibration, WEB_NOTIFICATION_PREF_DEFAULTS.vibration),
     matches: asBool(raw?.matches ?? raw?.newMatches, WEB_NOTIFICATION_PREF_DEFAULTS.matches),
     messages: asBool(raw?.messages ?? raw?.newMessages, WEB_NOTIFICATION_PREF_DEFAULTS.messages),
     likes: asBool(
@@ -289,6 +293,24 @@ export default function NotificationSettingsPage() {
               enabled={settings.email}
               onChange={(v) => updateSetting('email', v)}
               loading={loadingField === 'email'}
+            />
+            <SettingRow
+              icon={<Volume2 className="h-5 w-5 text-teal-500" />}
+              title="Sound"
+              description="Play a sound with push notifications on your devices"
+              enabled={settings.sound}
+              onChange={(v) => updateSetting('sound', v)}
+              loading={loadingField === 'sound'}
+              disabled={!settings.push}
+            />
+            <SettingRow
+              icon={<Vibrate className="h-5 w-5 text-teal-500" />}
+              title="Vibration"
+              description="Vibrate with push notifications on your devices"
+              enabled={settings.vibration}
+              onChange={(v) => updateSetting('vibration', v)}
+              loading={loadingField === 'vibration'}
+              disabled={!settings.push}
             />
           </div>
         </Card>

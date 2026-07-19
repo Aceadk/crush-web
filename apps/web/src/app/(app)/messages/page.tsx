@@ -9,7 +9,7 @@ import { Search, MessageCircle, ChevronRight, Inbox, Pin, WifiOff, RefreshCw } f
 import { formatDistanceToNow } from 'date-fns';
 import { analytics } from '@/lib/analytics';
 import { PinnedConversations } from '@/components/messages/pinned-conversations';
-import { useNetworkStatus } from '@/shared/hooks';
+import { useNetworkStatus, usePeerPresence } from '@/shared/hooks';
 
 export default function MessagesPage() {
   const { user } = useAuthStore();
@@ -273,6 +273,8 @@ function ConversationCard({
 }: ConversationCardProps) {
   const lastMessage = conversation.lastMessage;
   const isOwnMessage = lastMessage?.senderId === currentUserId;
+  const peerId = conversation.participants.find((id) => id !== currentUserId);
+  const isPeerOnline = usePeerPresence(peerId);
 
   return (
     <Link
@@ -290,7 +292,13 @@ function ConversationCard({
                 <AvatarFallback>{matchName?.charAt(0) || '?'}</AvatarFallback>
               )}
             </Avatar>
-            {/* Online indicator would go here */}
+            {isPeerOnline && (
+              <span
+                className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-green-500 dark:border-gray-900"
+                aria-label="Online now"
+                role="img"
+              />
+            )}
           </div>
 
           {/* Info */}

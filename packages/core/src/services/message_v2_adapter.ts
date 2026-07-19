@@ -30,8 +30,30 @@ import {
   TypingIndicator,
 } from '../types/message';
 
+import { Match } from '../types/match';
+
 const MATCHES_COLLECTION = 'matches';
 const MESSAGES_SUBCOLLECTION = 'messages';
+
+/**
+ * Build the minimal Message the conversation list renders as a preview, from a
+ * Match's denormalized last-message fields. `m.lastMessage` is already
+ * media-safe (see match_v2.mapDocToMatch → messagePreview). Returns undefined
+ * when there is no message yet, so the list falls back to "Start a
+ * conversation!".
+ */
+function buildPreviewMessage(m: Match): Message | undefined {
+  if (!m.lastMessage) return undefined;
+  return {
+    id: '',
+    conversationId: m.id,
+    senderId: m.lastMessageFromUserId ?? '',
+    content: m.lastMessage,
+    type: 'text',
+    status: 'sent',
+    timestamp: m.lastMessageAt ?? m.updatedAt,
+  };
+}
 
 function mediaUrlFromMetadata(metadata?: MessageMetadata): string | undefined {
   if (!metadata) return undefined;
@@ -68,6 +90,10 @@ export const messageServiceV2Adapter = {
       id: m.id, // conversation id === matchId
       matchId: m.id,
       participants: [userId, m.otherUserId],
+      // Synthesize the last-message preview from the match's denormalized
+      // fields so the conversation list shows a media-safe preview (and a
+      // "You:" prefix) instead of always "Start a conversation!".
+      lastMessage: buildPreviewMessage(m),
       lastMessageAt: m.lastMessageAt,
       unreadCount: m.unreadCount,
       createdAt: m.createdAt,

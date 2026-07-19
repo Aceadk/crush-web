@@ -16,7 +16,12 @@ export interface Match {
   createdAt: string;
   updatedAt: string;
   lastMessageAt?: string;
+  /** Media-safe preview string (never a raw URL/ciphertext). See messagePreview(). */
   lastMessage?: string;
+  /** Raw type of the last message ('text'|'image'|'video'|'voice'|'audio'|'gif'). */
+  lastMessageType?: string;
+  /** Sender of the last message; lets the list show a "You:" prefix. */
+  lastMessageFromUserId?: string;
   unreadCount: number;
   isSuperLike?: boolean;
 }
@@ -32,6 +37,8 @@ export interface SwipeAction {
 export interface DiscoveryProfile {
   id: string;
   displayName: string;
+  /** Public @handle. Discovery is username-first on both clients. */
+  username?: string;
   birthDate?: string;
   age?: number;
   bio?: string;

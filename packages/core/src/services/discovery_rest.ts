@@ -79,6 +79,10 @@ export function mapDiscoveryRestProfiles(payload: Record<string, unknown>): Disc
         (typeof source.display_name === 'string' && source.display_name) ||
         (typeof source.name === 'string' && source.name) ||
         '',
+      username:
+        typeof source.username === 'string' && source.username
+          ? source.username
+          : undefined,
       age: typeof source.age === 'number' ? source.age : undefined,
       bio: typeof source.bio === 'string' ? source.bio : undefined,
       photos,
@@ -117,4 +121,18 @@ export function mapDiscoveryRestProfiles(payload: Record<string, unknown>): Disc
   return profiles.filter(
     (candidate): candidate is DiscoveryProfile => candidate !== null && candidate.id.length > 0
   );
+}
+
+/**
+ * Username-first identity for discovery surfaces: "@handle" when a username
+ * exists, otherwise the (already privacy-gated) display name. Mirrors the
+ * mobile app's Profile.discoveryDisplayName so both clients show the same
+ * identity on the deck.
+ */
+export function discoveryDisplayName(
+  profile: Pick<DiscoveryProfile, 'username' | 'displayName'>
+): string {
+  const handle = profile.username?.trim();
+  if (handle) return `@${handle}`;
+  return profile.displayName;
 }

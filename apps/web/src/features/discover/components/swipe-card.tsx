@@ -1,7 +1,7 @@
 'use client';
 
 import { ProtectedImage } from '@/shared/components/content-protection';
-import { calculateAge, DiscoveryProfile, useAuthStore } from '@crush/core';
+import { calculateAge, discoveryDisplayName, DiscoveryProfile, useAuthStore } from '@crush/core';
 import { Badge, cn } from '@crush/ui';
 import { motion, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Info, MapPin, Sparkles, Verified, Zap } from 'lucide-react';
@@ -259,7 +259,7 @@ export function SwipeCard({
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
           <div className="mb-2 flex items-center gap-2">
             <h2 className="text-3xl font-bold">
-              {profile.displayName}
+              {discoveryDisplayName(profile)}
               {calculateAge(profile.birthDate) || profile.age ? (
                 <span>, {calculateAge(profile.birthDate) ?? profile.age}</span>
               ) : null}
@@ -313,7 +313,7 @@ export function SwipeCard({
           >
             <div className="mx-auto max-w-md pt-8 text-white">
               <h2 className="mb-4 text-3xl font-bold">
-                {profile.displayName}
+                {discoveryDisplayName(profile)}
                 {calculateAge(profile.birthDate) || profile.age ? (
                   <span>, {calculateAge(profile.birthDate) ?? profile.age}</span>
                 ) : null}

@@ -46,6 +46,11 @@ const BACKEND_CATEGORIES = [
 
 const CHANNELS = ['push', 'email'] as const;
 
+// Delivery-style prefs (mirror the mobile Sound/Vibration toggles). The backend
+// reads notificationPrefs.sound/.vibration to pick the Android channel and the
+// push sound per recipient.
+const DELIVERY_STYLE = ['sound', 'vibration'] as const;
+
 describe('WebNotificationPrefs schema ↔ backend categories', () => {
   it('includes every backend notification category', () => {
     for (const category of BACKEND_CATEGORIES) {
@@ -61,8 +66,14 @@ describe('WebNotificationPrefs schema ↔ backend categories', () => {
     }
   });
 
-  it('has no keys beyond channels + backend categories', () => {
-    const allowed = new Set<string>([...CHANNELS, ...BACKEND_CATEGORIES]);
+  it('includes the sound/vibration delivery-style toggles', () => {
+    for (const key of DELIVERY_STYLE) {
+      expect(WEB_NOTIFICATION_PREF_DEFAULTS).toHaveProperty(key);
+    }
+  });
+
+  it('has no keys beyond channels + delivery style + backend categories', () => {
+    const allowed = new Set<string>([...CHANNELS, ...DELIVERY_STYLE, ...BACKEND_CATEGORIES]);
     const extra = Object.keys(WEB_NOTIFICATION_PREF_DEFAULTS).filter((k) => !allowed.has(k));
     expect(extra, `unexpected pref keys: ${extra.join(', ')}`).toEqual([]);
   });

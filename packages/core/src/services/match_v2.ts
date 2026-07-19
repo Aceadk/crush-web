@@ -39,13 +39,7 @@ import {
 import { getFirebaseAuth, getFirebaseDb } from '../firebase/config';
 import { callables } from '../api/callables';
 import { Match, MatchStatus } from '../types/match';
-import { isLegacyEncryptedContent } from './legacy_cipher';
-
-/** Chat-list previews never show raw legacy ciphertext. */
-function maskLegacyPreview(preview: string | undefined): string | undefined {
-  if (!preview) return preview;
-  return isLegacyEncryptedContent(preview) ? '🔒 Message' : preview;
-}
+import { messagePreview } from './message_preview';
 
 const MATCHES_COLLECTION = 'matches';
 
@@ -113,9 +107,16 @@ class MatchServiceV2 {
       // Backend has no `updatedAt`; lastMessageAt is the freshest signal.
       updatedAt: this.toIsoString(data.lastMessageAt ?? data.createdAt),
       lastMessageAt: data.lastMessageAt ? this.toIsoString(data.lastMessageAt) : undefined,
-      // Older mobile builds encrypted texts, so the denormalized preview can
-      // be "enc_v1:..." ciphertext — mask it rather than showing gibberish.
-      lastMessage: maskLegacyPreview((data.lastMessageContent as string | undefined) ?? undefined),
+      // Media-safe preview: media kinds become "Photo"/"Voice message"/…,
+      // legacy "enc_v1:" ciphertext is masked, and a bare storage URL never
+      // leaks. Mirrors the mobile app's messagePreviewText so both clients
+      // show the same conversation-list preview.
+      lastMessage: messagePreview(
+        (data.lastMessageContent as string | undefined) ?? undefined,
+        (data.lastMessageType as string | undefined) ?? undefined,
+      ),
+      lastMessageType: (data.lastMessageType as string | undefined) ?? undefined,
+      lastMessageFromUserId: (data.lastMessageFromUserId as string | undefined) ?? undefined,
       unreadCount: 0,
       isSuperLike: Boolean(data.isSuperLike),
     };

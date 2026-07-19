@@ -15,6 +15,11 @@ export interface WebNotificationPrefs {
   // Channels
   push: boolean;
   email: boolean;
+  // Delivery style — mirror the mobile app's Sound/Vibration toggles. The
+  // backend reads notificationPrefs.sound/.vibration to pick the Android
+  // channel and set the push sound per recipient across all their devices.
+  sound: boolean;
+  vibration: boolean;
   // Categories (mirror backend NotificationCategory)
   matches: boolean;
   messages: boolean;
@@ -29,6 +34,8 @@ export interface WebNotificationPrefs {
 export const WEB_NOTIFICATION_PREF_DEFAULTS: WebNotificationPrefs = {
   push: true,
   email: true,
+  sound: true,
+  vibration: true,
   matches: true,
   messages: true,
   likes: true,

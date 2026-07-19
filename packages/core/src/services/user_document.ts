@@ -574,9 +574,23 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
   const prompts = normalizePrompts(data.prompts) ?? normalizePrompts(profile.profilePrompts);
   const settingsFromDoc = (data.settings as Partial<UserSettings> | undefined) ?? {};
   const profilePreferences = asRecord(profile.preferences);
+  // Canonical privacy lives in profile.privacySettings (mobile + backend read
+  // it). A deliberate choice (privacySchemaVersion >= 2) wins over the legacy
+  // top-level settings mirror, so a value set on the mobile app is reflected
+  // correctly in the web settings UI. Absent/legacy → fall back to settings.
+  const privacyCanonical = asRecord(profile.privacySettings);
+  const privacyIsDeliberate = (toNumber(privacyCanonical.privacySchemaVersion) ?? 0) >= 2;
+  const canonicalShowOnlineStatus =
+    privacyIsDeliberate && typeof privacyCanonical.showOnlineStatus === 'boolean'
+      ? privacyCanonical.showOnlineStatus
+      : undefined;
   const settings: UserSettings = {
     ...DEFAULT_USER_SETTINGS,
     ...settingsFromDoc,
+    showOnlineStatus:
+      canonicalShowOnlineStatus ??
+      settingsFromDoc.showOnlineStatus ??
+      DEFAULT_USER_SETTINGS.showOnlineStatus,
     maxDistance:
       toNumber(profilePreferences.maxDistanceKm) ??
       settingsFromDoc.maxDistance ??

@@ -96,6 +96,13 @@ export { getAuthErrorMessage, getAuthErrorKey } from './services/auth_errors';
 export { sanitizeErrorText, errorText } from './utils/errors';
 
 export { matchService } from './services/match';
+export { discoveryDisplayName } from './services/discovery_rest';
+export {
+  presenceService,
+  isPresenceOnline,
+  PRESENCE_FRESHNESS_MS,
+  PRESENCE_HEARTBEAT_MS,
+} from './services/presence';
 export { messageService } from './services/message';
 
 // V2 services — canonical backend-aligned (Option B migration).

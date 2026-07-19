@@ -12,7 +12,7 @@ import {
 } from '@crush/core';
 import { Sidebar } from '@/shared/components/layout/app-sidebar';
 import { AuthLoadingShell, AuthRedirectingShell } from '@/shared/components/layout/auth-shell';
-import { useIsMobile } from '@/shared/hooks';
+import { useIsMobile, usePresenceHeartbeat } from '@/shared/hooks';
 import { appendRedirectParam } from '@/shared/lib/auth-redirect';
 import { shouldShowAuthLoadingShell } from '@/shared/lib/auth-gates';
 import { RuntimeProviders } from '@/shared/providers/runtime-providers';
@@ -32,6 +32,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { setIsMobile } = useUIStore();
   const { subscribeToMatches, cleanup } = useMatchStore();
   const isMobile = useIsMobile();
+  // Write the presence heartbeat while any authenticated screen is mounted so
+  // web-active users appear online to their matches (mobile reads presence/).
+  usePresenceHeartbeat();
   // Firebase can mutate and reuse the same User object during reload(). Read
   // verification primitives on every store render instead of memoizing by
   // object identity, or a freshly verified account can remain locally false.

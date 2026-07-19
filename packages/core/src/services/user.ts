@@ -107,9 +107,28 @@ class UserService {
 
     const mergedSettings = { ...currentSettings, ...canonicalAsSettings, ...settings };
 
+    // Mirror the privacy-relevant toggles into the canonical
+    // `profile.privacySettings.*` — the ONLY privacy location the mobile app
+    // and the backend read (presence gate + discovery name/age stripping).
+    // Without this, a privacy toggle set on web never took effect anywhere off
+    // web. Dotted paths merge without clobbering fine-grained flags the user
+    // set on mobile (e.g. showFirstName); `privacySchemaVersion: 2` marks these
+    // as deliberate choices so legacy incidental defaults are never enforced.
+    const privacyMirror: Record<string, unknown> = {};
+    if (typeof settings.showOnlineStatus === 'boolean') {
+      privacyMirror['profile.privacySettings.showOnlineStatus'] = settings.showOnlineStatus;
+    }
+    if (typeof settings.showAge === 'boolean') {
+      privacyMirror['profile.privacySettings.showAge'] = settings.showAge;
+    }
+    if (Object.keys(privacyMirror).length > 0) {
+      privacyMirror['profile.privacySettings.privacySchemaVersion'] = 2;
+    }
+
     await updateDoc(doc(db, USERS_COLLECTION, userId), {
       settings: mergedSettings,
       ...buildUserProfileUpdateData({ settings: mergedSettings }),
+      ...privacyMirror,
       updatedAt: serverTimestamp(),
     });
   }
