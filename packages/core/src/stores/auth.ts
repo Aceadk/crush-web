@@ -291,15 +291,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     try {
       const user = await authService.signUpWithEmail(email, password, displayName);
 
-      // Create user profile
-      const profile = await userService.bootstrapUserProfile(user.uid);
-
-      // Send verification email immediately after account creation.
+      // Email delivery owns the first post-auth operation. Profile bootstrap
+      // must never delay or prevent the message that unlocks this account.
       try {
         await authService.sendEmailVerification();
       } catch (verificationError) {
+        // The verify-email route performs one coalesced automatic recovery when
+        // no successful delivery timestamp exists, then exposes manual Resend.
         console.error('Failed to send verification email after sign up:', verificationError);
       }
+
+      // Create user profile after the time-sensitive verification request.
+      const profile = await userService.bootstrapUserProfile(user.uid);
 
       set({ profile, loading: false });
     } catch (error) {

@@ -2,13 +2,22 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAuthStore, useMessageStore, useMatchStore, useUIStore, Conversation } from '@crush/core';
+import {
+  useAuthStore,
+  useMessageStore,
+  useMatchStore,
+  useUIStore,
+  isMatchClearedForViewer,
+  type Conversation,
+  type Match,
+} from '@crush/core';
 import { Card, Avatar, AvatarImage, AvatarFallback, Input, SkeletonProfile, Badge } from '@crush/ui';
 import { cn } from '@crush/ui';
 import { Search, MessageCircle, ChevronRight, Inbox, Pin, WifiOff, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { analytics } from '@/lib/analytics';
 import { PinnedConversations } from '@/components/messages/pinned-conversations';
+import { ConversationActionsMenu } from '@/components/messages/conversation-actions-menu';
 import { useNetworkStatus, usePeerPresence } from '@/shared/hooks';
 
 export default function MessagesPage() {
@@ -107,8 +116,12 @@ export default function MessagesPage() {
 
   // Filter conversations
   const filteredConversations = conversations.filter((conv) => {
-    if (!searchQuery) return true;
     const match = resolveConversationMatch(conv);
+    // Conversations the user deleted stay hidden until something new arrives.
+    // The match itself is deliberately untouched — you are still matched, so
+    // the person keeps their row on the Matches page.
+    if (match && isMatchClearedForViewer(match)) return false;
+    if (!searchQuery) return true;
     return match?.otherUserName?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
@@ -235,7 +248,7 @@ export default function MessagesPage() {
               hrefMatchId={hrefMatchId}
               matchName={match?.otherUserName}
               matchPhoto={match?.otherUserPhotoUrl}
-              matchId={match?.id}
+              match={match}
               isPinned={Boolean(match?.pinnedForUser)}
               currentUserId={user?.uid || ''}
               onTogglePin={handleTogglePin}
@@ -253,7 +266,8 @@ interface ConversationCardProps {
   hrefMatchId: string;
   matchName?: string;
   matchPhoto?: string;
-  matchId?: string;
+  /** Resolved match, when one exists — required for the row action menu. */
+  match?: Match;
   isPinned?: boolean;
   currentUserId: string;
   onTogglePin?: (matchId: string, pinned: boolean) => Promise<void>;
@@ -265,12 +279,13 @@ function ConversationCard({
   hrefMatchId,
   matchName,
   matchPhoto,
-  matchId,
+  match,
   isPinned = false,
   currentUserId,
   onTogglePin,
   onOpenConversation,
 }: ConversationCardProps) {
+  const matchId = match?.id;
   const lastMessage = conversation.lastMessage;
   const isOwnMessage = lastMessage?.senderId === currentUserId;
   const peerId = conversation.participants.find((id) => id !== currentUserId);
@@ -337,7 +352,8 @@ function ConversationCard({
             <Badge variant="destructive">Blocked</Badge>
           )}
 
-          {/* Arrow */}
+          {/* Quick pin stays a one-tap affordance; everything else (delete,
+              unmatch, block) lives in the row menu next to it. */}
           {matchId && onTogglePin && (
             <button
               onClick={(e) => {
@@ -357,6 +373,8 @@ function ConversationCard({
               <Pin className={cn('w-4 h-4', isPinned && 'fill-current')} />
             </button>
           )}
+
+          {match && <ConversationActionsMenu match={match} />}
 
           <ChevronRight className="w-5 h-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>

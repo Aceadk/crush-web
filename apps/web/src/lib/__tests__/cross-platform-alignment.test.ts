@@ -10,21 +10,24 @@
 import { describe, expect, it } from 'vitest';
 import { Timestamp } from 'firebase/firestore';
 import { messagePreview } from '@crush/core/services/message_preview';
-import { discoveryDisplayName } from '@crush/core/services/discovery_rest';
-import { mapUserDocumentToUserProfile } from '@crush/core/services/user_document';
 import {
-  isPresenceOnline,
-  PRESENCE_FRESHNESS_MS,
-} from '@crush/core/services/presence';
+  discoveryDisplayName,
+  discoveryFiltersFromProfile,
+  mapDiscoveryRestProfiles,
+} from '@crush/core/services/discovery_rest';
+import { mapUserDocumentToUserProfile } from '@crush/core/services/user_document';
+import { isPresenceOnline, PRESENCE_FRESHNESS_MS } from '@crush/core/services/presence';
+import { DEFAULT_DISCOVERY_FILTERS, isMatchClearedForViewer } from '@crush/core/types/match';
+import { DEFAULT_USER_SETTINGS } from '@crush/core/types/user';
 
 describe('messagePreview — media-safe conversation previews (ALIGN-2)', () => {
   it('maps media types to readable labels, never the raw content/URL', () => {
-    expect(
-      messagePreview('https://firebasestorage.googleapis.com/x/photo.jpg', 'image')
-    ).toBe('Photo');
-    expect(
-      messagePreview('https://firebasestorage.googleapis.com/x/clip.mp4', 'video')
-    ).toBe('Video');
+    expect(messagePreview('https://firebasestorage.googleapis.com/x/photo.jpg', 'image')).toBe(
+      'Photo'
+    );
+    expect(messagePreview('https://firebasestorage.googleapis.com/x/clip.mp4', 'video')).toBe(
+      'Video'
+    );
     // 'voice' is the mobile type; 'audio' is the web type — both are voice notes.
     expect(messagePreview(null, 'voice')).toBe('Voice message');
     expect(messagePreview('https://firebasestorage.googleapis.com/x/n.m4a', 'audio')).toBe(
@@ -55,7 +58,8 @@ describe('messagePreview — media-safe conversation previews (ALIGN-2)', () => 
 
 describe('discoveryDisplayName — username-first identity (ALIGN-4)', () => {
   it('prefers the @handle when a username exists', () => {
-    expect(discoveryDisplayName({ username: 'renu_ktm', displayName: 'Renu' })).toBe('@renu_ktm');
+    // Bare handle, no "@" sigil — the handle IS the name on discovery surfaces.
+    expect(discoveryDisplayName({ username: 'renu_ktm', displayName: 'Renu' })).toBe('renu_ktm');
   });
 
   it('falls back to the (privacy-gated) display name without a username', () => {
@@ -94,7 +98,7 @@ describe('privacy canonical settings — cross-platform read (ALIGN-1)', () => {
 describe('presence freshness — matches the mobile rule (ALIGN-3)', () => {
   const now = 1_800_000_000_000;
 
-  it('is online only when flagged online AND fresh within the window', () => {
+  it('is online when any client heartbeat is fresh within the window', () => {
     expect(
       isPresenceOnline({ isOnline: true, lastSeen: Timestamp.fromMillis(now - 1000) }, now)
     ).toBe(true);
@@ -109,11 +113,90 @@ describe('presence freshness — matches the mobile rule (ALIGN-3)', () => {
     ).toBe(false);
   });
 
-  it('is offline when explicitly flagged offline, or when data is missing', () => {
-    expect(
-      isPresenceOnline({ isOnline: false, lastSeen: Timestamp.fromMillis(now) }, now)
-    ).toBe(false);
+  it('does not let one closing client hide another fresh session', () => {
+    expect(isPresenceOnline({ isOnline: false, lastSeen: Timestamp.fromMillis(now) }, now)).toBe(
+      true
+    );
+  });
+
+  it('is offline when heartbeat data is missing', () => {
     expect(isPresenceOnline(undefined, now)).toBe(false);
     expect(isPresenceOnline({ isOnline: true }, now)).toBe(false);
   });
-})
+});
+
+describe('isMatchClearedForViewer — per-user "delete chat" (ALIGN-5)', () => {
+  it('is not cleared when the viewer never deleted the chat', () => {
+    expect(
+      isMatchClearedForViewer({ clearedAt: undefined, lastMessageAt: '2026-07-01T10:00:00.000Z' })
+    ).toBe(false);
+  });
+
+  it('is cleared when nothing has arrived since the watermark', () => {
+    expect(
+      isMatchClearedForViewer({
+        clearedAt: '2026-07-01T12:00:00.000Z',
+        lastMessageAt: '2026-07-01T10:00:00.000Z',
+      })
+    ).toBe(true);
+  });
+
+  it('comes back as soon as a newer message arrives', () => {
+    expect(
+      isMatchClearedForViewer({
+        clearedAt: '2026-07-01T12:00:00.000Z',
+        lastMessageAt: '2026-07-01T12:00:01.000Z',
+      })
+    ).toBe(false);
+  });
+
+  it('stays cleared for a conversation that never had a message', () => {
+    expect(
+      isMatchClearedForViewer({ clearedAt: '2026-07-01T12:00:00.000Z', lastMessageAt: undefined })
+    ).toBe(true);
+  });
+});
+
+describe('discoveryFiltersFromProfile — same deck rule as mobile (ALIGN-6)', () => {
+  it('seeds from the account’s saved preferences, not a hardcoded default', () => {
+    expect(
+      discoveryFiltersFromProfile({
+        settings: { ...DEFAULT_USER_SETTINGS, ageRangeMin: 24, ageRangeMax: 33, maxDistance: 12 },
+        interestedIn: ['female'],
+      })
+    ).toEqual({ minAge: 24, maxAge: 33, maxDistance: 12, genders: ['female'] });
+  });
+
+  it('omits genders entirely when none are saved, so the backend uses its own fallback', () => {
+    const filters = discoveryFiltersFromProfile({ settings: undefined, interestedIn: [] });
+    expect(filters).toEqual(DEFAULT_DISCOVERY_FILTERS);
+    expect('genders' in filters).toBe(false);
+  });
+
+  it('falls back to the shared defaults for a profile that has not loaded', () => {
+    expect(discoveryFiltersFromProfile(null)).toEqual(DEFAULT_DISCOVERY_FILTERS);
+  });
+});
+
+describe('mapDiscoveryRestProfiles — mirrors the mobile deck exclusions (ALIGN-7)', () => {
+  it('drops candidates with no photos, exactly as the app does', () => {
+    const profiles = mapDiscoveryRestProfiles({
+      profiles: [
+        { id: 'has-photo', name: 'A', photos: [{ url: 'https://cdn/a.jpg', is_primary: true }] },
+        { id: 'no-photo', name: 'B', photos: [] },
+      ],
+    });
+    expect(profiles.map((p) => p.id)).toEqual(['has-photo']);
+  });
+
+  it('collapses duplicate ids while preserving server order', () => {
+    const profiles = mapDiscoveryRestProfiles({
+      profiles: [
+        { id: 'a', name: 'A', photos: [{ url: 'https://cdn/a.jpg' }] },
+        { id: 'b', name: 'B', photos: [{ url: 'https://cdn/b.jpg' }] },
+        { id: 'a', name: 'A again', photos: [{ url: 'https://cdn/a2.jpg' }] },
+      ],
+    });
+    expect(profiles.map((p) => p.id)).toEqual(['a', 'b']);
+  });
+});

@@ -5,6 +5,7 @@ import {
   calculateAge,
   authVerificationFactsFromUser,
   describeProfilePhotoUploadError,
+  formatProfileHeight,
   locationService,
   onboardingService,
   PROFILE_PHOTO_ALLOWED_MIME_TYPES,
@@ -491,7 +492,7 @@ export default function ProfileView() {
                 {profile.lifestyle?.height && (
                   <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
                     <Ruler className="h-5 w-5 text-gray-500" />
-                    <span>{profile.lifestyle.height}</span>
+                    <span>{formatProfileHeight(profile.lifestyle.height)}</span>
                   </div>
                 )}
                 {profile.lifestyle?.education && (

@@ -11,6 +11,7 @@ import {
 import { analytics } from '@/lib/analytics';
 import {
     DiscoveryFilters,
+    discoveryFiltersFromProfile,
     useAuthStore,
     useMatchStore,
     useStoryStore,
@@ -20,7 +21,7 @@ import {
 import { Badge, Button, SkeletonSwipeCard } from '@crush/ui';
 import { Globe, Keyboard, RefreshCw, Sliders } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 
 const MatchModal = dynamic(
   () => import('@/features/discover/components/match-modal').then((mod) => mod.MatchModal),
@@ -34,14 +35,16 @@ const FilterDialog = dynamic(
 export default function DiscoverPage() {
   const { user, profile } = useAuthStore();
   const {
-    discoveryProfiles,
+    discoveryProfiles: storedDiscoveryProfiles,
     currentProfileIndex,
-    loading,
-    error,
     filters,
+    discoveryOwnerUserId,
+    discoveryLoading,
+    discoveryRefreshing,
+    discoveryError,
+    localDeckExpanded,
     loadDiscoveryProfiles,
     swipe,
-    previousProfile,
     setFilters,
   } = useMatchStore();
   const { limitInfo, refreshLimitInfo } = useStreakStore();
@@ -72,13 +75,22 @@ export default function DiscoverPage() {
 
   const isPremium = profile?.isPremium ?? false;
   const hasReachedDailyLikeLimit = !isPremium && (limitInfo?.remaining ?? 1) <= 0;
-  const passportModeEnabled = Boolean(profile?.settings?.passportMode);
+  // Passport is an entitlement, not just a saved toggle. A stale/free account
+  // must never display or request the premium discovery mode.
+  const passportModeEnabled = Boolean(isPremium && profile?.settings?.passportMode);
   const passportDestination = [
     profile?.settings?.passportLocation?.city,
     profile?.settings?.passportLocation?.country,
   ]
     .filter(Boolean)
     .join(', ');
+
+  // Store state survives route transitions. Never render even one frame of a
+  // previous account's cached deck while the new account request is starting.
+  const discoveryProfiles = useMemo(
+    () => (discoveryOwnerUserId === user?.uid ? storedDiscoveryProfiles : []),
+    [discoveryOwnerUserId, storedDiscoveryProfiles, user?.uid]
+  );
 
   const currentProfile = discoveryProfiles[currentProfileIndex];
   const nextProfile = discoveryProfiles[currentProfileIndex + 1];
@@ -97,12 +109,22 @@ export default function DiscoverPage() {
     [storiesByUser, viewedStoryIdsByUser]
   );
 
-  // Load profiles on mount
+  // Seed the deck filters from the account's SAVED discovery preferences
+  // before the first fetch, then load.
+  //
+  // The store's defaults are a hardcoded 18–50 / 50km, which is not what this
+  // account asked for and not what mobile sends — the app sends only distance
+  // and lets the backend fall back to the same saved preferences. Starting
+  // from the profile is what makes the two decks obey identical rules.
   useEffect(() => {
-    if (user) {
-      loadDiscoveryProfiles(user.uid);
-    }
-  }, [user, loadDiscoveryProfiles]);
+    if (!user || !profile) return;
+    setFilters(discoveryFiltersFromProfile(profile));
+    void loadDiscoveryProfiles(user.uid, {
+      allowDistanceExpansion: !passportModeEnabled,
+    });
+    // Re-seeding on every `filters` change would clobber the filter dialog.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, profile, passportModeEnabled, loadDiscoveryProfiles, setFilters]);
 
   useEffect(() => {
     if (!user) return;
@@ -220,7 +242,9 @@ export default function DiscoverPage() {
 
   const handleRefresh = () => {
     if (user) {
-      loadDiscoveryProfiles(user.uid);
+      void loadDiscoveryProfiles(user.uid, {
+        allowDistanceExpansion: !passportModeEnabled,
+      });
     }
   };
 
@@ -232,7 +256,9 @@ export default function DiscoverPage() {
     });
     // Reload profiles with new filters
     if (user) {
-      loadDiscoveryProfiles(user.uid);
+      void loadDiscoveryProfiles(user.uid, {
+        allowDistanceExpansion: !passportModeEnabled,
+      });
     }
   };
 
@@ -357,14 +383,6 @@ export default function DiscoverPage() {
         }
       }
 
-      // Undo: 'z' key
-      if (key === 'z') {
-        e.preventDefault();
-        if (currentProfileIndex > 0) {
-          previousProfile();
-        }
-      }
-
       // Toggle keyboard hints: '?' key
       if (key === '?') {
         e.preventDefault();
@@ -378,8 +396,6 @@ export default function DiscoverPage() {
       activeStoryViewer,
       swiping,
       currentProfile,
-      currentProfileIndex,
-      previousProfile,
       handleSwipe,
     ]
   );
@@ -412,7 +428,7 @@ export default function DiscoverPage() {
     : [];
 
   // Empty state
-  if (!loading && discoveryProfiles.length === 0) {
+  if (!discoveryLoading && discoveryProfiles.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-muted">
@@ -420,7 +436,7 @@ export default function DiscoverPage() {
         </div>
         <h2 className="mb-2 text-2xl font-bold">No more profiles</h2>
         <p className="mb-6 max-w-sm text-muted-foreground">
-          {error
+          {discoveryError
             ? 'Something went wrong loading profiles. Please try again.'
             : "You've seen everyone in your area. Check back later or adjust your filters."}
         </p>
@@ -467,9 +483,11 @@ export default function DiscoverPage() {
             />
           </>
         )}
-        {error && <p className="mb-4 max-w-sm text-sm text-destructive">{error}</p>}
+        {discoveryError && (
+          <p className="mb-4 max-w-sm text-sm text-destructive">{discoveryError}</p>
+        )}
         <div className="flex gap-3">
-          <Button onClick={handleRefresh} loading={loading}>
+          <Button onClick={handleRefresh} loading={discoveryRefreshing}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
@@ -501,7 +519,7 @@ export default function DiscoverPage() {
   }
 
   // Loading state
-  if (loading && discoveryProfiles.length === 0) {
+  if (discoveryLoading && discoveryProfiles.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6">
         <div className="relative w-full max-w-md">
@@ -526,13 +544,19 @@ export default function DiscoverPage() {
             Passport: {passportDestination}
           </div>
         )}
+        {localDeckExpanded && !passportModeEnabled && (
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+            <Globe className="h-3.5 w-3.5" />
+            Search expanded to 500 km
+          </div>
+        )}
       </div>
 
       {/* Header */}
       <div className="absolute right-4 top-4 flex items-center gap-2">
         {user && <BoostControl userId={user.uid} isPremium={isPremium} />}
         <Button variant="ghost" size="icon" onClick={handleRefresh} aria-label="Refresh profiles">
-          <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-5 w-5 ${discoveryRefreshing ? 'animate-spin' : ''}`} />
         </Button>
         <Button
           variant="ghost"
@@ -620,15 +644,15 @@ export default function DiscoverPage() {
         )}
       </div>
 
-      {/* Action buttons */}
+      {/* Action buttons. No Undo: rewind is unavailable on both platforms —
+          there is no backend undo, and the swipe is already recorded by the
+          time the card leaves the screen. */}
       <ActionButtons
         onPass={() => handleSwipe('left')}
         onLike={() => handleSwipe('right')}
         onSuperLike={() => handleSwipe('up')}
-        onUndo={previousProfile}
         disabled={swiping || !currentProfile}
         disableLikeActions={hasReachedDailyLikeLimit}
-        canUndo={currentProfileIndex > 0}
       />
 
       {/* Match modal */}
@@ -650,9 +674,9 @@ export default function DiscoverPage() {
       />
 
       {/* Error toast */}
-      {error && (
+      {discoveryError && (
         <div className="fixed bottom-4 left-4 right-4 rounded-xl bg-destructive p-4 text-destructive-foreground shadow-lg md:left-auto md:right-4 md:w-80">
-          {error}
+          {discoveryError}
         </div>
       )}
 
@@ -723,12 +747,6 @@ export default function DiscoverPage() {
                   W
                 </Badge>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Undo</span>
-              <Badge variant="secondary" className="px-2 text-xs">
-                Z
-              </Badge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Toggle hints</span>

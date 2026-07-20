@@ -1,5 +1,6 @@
 import {
   DEFAULT_USER_SETTINGS,
+  normalizeProfileHeightCm,
   type Gender,
   type UserProfile,
   type UserPrompt,
@@ -619,12 +620,28 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
         ? !toBoolean(profilePreferences.hideFromDiscovery)
         : (settingsFromDoc.showInDiscovery ?? true),
   };
-  const displayName = toString(data.displayName) ?? toString(profile.name) ?? '';
+  // The real name the account has set, if any. Completion checks must use
+  // THIS — a handle is not a display name and must never make a half-finished
+  // profile look complete.
+  const providedDisplayName = toString(data.displayName) ?? toString(profile.name) ?? '';
+  // What the UI renders. Falls through to first name and then the handle so a
+  // half-finished account (its profile map still filling in step by step)
+  // shows something instead of a blank header. Mirrors _fallbackDisplayName in
+  // the mobile discovery repository.
+  const displayName =
+    providedDisplayName || toString(profile.firstName) || toString(data.username) || '';
   const resolvedGender = normalizeGender(data.gender) ?? normalizeGender(profile.gender);
+  const legacyLifestyle = asRecord(data.lifestyle);
+  const heightCm =
+    normalizeProfileHeightCm(profile.heightCm) ?? normalizeProfileHeightCm(legacyLifestyle.height);
+  const lifestyle =
+    Object.keys(legacyLifestyle).length > 0 || heightCm !== undefined
+      ? ({ ...legacyLifestyle, height: heightCm } as UserProfile['lifestyle'])
+      : undefined;
   const completion = deriveCompletionFlags({
     explicitOnboardingComplete: toBoolean(data.onboardingComplete),
     explicitProfileComplete: toBoolean(data.profileComplete),
-    displayName,
+    displayName: providedDisplayName,
     gender: resolvedGender,
     birthDate: canonicalBirthDate,
     age: toNumber(data.age) ?? toNumber(profile.age) ?? deriveAgeFromBirthDate(canonicalBirthDate),
@@ -670,7 +687,7 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
     school: toString(profile.school) ?? toString(profile.education),
     favourites: normalizeStringMap(profile.favourites),
     prompts,
-    lifestyle: (data.lifestyle as UserProfile['lifestyle']) ?? undefined,
+    lifestyle,
     isVerified: toBoolean(data.isVerified) ?? toBoolean(profile.isVerified) ?? false,
     // Entitlement is derived from the canonical backend `plan` field (with
     // legacy fallback) so web premium gating matches the backend + rules.
@@ -701,11 +718,19 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
     hasSkippedBasicInfo: toBoolean(data.hasSkippedBasicInfo),
     hasSkippedProfileSetup: toBoolean(data.hasSkippedProfileSetup),
     // Convenience only; protected routing calls resolveOnboardingState.
-    onboardingComplete: deriveOnboardingGate({
-      schemaVersion:
-        toNumber(asRecord(data.onboarding).schemaVersion) ?? toNumber(data.onboardingSchemaVersion),
-      completedAt: asRecord(data.onboarding).completedAt ?? data.onboardingCompletedAt,
-    }),
+    //
+    // Falls back to the explicit root mirror so an account finished on mobile
+    // — including one completed before onboarding schema v2, which carries no
+    // schemaVersion/completedAt pair — is not shown as unfinished here. The
+    // mobile repository trusts the same mirror in the other direction
+    // (_hasProfileSignal in firebase_profile_repository.dart).
+    onboardingComplete:
+      deriveOnboardingGate({
+        schemaVersion:
+          toNumber(asRecord(data.onboarding).schemaVersion) ??
+          toNumber(data.onboardingSchemaVersion),
+        completedAt: asRecord(data.onboarding).completedAt ?? data.onboardingCompletedAt,
+      }) || completion.onboardingComplete,
     profileComplete: completion.profileComplete,
     isEmailVerified: toBoolean(data.isEmailVerified),
     isPhoneVerified: toBoolean(data.isPhoneVerified),

@@ -48,7 +48,7 @@ export interface FormData {
     confirmedAt?: string;
   };
   lifestyle: {
-    height: string;
+    height: number | '';
     education: string;
     drinking: 'yes' | 'no' | 'sometimes' | '';
     smoking: 'yes' | 'no' | 'sometimes' | '';

@@ -6,9 +6,10 @@ import { presenceService, PRESENCE_HEARTBEAT_MS, useAuthStore } from '@crush/cor
 /**
  * Write the current user's presence heartbeat while the session is active, so
  * their matches (mobile and web) see them online. Mirrors the mobile app:
- * `presence/{uid}` is refreshed every ~45s while the tab is visible, set
- * offline when hidden/closed. The privacy gate is applied by READERS (see
- * usePeerPresence), so the writer always writes — consistent with mobile.
+ * `presence/{uid}` is refreshed every ~45s while the tab is visible. Hidden or
+ * closed clients stop heartbeating and decay after the shared two-minute
+ * freshness window. We deliberately do not write `false`: that would let one
+ * closed tab/device overwrite another app or web client that is still active.
  */
 export function usePresenceHeartbeat(): void {
   const { user } = useAuthStore();
@@ -18,31 +19,27 @@ export function usePresenceHeartbeat(): void {
     if (!uid) return;
 
     let disposed = false;
-    const write = (online: boolean) => {
+    const writeHeartbeat = () => {
       if (disposed) return;
       // Best-effort: a failed presence write must never surface to the user.
-      void presenceService.setPresence(uid, online).catch(() => {});
+      void presenceService.setPresence(uid, true).catch(() => {});
     };
 
-    write(document.visibilityState !== 'hidden');
+    if (document.visibilityState !== 'hidden') writeHeartbeat();
     const interval = setInterval(() => {
-      if (document.visibilityState !== 'hidden') write(true);
+      if (document.visibilityState !== 'hidden') writeHeartbeat();
     }, PRESENCE_HEARTBEAT_MS);
 
-    const onVisibility = () => write(document.visibilityState !== 'hidden');
-    // pagehide fires on tab close / navigation away more reliably than
-    // beforeunload on mobile browsers.
-    const onLeave = () => write(false);
+    const onVisibility = () => {
+      if (document.visibilityState !== 'hidden') writeHeartbeat();
+    };
 
     document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('pagehide', onLeave);
 
     return () => {
       disposed = true;
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('pagehide', onLeave);
-      write(false);
     };
   }, [uid]);
 }

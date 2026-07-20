@@ -141,6 +141,16 @@ export interface SetMatchPinnedRequest {
   pinned: boolean;
 }
 
+export interface ClearConversationRequest {
+  matchId: string;
+}
+
+export interface ClearConversationResponse {
+  ok: boolean;
+  /** ISO timestamp of the watermark the backend just wrote. */
+  clearedAt: string;
+}
+
 export interface SetPresenceStatusRequest {
   isOnline: boolean;
 }
@@ -257,6 +267,8 @@ export interface BackendMatchDoc {
   status: 'active' | 'unmatched';
   preMatchRequests?: Record<string, number>;
   pinnedForUser?: Record<string, boolean>;
+  /** Per-user "delete chat" watermarks written by clearConversation. */
+  clearedAt?: Record<string, unknown>;
   createdAt?: unknown;
   lastMessageAt?: unknown;
   lastMessageContent?: string | null;
@@ -320,6 +332,16 @@ export const callables = {
   unmatch: (data: UnmatchRequest) => invokeCallable<UnmatchRequest, OkResponse>('unmatch', data),
   setMatchPinned: (data: SetMatchPinnedRequest) =>
     invokeCallable<SetMatchPinnedRequest, OkResponse>('setMatchPinned', data),
+  /**
+   * "Delete chat" — one-sided and non-destructive. Stamps clearedAt.{uid} on
+   * the match doc; the other participant's copy and the match itself are
+   * untouched.
+   */
+  clearConversation: (data: ClearConversationRequest) =>
+    invokeCallable<ClearConversationRequest, ClearConversationResponse>(
+      'clearConversation',
+      data
+    ),
 
   // Chat & Messages
   sendMessage: (data: SendMessageRequest) =>
