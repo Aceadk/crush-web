@@ -14,6 +14,10 @@
 export const WEB_ROUTES = [
   '/',
   '/about',
+  // Crush-branded Firebase Auth action handler (password reset / email
+  // verification). Only receives traffic once Firebase Console's "Customize
+  // action URL" points here; until then Google's default page handles it.
+  '/auth/action',
   '/auth/callback',
   '/auth/device-verify',
   '/auth/device-verify/complete',

@@ -21,6 +21,8 @@ import {
   PROFILE_PHOTO_MAX_DIMENSION_PX,
   PROFILE_PHOTO_MAX_PIXELS,
   PROFILE_PHOTO_ALLOWED_MIME_TYPES,
+  PROFILE_HEIGHT_OPTIONS,
+  formatProfileHeight,
   VERIFICATION_IS_SERVER_OWNED,
 } from '@crush/core';
 
@@ -52,6 +54,10 @@ describe('canonical profile capability values', () => {
       'image/heic',
       'image/heif',
     ]);
+    expect(PROFILE_HEIGHT_OPTIONS).toHaveLength(151);
+    expect(PROFILE_HEIGHT_OPTIONS[0]?.value).toBe(100);
+    expect(PROFILE_HEIGHT_OPTIONS.at(-1)?.value).toBe(250);
+    expect(formatProfileHeight(178)).toBe(`5'10" (178 cm)`);
   });
 
   it('treats verification as server-owned (display-only on web)', () => {
@@ -80,6 +86,15 @@ describe('web profile surfaces consume the shared constants', () => {
     expect(grid).toContain('PROFILE_PHOTO_MIN_DIMENSION_PX');
     expect(grid).toContain('PROFILE_PHOTO_MAX_DIMENSION_PX');
     expect(grid).toContain('image/heic,image/heif');
+    expect(grid).toContain("isMain ? 'col-span-2 aspect-[4/5]' : ''");
+    expect(grid).not.toContain("isMain && 'aspect-auto h-full'");
+  });
+
+  it('edit form uses the bounded shared height selector', () => {
+    const editForm = read('src/app/(app)/profile/edit/profile-edit-form.tsx');
+    expect(editForm).toContain('PROFILE_HEIGHT_OPTIONS.map');
+    expect(editForm).toContain('Select your height');
+    expect(editForm).not.toContain('placeholder="e.g. 5\'10');
   });
 
   it('runs shared async dimension preflight before a staging upload', () => {

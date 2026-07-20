@@ -16,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Heart, MessageCircle, Pin, Search, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ConversationActionsMenu } from '@/components/messages/conversation-actions-menu';
 
 export default function MatchesPage() {
   const { user } = useAuthStore();
@@ -50,10 +51,16 @@ export default function MatchesPage() {
       return true;
     })
     .sort((a, b) => {
-      // Pinned first, then by date
+      // Pinned first, then NEWEST MATCH first.
+      //
+      // This sorted by `updatedAt`, which the V2 mapper derives from
+      // lastMessageAt — so a fresh match sat below an older one that happened
+      // to have a recent message, on the page whose whole subject is who you
+      // matched with. Conversation recency belongs on the messages page.
+      // Mirrors MatchesBloc.sortByMatchRecency on mobile.
       if (a.pinnedForUser && !b.pinnedForUser) return -1;
       if (!a.pinnedForUser && b.pinnedForUser) return 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
   const pinnedCount = matches.filter((m) => m.pinnedForUser).length;
@@ -241,6 +248,8 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
           >
             <Pin className={cn('h-5 w-5', match.pinnedForUser && 'fill-primary')} />
           </Button>
+
+          <ConversationActionsMenu match={match} stopPropagation={false} />
         </div>
       </div>
     </Card>

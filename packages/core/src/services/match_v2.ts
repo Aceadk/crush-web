@@ -93,6 +93,8 @@ class MatchServiceV2 {
 
     const pinnedForUser = (data.pinnedForUser as Record<string, boolean> | undefined) ?? {};
     const preMatchRequests = (data.preMatchRequests as Record<string, number> | undefined) ?? {};
+    const clearedAt = (data.clearedAt as Record<string, unknown> | undefined) ?? {};
+    const clearedAtForViewer = clearedAt[viewerId];
 
     return {
       id,
@@ -119,6 +121,7 @@ class MatchServiceV2 {
       lastMessageFromUserId: (data.lastMessageFromUserId as string | undefined) ?? undefined,
       unreadCount: 0,
       isSuperLike: Boolean(data.isSuperLike),
+      clearedAt: clearedAtForViewer ? this.toIsoString(clearedAtForViewer) : undefined,
     };
   }
 
@@ -164,6 +167,17 @@ class MatchServiceV2 {
    */
   async setPinned(matchId: string, pinned: boolean): Promise<void> {
     await callables.setMatchPinned({ matchId, pinned });
+  }
+
+  /**
+   * "Delete chat" for the current user via the backend `clearConversation`
+   * callable (writes clearedAt.{uid} on the match doc). One-sided: the other
+   * participant keeps their copy and the match stays active. Returns the
+   * watermark so callers can update local state without a refetch.
+   */
+  async clearConversation(matchId: string): Promise<string> {
+    const result = await callables.clearConversation({ matchId });
+    return result.clearedAt;
   }
 
   /**

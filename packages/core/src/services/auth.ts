@@ -30,6 +30,12 @@ export interface AuthState {
   error: string | null;
 }
 
+const VERIFICATION_EMAIL_DELIVERY_KEY_PREFIX = 'crush:verification-email-delivery:';
+
+function verificationEmailDeliveryKey(uid: string): string {
+  return `${VERIFICATION_EMAIL_DELIVERY_KEY_PREFIX}${uid}`;
+}
+
 function getAuthenticatedGoogleUser(user: User | null): User | null {
   const signedInWithGoogle = user?.providerData.some(
     ({ providerId }) => providerId === GoogleAuthProvider.PROVIDER_ID
@@ -47,6 +53,7 @@ export function reconcileGooglePopupError(error: unknown, currentUser: User | nu
 
 class AuthService {
   private confirmationResult: ConfirmationResult | null = null;
+  private verificationEmailSendInFlight = new Map<string, Promise<void>>();
 
   private sanitizeRedirectPath(redirectPath?: string): string {
     if (!redirectPath) {
@@ -274,16 +281,87 @@ class AuthService {
     if (!user) {
       throw new Error('No authenticated user');
     }
-    if (typeof window === 'undefined') {
-      await firebaseSendEmailVerification(user);
-      return;
+    const existingRequest = this.verificationEmailSendInFlight.get(user.uid);
+    if (existingRequest) return existingRequest;
+
+    const request = (async () => {
+      if (typeof window === 'undefined') {
+        await firebaseSendEmailVerification(user);
+        return;
+      }
+      const continueUrl = new URL('/auth/verify-email', window.location.origin);
+      continueUrl.searchParams.set('verified', '1');
+      await firebaseSendEmailVerification(user, {
+        url: continueUrl.toString(),
+        handleCodeInApp: false,
+      });
+      this.recordVerificationEmailDelivery(user.uid);
+    })();
+    this.verificationEmailSendInFlight.set(user.uid, request);
+    try {
+      await request;
+    } finally {
+      if (this.verificationEmailSendInFlight.get(user.uid) === request) {
+        this.verificationEmailSendInFlight.delete(user.uid);
+      }
     }
-    const continueUrl = new URL('/auth/verify-email', window.location.origin);
-    continueUrl.searchParams.set('verified', '1');
-    await firebaseSendEmailVerification(user, {
-      url: continueUrl.toString(),
-      handleCodeInApp: false,
-    });
+  }
+
+  /**
+   * Record only a successfully accepted Firebase verification-email request.
+   * The account-scoped timestamp prevents route mounts/reloads from sending a
+   * duplicate first email while leaving the visible Resend action available.
+   */
+  recordVerificationEmailDelivery(uid: string, sentAtMs = Date.now()): void {
+    if (typeof window === 'undefined' || !uid) return;
+    try {
+      window.localStorage.setItem(verificationEmailDeliveryKey(uid), String(sentAtMs));
+    } catch {
+      // Storage can be unavailable in private/restricted browser contexts. The
+      // verification page still coalesces its own mounted send in memory.
+    }
+  }
+
+  clearVerificationEmailDelivery(uid: string): void {
+    if (typeof window === 'undefined' || !uid) return;
+    try {
+      window.localStorage.removeItem(verificationEmailDeliveryKey(uid));
+    } catch {
+      // Best-effort browser coordination only.
+    }
+  }
+
+  hasRecentVerificationEmailDelivery(
+    uid: string,
+    maxAgeSeconds: number,
+    nowMs = Date.now()
+  ): boolean {
+    if (typeof window === 'undefined' || !uid || maxAgeSeconds <= 0) return false;
+    try {
+      const rawSentAt = window.localStorage.getItem(verificationEmailDeliveryKey(uid));
+      const sentAtMs = rawSentAt == null ? Number.NaN : Number(rawSentAt);
+      if (!Number.isFinite(sentAtMs) || sentAtMs > nowMs + 5_000) return false;
+      return sentAtMs <= nowMs && nowMs - sentAtMs < maxAgeSeconds * 1000;
+    } catch {
+      return false;
+    }
+  }
+
+  getVerificationEmailCooldownSeconds(
+    uid: string,
+    cooldownSeconds: number,
+    nowMs = Date.now()
+  ): number {
+    if (typeof window === 'undefined' || !uid || cooldownSeconds <= 0) return 0;
+    try {
+      const rawSentAt = window.localStorage.getItem(verificationEmailDeliveryKey(uid));
+      const sentAtMs = rawSentAt == null ? Number.NaN : Number(rawSentAt);
+      if (!Number.isFinite(sentAtMs) || sentAtMs > nowMs + 5_000) return 0;
+      const remainingMs = sentAtMs + cooldownSeconds * 1000 - nowMs;
+      return Math.min(cooldownSeconds, Math.max(0, Math.ceil(remainingMs / 1000)));
+    } catch {
+      return 0;
+    }
   }
 
   /**
