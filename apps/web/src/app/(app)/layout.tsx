@@ -12,6 +12,10 @@ import {
 } from '@crush/core';
 import { Sidebar } from '@/shared/components/layout/app-sidebar';
 import { AuthLoadingShell, AuthRedirectingShell } from '@/shared/components/layout/auth-shell';
+import {
+  buildViewerWatermarkIdentity,
+  SensitiveContentWatermark,
+} from '@/shared/components/content-protection';
 import { useIsMobile, usePresenceHeartbeat } from '@/shared/hooks';
 import { appendRedirectParam } from '@/shared/lib/auth-redirect';
 import { shouldShowAuthLoadingShell } from '@/shared/lib/auth-gates';
@@ -22,6 +26,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const {
     user,
+    profile,
     loading,
     initialized,
     deviceTrusted,
@@ -195,6 +200,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return <AuthRedirectingShell />;
   }
 
+  const watermarkIdentity = buildViewerWatermarkIdentity(user, profile);
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -207,10 +214,22 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           pt-14 below md reserves space for the fixed mobile menu button
           (app-sidebar: `fixed top-3 left-3`), which otherwise overlaps the
           top-left of every page's content (e.g. the discover "STORIES"
-          heading). Cleared at md+ where the sidebar takes over the layout. */}
-      <main className={`flex-1 ${!isMobile ? 'md:ml-64' : ''}`}>
-        <div className="min-h-screen pt-14 md:pt-0">{children}</div>
+          heading). Cleared at md+ where the sidebar takes over the layout.
+
+          min-w-0 is load-bearing: main is a flex item, and a flex item's
+          default min-width:auto lets ANY descendant with an unshrinkable
+          min-content width (nowrap text, a wide media element) stretch main
+          past the viewport. Every block inside then renders at the stretched
+          width, the whole app pans horizontally on phones, and every
+          `truncate` downstream silently stops clipping — which is exactly the
+          bug this fixes. overflow-x-clip is the belt to that suspender: even a
+          transient overflow (the resize case noted above) can no longer pan
+          the page. `clip` rather than `hidden` so the wrapper is not promoted
+          to a scroll container. */}
+      <main className={`min-w-0 flex-1 ${!isMobile ? 'md:ml-64' : ''}`}>
+        <div className="min-h-screen overflow-x-clip pt-14 md:pt-0">{children}</div>
       </main>
+      <SensitiveContentWatermark identity={watermarkIdentity} />
     </div>
   );
 }

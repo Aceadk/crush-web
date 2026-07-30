@@ -177,6 +177,19 @@ export interface GetChatMediaSignedUrlResponse {
   url: string;
 }
 
+// Chat Settings (shape verified against functions/src/index.ts updateChatSettings)
+export interface UpdateChatSettingsRequest {
+  extendedRetention: boolean;
+}
+
+export interface UpdateChatSettingsResponse {
+  success: boolean;
+  extendedRetention: boolean;
+  /** Server-resolved retention window; Plus accounts get 7 days regardless. */
+  retentionHours: number;
+  message: string;
+}
+
 // Safety & Moderation (shapes verified against functions/src/index.ts)
 export interface ReportUserRequest {
   reportedId: string;
@@ -242,6 +255,10 @@ export interface StreakStatusResponse {
   totalAllowed: number; // -1 = unlimited (premium)
   used: number;
   remaining: number; // -1 = unlimited
+  /** Super Like budget, enforced server-side in enforceDailyLikeLimit. */
+  superLikesAllowed: number;
+  superLikesUsed: number;
+  superLikesRemaining: number;
   nextMilestoneDays: number | null;
   nextMilestoneBonus: number | null;
   maintainedToday: boolean;
@@ -363,6 +380,19 @@ export const callables = {
   getChatMediaSignedUrl: (data: GetChatMediaSignedUrlRequest) =>
     invokeCallable<GetChatMediaSignedUrlRequest, GetChatMediaSignedUrlResponse>(
       'getChatMediaSignedUrl',
+      data
+    ),
+
+  /**
+   * Message retention preference. Mirrors the mobile Chat Settings screen:
+   * free accounts choose default (1h after read) vs extended (24h after read);
+   * Plus accounts always get 7 days server-side regardless of this flag.
+   * Writes profile.chatSettings.extendedRetention + the RTDB mirror, so the
+   * choice takes effect for BOTH clients.
+   */
+  updateChatSettings: (data: UpdateChatSettingsRequest) =>
+    invokeCallable<UpdateChatSettingsRequest, UpdateChatSettingsResponse>(
+      'updateChatSettings',
       data
     ),
 

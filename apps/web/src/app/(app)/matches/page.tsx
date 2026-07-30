@@ -181,8 +181,10 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
   };
 
   return (
-    <Card className="p-4 transition-shadow hover:shadow-md">
-      <div className="flex items-center gap-4">
+    <Card className="p-3 transition-shadow hover:shadow-md sm:p-4">
+      {/* gap-3 on phones: at 390px the row must fit avatar + text + actions;
+          the desktop gap-4 is restored at sm. */}
+      <div className="flex items-center gap-3 sm:gap-4">
         {/* Avatar */}
         <Link href={`/profile/${match.otherUserId}`}>
           <Avatar size="lg" className="cursor-pointer">
@@ -223,8 +225,11 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
+        {/* Actions. shrink-0 so the buttons can never be crushed by a long
+            name/preview — the text column truncates instead. On phones the
+            standalone pin button is folded into the kebab menu (which already
+            offers Pin/Unpin), leaving Message + menu as the two tap targets. */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <Link href={`/messages/${match.id}`}>
             <Button
               variant="ghost"
@@ -239,7 +244,7 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
             variant="ghost"
             size="icon"
             onClick={onTogglePin}
-            className={cn(match.pinnedForUser && 'text-primary')}
+            className={cn('hidden sm:inline-flex', match.pinnedForUser && 'text-primary')}
             aria-label={
               match.pinnedForUser
                 ? `Unpin ${match.otherUserName || 'user'}`

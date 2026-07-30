@@ -709,6 +709,14 @@ export function mapUserDocumentToUserProfile(id: string, data: FirestoreUserData
     lastActive: normalizeTimestampToString(data.lastActive),
     isOnline: toBoolean(data.isOnline),
     settings,
+    // Canonical location is profile.chatSettings (written by the
+    // updateChatSettings callable); the root mirror is tolerated for older docs.
+    chatSettings: {
+      extendedRetention:
+        toBoolean(asRecord(profile.chatSettings).extendedRetention) ??
+        toBoolean(asRecord(data.chatSettings).extendedRetention) ??
+        false,
+    },
     notificationPrefs:
       (data.notificationPrefs as UserProfile['notificationPrefs']) ??
       (data.notificationSettings as UserProfile['notificationSettings']),

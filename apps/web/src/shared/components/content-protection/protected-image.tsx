@@ -137,95 +137,59 @@ export function ProtectedImage({
         }}
       />
 
-      {/* Username watermark pattern - becomes visible in screenshots */}
+      {/* Capture trace, burned over the media itself.
+
+          Rendered continuously and DELIBERATELY imperceptible. That is not a
+          compromise — it is the only thing that can work: the web exposes no
+          screenshot event (nothing fires for macOS Cmd+Shift+4, Snipping Tool,
+          extensions, or a phone camera), so a watermark can only land in a
+          capture if it is already painted. The lever is therefore visibility,
+          not timing.
+
+          This replaced 80 absolutely-positioned <span>s per image (50 + 30),
+          which cost real layout work on the swipe deck — two cards plus chat
+          media meant hundreds of nodes — and whose stacked opacities visibly
+          hazed light photos. One repeating background paints identically for a
+          fraction of the cost. */}
       {(showWatermark || watermarkUsername) && (
         <div
-          className="pointer-events-none absolute inset-0 z-20 overflow-hidden"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-20 select-none"
+          data-testid="protected-image-watermark"
           style={{
-            // Very subtle during normal viewing, more visible in screenshots
-            opacity: 0.04,
+            backgroundImage: `url("${captureTraceDataUrl(fullWatermarkText)}")`,
+            backgroundRepeat: 'repeat',
+            backgroundSize: '300px 120px',
+            opacity: 0.05,
           }}
-        >
-          {/* Repeating diagonal watermark pattern */}
-          <div
-            className="absolute -left-1/2 -top-1/2 h-[200%] w-[200%]"
-            style={{
-              transform: 'rotate(-30deg)',
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '40px',
-              padding: '20px',
-            }}
-          >
-            {/* Generate multiple watermark instances for full coverage */}
-            {Array.from({ length: 50 }).map((_, i) => (
-              <span
-                key={i}
-                className="select-none whitespace-nowrap font-bold text-white"
-                style={{
-                  fontSize: '14px',
-                  letterSpacing: '2px',
-                  textShadow: '0 0 2px rgba(0,0,0,0.5)',
-                  // Slightly different opacity for each to create depth
-                  opacity: 0.8 + (i % 3) * 0.1,
-                }}
-              >
-                {fullWatermarkText}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Secondary watermark layer - inverse colors for visibility on any background */}
-      {(showWatermark || watermarkUsername) && (
-        <div
-          className="z-21 pointer-events-none absolute inset-0 overflow-hidden"
-          style={{
-            opacity: 0.03,
-            mixBlendMode: 'difference',
-          }}
-        >
-          <div
-            className="absolute -left-1/4 -top-1/4 h-[200%] w-[200%]"
-            style={{
-              transform: 'rotate(-45deg)',
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '60px',
-              padding: '30px',
-            }}
-          >
-            {Array.from({ length: 30 }).map((_, i) => (
-              <span
-                key={i}
-                className="select-none whitespace-nowrap font-bold text-white"
-                style={{
-                  fontSize: '12px',
-                  letterSpacing: '3px',
-                }}
-              >
-                {fullWatermarkText}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Timestamp watermark for tracing */}
-      {watermarkUsername && (
-        <div
-          className="z-22 pointer-events-none absolute bottom-2 right-2"
-          style={{
-            opacity: 0.02,
-            fontSize: '8px',
-            color: 'white',
-            textShadow: '0 0 1px rgba(0,0,0,0.3)',
-          }}
-        >
-          {watermarkUsername} • {new Date().toISOString().split('T')[0]}
-        </div>
+        />
       )}
     </div>
   );
+}
+
+/**
+ * Repeating diagonal trace tile. Text is XML-escaped because it carries a
+ * user-supplied display name straight into SVG markup.
+ */
+function captureTraceDataUrl(label: string): string {
+  const safeLabel = label
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120" viewBox="0 0 300 120">',
+    '<g transform="rotate(-30 150 60)">',
+    '<text x="20" y="66" font-family="system-ui,-apple-system,sans-serif"',
+    ' font-size="13" font-weight="700" letter-spacing="2" fill="#FFFFFF">',
+    safeLabel,
+    '</text>',
+    '</g>',
+    '</svg>',
+  ].join('');
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

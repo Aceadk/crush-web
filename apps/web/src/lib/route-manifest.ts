@@ -57,6 +57,7 @@ export const WEB_ROUTES = [
   '/settings',
   '/settings/account',
   '/settings/blocked',
+  '/settings/chat',
   '/settings/discovery',
   '/settings/incognito',
   '/settings/notifications',

@@ -41,12 +41,17 @@ import {
   MapPinOff,
   RefreshCw,
   AlertCircle,
+  Users,
+  Tag,
+  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTheme } from '@/shared/components/theme';
 import { type Theme } from '@/shared/lib/theme';
 import { useLocation } from '@/shared/hooks';
 import { PromoCodeInput } from '@/features/premium';
+import { LocaleSwitcher } from '@/i18n/LocaleSwitcher';
+import { APP_VERSION } from '@/lib/app-version';
 
 interface SettingItemProps {
   icon: React.ReactNode;
@@ -161,6 +166,7 @@ export default function SettingsView() {
     refreshLocation,
   } = useLocation({ updateProfile: true });
 
+  const [clearingCache, setClearingCache] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -184,6 +190,42 @@ export default function SettingsView() {
       marketing: remotePrefs.promotions ?? remotePrefs.emailMarketing ?? false,
     });
   }, [profile?.notificationPrefs, profile?.notificationSettings]);
+
+  /**
+   * Clear the local caches this app controls. Never clears cookies, so the
+   * session survives — the mobile equivalent likewise does not sign you out.
+   */
+  const handleClearCachedData = useCallback(async () => {
+    setClearingCache(true);
+    try {
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+      // Preserve the persisted theme/locale choices — clearing caches should
+      // not silently reset the user's appearance and language settings.
+      if (typeof window !== 'undefined') {
+        window.sessionStorage?.clear();
+        const preserved = ['theme', 'locale'];
+        const local = window.localStorage;
+        if (local) {
+          const doomed = Object.keys(local).filter(
+            (key) => !preserved.some((keep) => key.toLowerCase().includes(keep))
+          );
+          doomed.forEach((key) => local.removeItem(key));
+        }
+      }
+      toast.success('Cached data cleared', {
+        description: 'Photos and data will be re-downloaded as you browse.',
+      });
+    } catch {
+      toast.error('Could not clear cached data', {
+        description: 'Please try again.',
+      });
+    } finally {
+      setClearingCache(false);
+    }
+  }, []);
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -482,6 +524,15 @@ export default function SettingsView() {
               description="Distance, age range, and who you see"
               href="/settings/discovery"
             />
+            {/* Parity with the mobile Settings list. Retention is server-owned
+                and applies per ACCOUNT, so the choice made here also governs
+                the app — it belongs on both platforms, not just mobile. */}
+            <SettingItem
+              icon={<MessageSquare className="h-5 w-5 text-gray-600 dark:text-gray-400" />}
+              title="Chat Settings"
+              description="Message retention & auto-delete"
+              href="/settings/chat"
+            />
           </div>
         </Card>
 
@@ -572,6 +623,23 @@ export default function SettingsView() {
               description="Manage blocked profiles"
               href="/settings/blocked"
             />
+            {/* Data & Storage — the mobile row reports a tunable image/message
+                cache size, which has no web equivalent (the browser owns its
+                HTTP cache). The honest web counterpart is clearing the local
+                caches this app DOES control: Cache Storage + local/session
+                storage. Deliberately does not touch the auth cookie, so
+                clearing never signs the user out. */}
+            <SettingItem
+              icon={<Trash2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />}
+              title="Data & Storage"
+              description="Clear locally cached photos and data"
+              onClick={clearingCache ? undefined : () => void handleClearCachedData()}
+              rightElement={
+                clearingCache ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+                ) : undefined
+              }
+            />
           </div>
         </Card>
 
@@ -604,6 +672,16 @@ export default function SettingsView() {
               ))}
             </div>
           </div>
+
+          {/* Language & Region — parity with the mobile Settings row. The
+              LocaleSwitcher already existed but was only reachable from the
+              sidebar, so the app exposed a Settings entry the web did not. */}
+          <div className="border-t border-gray-100 p-4 dark:border-gray-800">
+            <label className="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Language &amp; Region
+            </label>
+            <LocaleSwitcher className="w-full justify-between rounded-xl bg-gray-100 px-4 py-3 dark:bg-gray-800" />
+          </div>
         </Card>
 
         {/* Support section */}
@@ -628,6 +706,35 @@ export default function SettingsView() {
               icon={<Shield className="h-5 w-5 text-gray-600 dark:text-gray-400" />}
               title="Privacy Policy"
               href="/privacy"
+            />
+            {/* These pages already existed but were unreachable from Settings,
+                while the mobile Settings list links all four. */}
+            <SettingItem
+              icon={<Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />}
+              title="Community Guidelines"
+              href="/guidelines"
+            />
+            <SettingItem
+              icon={<Shield className="h-5 w-5 text-gray-600 dark:text-gray-400" />}
+              title="Safety"
+              href="/safety"
+            />
+            <SettingItem
+              icon={<Sparkles className="h-5 w-5 text-gray-600 dark:text-gray-400" />}
+              title="Features"
+              href="/features"
+            />
+            <SettingItem
+              icon={<Tag className="h-5 w-5 text-gray-600 dark:text-gray-400" />}
+              title="Pricing"
+              href="/pricing"
+            />
+            <SettingItem
+              icon={<Info className="h-5 w-5 text-gray-600 dark:text-gray-400" />}
+              title="Version"
+              rightElement={
+                <span className="text-sm text-gray-500 dark:text-gray-400">{APP_VERSION}</span>
+              }
             />
           </div>
         </Card>

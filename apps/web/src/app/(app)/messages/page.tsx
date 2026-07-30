@@ -297,9 +297,11 @@ function ConversationCard({
       onClick={() => onOpenConversation?.(hrefMatchId)}
     >
       <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer group">
-        <div className="flex items-center gap-4">
+        {/* gap-3 on phones so avatar + text + actions fit a 390px viewport;
+            desktop gap-4 restored at sm. */}
+        <div className="flex items-center gap-3 sm:gap-4">
           {/* Avatar */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <Avatar size="lg">
               {matchPhoto ? (
                 <AvatarImage src={matchPhoto} alt={matchName || ''} />
@@ -352,8 +354,10 @@ function ConversationCard({
             <Badge variant="destructive">Blocked</Badge>
           )}
 
-          {/* Quick pin stays a one-tap affordance; everything else (delete,
-              unmatch, block) lives in the row menu next to it. */}
+          {/* Quick pin stays a one-tap affordance on ≥sm; on phones it folds
+              into the kebab menu (which already offers Pin/Unpin) so the row
+              fits a 390px viewport. Everything else (delete, unmatch, block)
+              lives in that menu too. */}
           {matchId && onTogglePin && (
             <button
               onClick={(e) => {
@@ -362,7 +366,7 @@ function ConversationCard({
                 void onTogglePin(matchId, !isPinned);
               }}
               className={cn(
-                'p-1.5 rounded-md transition-colors',
+                'hidden p-1.5 rounded-md transition-colors sm:block',
                 isPinned
                   ? 'text-primary bg-primary/10 hover:bg-primary/20'
                   : 'text-muted-foreground hover:bg-muted'
@@ -376,7 +380,9 @@ function ConversationCard({
 
           {match && <ConversationActionsMenu match={match} />}
 
-          <ChevronRight className="w-5 h-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          {/* Hover-reveal affordance is meaningless on touch — hide it there
+              and reclaim its 20px for the text column. */}
+          <ChevronRight className="hidden w-5 h-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity sm:block" />
         </div>
       </Card>
     </Link>

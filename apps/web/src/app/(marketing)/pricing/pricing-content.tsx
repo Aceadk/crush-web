@@ -1,18 +1,7 @@
 'use client';
 
 import { BILLING_CONFIG, BillingPeriod, BillingPlanConfig } from '@crush/core';
-import {
-    ArrowRight,
-    Check,
-    Crown,
-    Eye,
-    Globe,
-    Shield,
-    Sparkles,
-    Star,
-    X,
-    Zap,
-} from 'lucide-react';
+import { ArrowRight, Check, Crown, Eye, Globe, Shield, Sparkles, Star, X, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useId, useState } from 'react';
 
@@ -33,14 +22,11 @@ export function PricingContent() {
   // Computed from billing config: the badge was hardcoded to -33% while
   // Platinum's yearly saving is 37%.
   const maxYearlySavings = Math.max(
-    ...[plusPlan, platinumPlan].map((plan) =>
-      BILLING_CONFIG.getSavingsPercentage(plan, 'yearly')
-    )
+    ...[plusPlan, platinumPlan].map((plan) => BILLING_CONFIG.getSavingsPercentage(plan, 'yearly'))
   );
 
   return (
     <div className="min-h-screen bg-background">
-
       {/* Hero Section */}
       <section className="px-4 pb-12 pt-28 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
@@ -197,12 +183,7 @@ export function PricingContent() {
                   plus="Unlimited"
                   platinum="Unlimited"
                 />
-                <ComparisonRow
-                  feature="Super likes"
-                  free="1/week"
-                  plus="5/day"
-                  platinum="Unlimited"
-                />
+                <ComparisonRow feature="Super likes" free="1/day" plus="7/day" platinum="7/day" />
                 <ComparisonRow feature="Passport mode" free={false} plus={true} platinum={true} />
                 <ComparisonRow
                   feature="Profile boosts"
@@ -326,7 +307,6 @@ export function PricingContent() {
           </div>
         </div>
       </section>
-
     </div>
   );
 }

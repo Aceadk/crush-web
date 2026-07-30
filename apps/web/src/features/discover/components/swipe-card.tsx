@@ -1,7 +1,13 @@
 'use client';
 
 import { ProtectedImage } from '@/shared/components/content-protection';
-import { calculateAge, discoveryDisplayName, DiscoveryProfile, useAuthStore } from '@crush/core';
+import {
+  calculateAge,
+  discoveryDisplayName,
+  DiscoveryProfile,
+  locationService,
+  useAuthStore,
+} from '@crush/core';
 import { Badge, cn } from '@crush/ui';
 import { motion, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Info, MapPin, Sparkles, Verified, Zap } from 'lucide-react';
@@ -30,6 +36,8 @@ export function SwipeCard({
   const { user } = useAuthStore();
   const hasMultiplePhotos = profile.photos.length > 1;
   const hasStories = storyCount > 0;
+  const formattedDistance =
+    profile.distance == null ? null : locationService.formatDistance(profile.distance);
 
   // Get current user's username for watermark
   const watermarkUsername = user?.displayName || user?.email?.split('@')[0] || 'User';
@@ -77,6 +85,42 @@ export function SwipeCard({
     setCurrentPhotoIndex((previous) => Math.max(previous - 1, 0));
   };
 
+  // Tap-to-navigate, split at the card's center: left half = previous photo,
+  // right half = next.
+  //
+  // Deliberately NOT implemented as invisible <button> zones (the previous
+  // approach). The card is a framer-motion drag surface, and drag activates
+  // after ~3px of pointer movement — a normal thumb tap wobbles more than
+  // that, so drag started, the card sprang back, and the browser click was
+  // suppressed. Result: tapping the photo "did nothing" on phones. Tracking
+  // the pointer ourselves and treating small-displacement releases as taps
+  // works regardless of what the drag gesture consumed.
+  const tapStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+
+  const handlePhotoPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    tapStartRef.current = { x: event.clientX, y: event.clientY, t: Date.now() };
+  };
+
+  const handlePhotoPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = tapStartRef.current;
+    tapStartRef.current = null;
+    if (!start || !isTop || !hasMultiplePhotos || showDetails) return;
+
+    // A swipe, not a tap: meaningful displacement or a long press.
+    const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    if (moved > 10 || Date.now() - start.t > 500) return;
+
+    // Real controls (chevrons, stories, info, details) keep their own clicks.
+    if ((event.target as HTMLElement).closest('button, a')) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (event.clientX - rect.left < rect.width / 2) {
+      prevPhoto();
+    } else {
+      nextPhoto();
+    }
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!hasMultiplePhotos) return;
     if (event.key === 'ArrowLeft') {
@@ -93,7 +137,12 @@ export function SwipeCard({
     <motion.div
       ref={cardRef}
       className={cn(
-        'absolute aspect-[3/4] w-full max-w-md cursor-grab overflow-hidden rounded-3xl shadow-2xl active:cursor-grabbing',
+        // Fills its container instead of self-limiting to a 3/4 box capped at
+        // max-w-md. That cap was what made the photo a small letterbox while
+        // the page scrolled around it; the mobile card is edge-to-edge
+        // (deck_screen.dart Positioned.fill), and the parent now owns the
+        // sizing so desktop can still constrain width in one place.
+        'absolute inset-0 cursor-grab overflow-hidden rounded-3xl shadow-2xl active:cursor-grabbing',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         !isTop && 'pointer-events-none'
       )}
@@ -108,7 +157,11 @@ export function SwipeCard({
       animate={{ scale: isTop ? 1 : 0.95, opacity: isTop ? 1 : 0.5 }}
     >
       {/* Photo */}
-      <div className="relative h-full w-full bg-muted">
+      <div
+        className="relative h-full w-full bg-muted"
+        onPointerDown={handlePhotoPointerDown}
+        onPointerUp={handlePhotoPointerUp}
+      >
         {profile.photos.length > 0 ? (
           <ProtectedImage
             src={profile.photos[currentPhotoIndex]}
@@ -138,23 +191,10 @@ export function SwipeCard({
           </div>
         )}
 
-        {/* Photo navigation areas */}
-        {hasMultiplePhotos && (
-          <>
-            <button
-              className="absolute left-0 top-0 h-full w-1/3"
-              type="button"
-              onClick={prevPhoto}
-              aria-label="Previous profile photo"
-            />
-            <button
-              className="absolute right-0 top-0 h-full w-1/3"
-              type="button"
-              onClick={nextPhoto}
-              aria-label="Next profile photo"
-            />
-          </>
-        )}
+        {/* Tap navigation lives on the photo container's pointer handlers
+            (left half = previous, right half = next) — see
+            handlePhotoPointerUp. Keyboard arrows and the visible chevron
+            buttons below remain the accessible affordances. */}
 
         {/* Visible carousel controls */}
         {hasMultiplePhotos && (
@@ -267,10 +307,10 @@ export function SwipeCard({
             {profile.isVerified && <Verified className="h-6 w-6 fill-blue-400 text-blue-400" />}
           </div>
 
-          {profile.distance && (
+          {formattedDistance && (
             <div className="mb-3 flex items-center gap-1 text-white/80">
               <MapPin className="h-4 w-4" />
-              <span>{profile.distance} miles away</span>
+              <span>{formattedDistance}</span>
             </div>
           )}
 

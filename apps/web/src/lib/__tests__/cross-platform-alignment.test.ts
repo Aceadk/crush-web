@@ -200,3 +200,75 @@ describe('mapDiscoveryRestProfiles — mirrors the mobile deck exclusions (ALIGN
     expect(profiles.map((p) => p.id)).toEqual(['a', 'b']);
   });
 });
+
+describe('chatSettings retention — same account state on both clients (ALIGN-8)', () => {
+  it('reads the canonical profile.chatSettings written by updateChatSettings', () => {
+    const profile = mapUserDocumentToUserProfile('u1', {
+      profile: { chatSettings: { extendedRetention: true } },
+    });
+    expect(profile.chatSettings?.extendedRetention).toBe(true);
+  });
+
+  it('tolerates the legacy root mirror for older documents', () => {
+    const profile = mapUserDocumentToUserProfile('u1', {
+      chatSettings: { extendedRetention: true },
+    });
+    expect(profile.chatSettings?.extendedRetention).toBe(true);
+  });
+
+  it('defaults to standard retention when the account never chose', () => {
+    const profile = mapUserDocumentToUserProfile('u1', {});
+    expect(profile.chatSettings?.extendedRetention).toBe(false);
+  });
+
+  it('prefers the canonical nested value over a stale root mirror', () => {
+    const profile = mapUserDocumentToUserProfile('u1', {
+      chatSettings: { extendedRetention: false },
+      profile: { chatSettings: { extendedRetention: true } },
+    });
+    expect(profile.chatSettings?.extendedRetention).toBe(true);
+  });
+});
+
+describe('Super Like budget — one server-enforced rule on both clients (ALIGN-9)', () => {
+  // The mobile app used to hold this quota in SharedPreferences (1 free /
+  // 7 Plus per day) while web had no notion of it at all, so the SAME account
+  // got different Super Like rules per platform — and the mobile "limit" was
+  // per-device, resetting on reinstall. It is now enforced in
+  // enforceDailyLikeLimit and surfaced through getStreakStatus, so both
+  // clients read one authoritative number.
+  const limitInfo = (superLikesRemaining: number, remaining = 50) => ({
+    superLikesRemaining,
+    remaining,
+  });
+
+  /** Mirrors the discover page's gating expressions. */
+  const superLikeBlocked = (info: { superLikesRemaining?: number }) =>
+    (info.superLikesRemaining ?? 1) <= 0;
+  const likeBlocked = (info: { remaining?: number }, isPremium: boolean) =>
+    !isPremium && (info.remaining ?? 1) <= 0;
+
+  it('blocks Super Likes on their own budget, independent of the like budget', () => {
+    // Plenty of likes left, but no Super Likes: Super Like must be blocked
+    // while ordinary likes stay available.
+    const info = limitInfo(0, 50);
+    expect(superLikeBlocked(info)).toBe(true);
+    expect(likeBlocked(info, false)).toBe(false);
+  });
+
+  it('allows Super Likes while the budget remains', () => {
+    expect(superLikeBlocked(limitInfo(1))).toBe(false);
+    expect(superLikeBlocked(limitInfo(7))).toBe(false);
+  });
+
+  it('applies the Super Like budget to Plus accounts too (it is finite, not unlimited)', () => {
+    // `remaining: -1` is the unlimited-likes sentinel for Plus, but the Super
+    // Like allowance is still a real number and must still gate.
+    const info = limitInfo(0, -1);
+    expect(superLikeBlocked(info)).toBe(true);
+  });
+
+  it('fails safe (permits) when the server budget has not loaded yet', () => {
+    expect(superLikeBlocked({})).toBe(false);
+  });
+});

@@ -298,20 +298,19 @@ class LocationService {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
 
-    return Math.round(distance);
+    return Math.round(distance * 10) / 10;
   }
 
   /**
    * Format distance for display
    */
   formatDistance(distanceKm: number): string {
-    if (distanceKm < 1) {
-      return 'Less than 1 km away';
-    } else if (distanceKm === 1) {
-      return '1 km away';
-    } else {
-      return `${distanceKm} km away`;
-    }
+    if (!Number.isFinite(distanceKm) || distanceKm < 0) return '';
+    if (distanceKm < 0.1) return 'Less than 0.1 km away';
+
+    const rounded = Math.round(distanceKm * 10) / 10;
+    const value = Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+    return `${value} km away`;
   }
 
   /**

@@ -53,6 +53,13 @@ export interface UserProfile {
   lastActive?: string;
   isOnline?: boolean;
   settings?: UserSettings;
+  /**
+   * Server-owned message retention preference (`profile.chatSettings` on the
+   * user doc, written only by the `updateChatSettings` callable). Mirrors the
+   * mobile ChatSettings model so both clients render the same choice. Plus
+   * accounts get 7 days server-side regardless of `extendedRetention`.
+   */
+  chatSettings?: ChatSettings;
   notificationPrefs?: NotificationSettings;
   notificationSettings?: NotificationSettings;
   hasAcceptedTerms: boolean;
@@ -129,7 +136,7 @@ export function normalizeProfileHeightCm(value: unknown): number | undefined {
     if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
       centimeters = Number(trimmed);
     } else {
-      const imperial = trimmed.match(/^(\d+)\s*(?:'|ft)\s*(\d{1,2})?\s*(?:\"|in)?/i);
+      const imperial = trimmed.match(/^(\d+)\s*(?:'|ft)\s*(\d{1,2})?\s*(?:"|in)?/i);
       if (imperial) {
         const feet = Number(imperial[1]);
         const inches = Number(imperial[2] ?? 0);
@@ -148,7 +155,7 @@ export function formatProfileHeight(heightCm: number): string {
   const totalInches = Math.round(heightCm / 2.54);
   const feet = Math.floor(totalInches / 12);
   const inches = totalInches % 12;
-  return `${feet}'${inches}\" (${heightCm} cm)`;
+  return `${feet}'${inches}" (${heightCm} cm)`;
 }
 
 export const PROFILE_HEIGHT_OPTIONS = Array.from(
@@ -163,6 +170,11 @@ export interface UserPrompt {
   id?: string;
   question: string;
   answer: string;
+}
+
+/** Message retention. Written only by the `updateChatSettings` callable. */
+export interface ChatSettings {
+  extendedRetention: boolean;
 }
 
 export interface UserSettings {
