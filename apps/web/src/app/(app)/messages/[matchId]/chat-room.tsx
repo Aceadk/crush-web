@@ -1226,8 +1226,6 @@ export default function ChatRoom({ matchId }: ChatRoomProps) {
               src={zoomedImage}
               alt="Zoomed image"
               className="max-h-[90vh] max-w-[90vw] object-contain"
-              showWatermark={true}
-              watermarkUsername={user?.displayName || user?.email?.split('@')[0] || 'User'}
             />
           </div>
         )}

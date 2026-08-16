@@ -33,6 +33,31 @@ function waitForDiscoveryRetry(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+/**
+ * Whether a deck failure could plausibly succeed on a retry.
+ *
+ * Retrying a DETERMINISTIC rejection just burns the full backoff budget
+ * (1s + 2s + 4s) before showing the user anything, which reads as the deck
+ * hanging rather than failing. The backend's discovery gate rejects with
+ * `failed-precondition` when the requester's own profile is not ready
+ * (ensureProfileQuality) and `permission-denied`/`unauthenticated` for auth or
+ * App Check problems — none of which change by asking again immediately, so
+ * those surface at once with the server's real message.
+ */
+function isRetriableDiscoveryError(error: unknown): boolean {
+  const raw = `${(error as { code?: string })?.code ?? ''} ${
+    error instanceof Error ? error.message : ''
+  }`.toLowerCase();
+
+  return !(
+    raw.includes('failed-precondition') ||
+    raw.includes('permission-denied') ||
+    raw.includes('unauthenticated') ||
+    raw.includes('complete your profile') ||
+    raw.includes('invalid-argument')
+  );
+}
+
 export interface DiscoveryLoadOptions {
   /** Match the app's one-time local-deck expansion when the saved radius is empty. */
   allowDistanceExpansion?: boolean;
@@ -184,6 +209,8 @@ export const useMatchStore = create<MatchState>()((set, get) => ({
           ) {
             return;
           }
+          // Fail fast on errors a retry cannot fix (see above).
+          if (!isRetriableDiscoveryError(error)) break;
           if (attempt < DISCOVERY_RETRY_DELAYS_MS.length) {
             await waitForDiscoveryRetry(DISCOVERY_RETRY_DELAYS_MS[attempt]);
           }

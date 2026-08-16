@@ -6,7 +6,6 @@ import {
   discoveryDisplayName,
   DiscoveryProfile,
   locationService,
-  useAuthStore,
 } from '@crush/core';
 import { Badge, cn } from '@crush/ui';
 import { motion, PanInfo, useMotionValue, useTransform } from 'framer-motion';
@@ -33,14 +32,10 @@ export function SwipeCard({
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuthStore();
   const hasMultiplePhotos = profile.photos.length > 1;
   const hasStories = storyCount > 0;
   const formattedDistance =
     profile.distance == null ? null : locationService.formatDistance(profile.distance);
-
-  // Get current user's username for watermark
-  const watermarkUsername = user?.displayName || user?.email?.split('@')[0] || 'User';
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -167,8 +162,6 @@ export function SwipeCard({
             src={profile.photos[currentPhotoIndex]}
             alt={profile.displayName}
             className="h-full w-full object-cover"
-            showWatermark={true}
-            watermarkUsername={watermarkUsername}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-secondary">

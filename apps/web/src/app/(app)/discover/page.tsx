@@ -90,15 +90,30 @@ export default function DiscoverPage() {
   // account asked for and not what mobile sends — the app sends only distance
   // and lets the backend fall back to the same saved preferences. Starting
   // from the profile is what makes the two decks obey identical rules.
+  // Depend on the preference VALUES, never the profile object.
+  //
+  // `profile` is replaced with a new object on every auth-store write
+  // (`set({ profile })` on load, setProfile, refreshProfile). Depending on its
+  // identity re-ran this effect — re-seeding filters and re-fetching the whole
+  // deck — on writes that changed nothing about discovery, producing request
+  // churn that made the deck feel stuck. Serializing the resolved filters means
+  // it re-fires only when a number the backend actually receives has changed.
+  const seededFilters = useMemo(
+    () => (profile ? discoveryFiltersFromProfile(profile) : null),
+    [profile]
+  );
+  const seededFiltersKey = seededFilters ? JSON.stringify(seededFilters) : null;
+
   useEffect(() => {
-    if (!user || !profile) return;
-    setFilters(discoveryFiltersFromProfile(profile));
+    if (!user || !seededFiltersKey) return;
+    setFilters(JSON.parse(seededFiltersKey) as DiscoveryFilters);
     void loadDiscoveryProfiles(user.uid, {
       allowDistanceExpansion: !passportModeEnabled,
     });
-    // Re-seeding on every `filters` change would clobber the filter dialog.
+    // `filters` is deliberately absent: re-seeding on every filter change would
+    // clobber the filter dialog's edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid, profile, passportModeEnabled, loadDiscoveryProfiles, setFilters]);
+  }, [user?.uid, seededFiltersKey, passportModeEnabled, loadDiscoveryProfiles, setFilters]);
 
 
   useEffect(() => {

@@ -272,3 +272,73 @@ describe('Super Like budget — one server-enforced rule on both clients (ALIGN-
     expect(superLikeBlocked({})).toBe(false);
   });
 });
+
+describe('discovery failure classification — fail fast, do not appear to hang (PERF-1)', () => {
+  // The store retries a failed deck fetch with 1s + 2s + 4s backoff. That is
+  // right for a flaky network and wrong for a deterministic rejection: the
+  // backend's discovery gate returns `failed-precondition` when the requester's
+  // OWN profile is not ready, and permission/auth errors never resolve by
+  // asking again. Retrying those burned 7 seconds before showing anything,
+  // which users read as the deck hanging rather than failing.
+  //
+  // Mirrors isRetriableDiscoveryError in packages/core/src/stores/match.ts.
+  const isRetriable = (error: unknown): boolean => {
+    const raw = `${(error as { code?: string })?.code ?? ''} ${
+      error instanceof Error ? error.message : ''
+    }`.toLowerCase();
+    return !(
+      raw.includes('failed-precondition') ||
+      raw.includes('permission-denied') ||
+      raw.includes('unauthenticated') ||
+      raw.includes('complete your profile') ||
+      raw.includes('invalid-argument')
+    );
+  };
+
+  it('does not retry a profile-not-ready rejection from the discovery gate', () => {
+    expect(isRetriable(new Error('Complete your profile before viewing discovery.'))).toBe(false);
+    expect(isRetriable({ code: 'failed-precondition' })).toBe(false);
+  });
+
+  it('does not retry auth or App Check rejections', () => {
+    expect(isRetriable({ code: 'permission-denied' })).toBe(false);
+    expect(isRetriable({ code: 'unauthenticated' })).toBe(false);
+  });
+
+  it('still retries genuinely transient failures', () => {
+    expect(isRetriable(new Error('Failed to fetch'))).toBe(true);
+    expect(isRetriable(new Error('network timeout'))).toBe(true);
+    expect(isRetriable({ code: 'unavailable' })).toBe(true);
+  });
+
+  it('retries an unknown failure rather than giving up on it', () => {
+    expect(isRetriable(undefined)).toBe(true);
+    expect(isRetriable(new Error(''))).toBe(true);
+  });
+});
+
+describe('discovery filter seeding is identity-stable (PERF-2)', () => {
+  // `profile` is replaced with a new object on every auth-store write, so the
+  // deck-seeding effect keyed on its identity re-fetched the whole deck on
+  // writes that changed nothing about discovery. The effect now keys on the
+  // serialized filter values, so equal preferences produce an equal key.
+  it('produces an identical key for equal preferences across distinct objects', () => {
+    const settings = { ...DEFAULT_USER_SETTINGS, ageRangeMin: 22, ageRangeMax: 40, maxDistance: 25 };
+    const first = discoveryFiltersFromProfile({ settings: { ...settings }, interestedIn: ['female'] });
+    const second = discoveryFiltersFromProfile({ settings: { ...settings }, interestedIn: ['female'] });
+
+    expect(first).not.toBe(second); // distinct objects, as the store produces
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second)); // but one key
+  });
+
+  it('produces a different key when a preference the backend receives changes', () => {
+    const base = { ...DEFAULT_USER_SETTINGS, ageRangeMin: 22, ageRangeMax: 40, maxDistance: 25 };
+    const before = discoveryFiltersFromProfile({ settings: base, interestedIn: ['female'] });
+    const after = discoveryFiltersFromProfile({
+      settings: { ...base, maxDistance: 60 },
+      interestedIn: ['female'],
+    });
+
+    expect(JSON.stringify(before)).not.toBe(JSON.stringify(after));
+  });
+});

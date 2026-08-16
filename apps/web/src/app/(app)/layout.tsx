@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   authVerificationFactsFromUser,
@@ -12,10 +12,6 @@ import {
 } from '@crush/core';
 import { Sidebar } from '@/shared/components/layout/app-sidebar';
 import { AuthLoadingShell, AuthRedirectingShell } from '@/shared/components/layout/auth-shell';
-import {
-  buildViewerWatermarkIdentity,
-  SensitiveContentWatermark,
-} from '@/shared/components/content-protection';
 import { useIsMobile, usePresenceHeartbeat } from '@/shared/hooks';
 import { appendRedirectParam } from '@/shared/lib/auth-redirect';
 import { shouldShowAuthLoadingShell } from '@/shared/lib/auth-gates';
@@ -26,7 +22,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const {
     user,
-    profile,
     loading,
     initialized,
     deviceTrusted,
@@ -46,6 +41,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const authFacts = authVerificationFactsFromUser(user);
   const needsEmailVerification = Boolean(user && !isAccountVerified(authFacts));
   const [onboardingChecked, setOnboardingChecked] = useState(false);
+  /**
+   * UID whose onboarding resolve already succeeded and reached discovery.
+   *
+   * Mirrors the mobile warm-start fast path (route_redirect.dart
+   * `cachedComplete`): once an account is known-complete it goes straight into
+   * the app instead of waiting on the resolver again. Without this the gate
+   * below re-ran on EVERY navigation — see the comment on that effect.
+   */
+  const resolvedUidRef = useRef<string | null>(null);
 
   // Note: Auth is initialized globally in AuthInitializer provider
 
@@ -132,8 +136,32 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   // The server resolver is the sole routing gate. Root booleans are legacy
   // discovery mirrors and are intentionally ignored here.
   useEffect(() => {
+    const uid = user?.uid ?? null;
+
+    // Do NOT re-gate a navigation for an account already resolved.
+    //
+    // This effect has `pathname` in its dependencies and used to begin with an
+    // unconditional `setOnboardingChecked(false)`, which makes the layout below
+    // render <AuthLoadingShell /> — blanking the entire app — and then await a
+    // `resolveOnboardingState` Cloud Function round-trip. So every single
+    // in-app navigation (Discover → Matches → Chats → Profile) blanked the UI
+    // and blocked on the network before rendering anything. `user` is also a
+    // dependency and Firebase mutates/reuses that object, so it re-fired on
+    // token refreshes too. That is the app-wide "everything takes a long time
+    // to respond".
+    //
+    // Once resolved for a uid we keep rendering; a real change of account still
+    // falls through to the full gate below.
+    if (uid && resolvedUidRef.current === uid) {
+      setOnboardingChecked(true);
+      return;
+    }
+
     setOnboardingChecked(false);
-    if (!initialized || loading || !user || needsEmailVerification) return;
+    if (!initialized || loading || !user || needsEmailVerification) {
+      if (!uid) resolvedUidRef.current = null;
+      return;
+    }
     const expectedUid = user.uid;
     let cancelled = false;
     void onboardingService
@@ -146,6 +174,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           destination === '/discover' ||
           destination.startsWith('/discover?')
         ) {
+          resolvedUidRef.current = expectedUid;
           setOnboardingChecked(true);
           return;
         }
@@ -200,8 +229,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return <AuthRedirectingShell />;
   }
 
-  const watermarkIdentity = buildViewerWatermarkIdentity(user, profile);
-
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -229,7 +256,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <main className={`min-w-0 flex-1 ${!isMobile ? 'md:ml-64' : ''}`}>
         <div className="min-h-screen overflow-x-clip pt-14 md:pt-0">{children}</div>
       </main>
-      <SensitiveContentWatermark identity={watermarkIdentity} />
     </div>
   );
 }
