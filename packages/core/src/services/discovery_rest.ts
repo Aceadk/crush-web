@@ -1,4 +1,29 @@
-import type { DiscoveryFilters, DiscoveryProfile } from '../types/match';
+import { DEFAULT_DISCOVERY_FILTERS, type DiscoveryFilters, type DiscoveryProfile } from '../types/match';
+import type { UserProfile } from '../types/user';
+
+/**
+ * Discovery filters seeded from the viewer's SAVED preferences.
+ *
+ * This is the cross-platform alignment point. The backend resolves any filter
+ * a client omits from the requester's canonical `profile.preferences`, and the
+ * mobile app relies on exactly that — it sends only distance. The web deck
+ * previously started from a hardcoded 18–50 / 50km default held in local store
+ * state, so the same account got a differently-filtered deck on each platform.
+ * Seeding from the profile makes both clients start from the same rule; the
+ * filter dialog then edits from there.
+ */
+export function discoveryFiltersFromProfile(
+  profile: Pick<UserProfile, 'settings' | 'interestedIn'> | null | undefined
+): DiscoveryFilters {
+  const settings = profile?.settings;
+  const genders = profile?.interestedIn ?? [];
+  return {
+    minAge: settings?.ageRangeMin ?? DEFAULT_DISCOVERY_FILTERS.minAge,
+    maxAge: settings?.ageRangeMax ?? DEFAULT_DISCOVERY_FILTERS.maxAge,
+    maxDistance: settings?.maxDistance ?? DEFAULT_DISCOVERY_FILTERS.maxDistance,
+    ...(genders.length > 0 ? { genders: [...genders] } : {}),
+  };
+}
 
 export function buildDiscoveryRestUrl(
   projectId: string,
@@ -118,21 +143,34 @@ export function mapDiscoveryRestProfiles(payload: Record<string, unknown>): Disc
     } satisfies DiscoveryProfile;
   });
 
-  return profiles.filter(
-    (candidate): candidate is DiscoveryProfile => candidate !== null && candidate.id.length > 0
-  );
+  // Defensive mirror of the server rules, matching the mobile deck exactly:
+  //   * a profile with no photos never renders (the backend already requires
+  //     one, but an older deployment could return one), and
+  //   * duplicate ids are collapsed, preserving server order.
+  // Without these the web deck could show a blank card the app would drop.
+  const seenIds = new Set<string>();
+  return profiles.filter((candidate): candidate is DiscoveryProfile => {
+    if (candidate === null || candidate.id.length === 0) return false;
+    if (candidate.photos.length === 0) return false;
+    if (seenIds.has(candidate.id)) return false;
+    seenIds.add(candidate.id);
+    return true;
+  });
 }
 
 /**
- * Username-first identity for discovery surfaces: "@handle" when a username
- * exists, otherwise the (already privacy-gated) display name. Mirrors the
- * mobile app's Profile.discoveryDisplayName so both clients show the same
- * identity on the deck.
+ * Username-first identity for discovery surfaces: the bare handle when a
+ * username exists, otherwise the (already privacy-gated) display name.
+ *
+ * Rendered WITHOUT an "@" — the handle IS the name on these surfaces, so the
+ * sigil only added noise. Mirrors the mobile app's
+ * Profile.discoveryDisplayName so both clients show the same identity on the
+ * deck.
  */
 export function discoveryDisplayName(
   profile: Pick<DiscoveryProfile, 'username' | 'displayName'>
 ): string {
   const handle = profile.username?.trim();
-  if (handle) return `@${handle}`;
+  if (handle) return handle;
   return profile.displayName;
 }

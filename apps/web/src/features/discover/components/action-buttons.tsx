@@ -11,6 +11,8 @@ interface ActionButtonsProps {
   onUndo?: () => void;
   disabled?: boolean;
   disableLikeActions?: boolean;
+  /** Super Likes have their own server-enforced daily budget. */
+  disableSuperLike?: boolean;
   canUndo?: boolean;
 }
 
@@ -21,8 +23,10 @@ export function ActionButtons({
   onUndo,
   disabled,
   disableLikeActions,
+  disableSuperLike,
   canUndo,
 }: ActionButtonsProps) {
+  const superLikeBlocked = disabled || disableLikeActions || disableSuperLike;
   return (
     // gap-3 below xs keeps the row's min-content within a 320px viewport
     <div className="flex items-center justify-center gap-3 xs:gap-4">
@@ -65,13 +69,11 @@ export function ActionButtons({
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={onSuperLike}
-        disabled={disabled || disableLikeActions}
+        disabled={superLikeBlocked}
         aria-label="Super Like"
         className={cn(
           'w-14 h-14 rounded-full bg-background border-2 border-action-superlike flex items-center justify-center shadow-lg transition-colors',
-          disabled || disableLikeActions
-            ? 'opacity-50 cursor-not-allowed'
-            : 'hover:bg-purple-50'
+          superLikeBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-50'
         )}
       >
         <Star className="w-7 h-7 text-action-superlike fill-action-superlike" />

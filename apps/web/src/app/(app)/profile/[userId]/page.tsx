@@ -22,6 +22,7 @@ import {
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
   UserX,
 } from 'lucide-react';
 
@@ -32,10 +33,11 @@ export default function PeerProfilePage() {
   const { user } = useAuthStore();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'missing'>(
+  const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'failed'>(
     'loading'
   );
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     if (!userId) return;
@@ -45,27 +47,65 @@ export default function PeerProfilePage() {
       return;
     }
     let cancelled = false;
+    setStatus('loading');
     void (async () => {
       try {
         const loaded = await userService.getUserProfile(userId);
         if (cancelled) return;
         setProfile(loaded);
+        // getUserProfile builds a profile from whatever the document has, so a
+        // half-finished account (common for ones started on the web, where the
+        // profile map fills in step by step) renders with its empty states
+        // rather than reading as "removed". Only a genuinely absent document
+        // is missing.
         setStatus(loaded ? 'ready' : 'missing');
         setPhotoIndex(loaded?.primaryPhotoIndex ?? 0);
       } catch {
-        // Rules deny reads of hidden/blocked profiles — treat as missing.
-        if (!cancelled) setStatus('missing');
+        // A read that FAILED is not a profile that does not exist: offline and
+        // rules-denied both land here. Offer a retry instead of telling the
+        // user the person was removed.
+        if (!cancelled) setStatus('failed');
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [userId, user, router]);
+  }, [userId, user, router, reloadToken]);
 
   if (status === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (status === 'failed') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <div className="max-w-sm text-center">
+          <UserX className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+          <h1 className="mb-2 text-xl font-semibold">Could not load this profile</h1>
+          <p className="mb-6 text-sm text-muted-foreground">
+            Check your connection and try again.
+          </p>
+          <div className="flex justify-center gap-2">
+            <button
+              onClick={() => setReloadToken((token) => token + 1)}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+            <button
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-medium hover:bg-muted"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Go back
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

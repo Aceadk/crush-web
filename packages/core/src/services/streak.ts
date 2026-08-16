@@ -66,6 +66,9 @@ class StreakService {
       remaining: s.remaining === -1 ? Infinity : s.remaining,
       used: s.used,
       isPremium: s.isPremium,
+      superLikesAllowed: s.superLikesAllowed ?? 0,
+      superLikesUsed: s.superLikesUsed ?? 0,
+      superLikesRemaining: s.superLikesRemaining ?? 0,
       timeUntilReset: Math.max(0, resetAtMs - Date.now()),
       resetAt: new Date(resetAtMs),
     };

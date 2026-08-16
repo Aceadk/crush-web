@@ -24,6 +24,29 @@ export interface Match {
   lastMessageFromUserId?: string;
   unreadCount: number;
   isSuperLike?: boolean;
+  /**
+   * When the viewer last cleared this conversation (`clearedAt.{uid}` on the
+   * match doc), or undefined if they never have.
+   *
+   * "Delete chat" is per-user and non-destructive: messages sent at or before
+   * this instant are hidden from the viewer only. The other participant keeps
+   * their copy, the match stays active, and a newer message brings the
+   * conversation back. Mirrors CrushMatch.clearedAt on mobile.
+   */
+  clearedAt?: string;
+}
+
+/**
+ * Whether a conversation should stay out of the viewer's chat list: they
+ * cleared it and nothing has arrived since. Shared by the messages list and
+ * the matches page so both platforms hide the same threads.
+ */
+export function isMatchClearedForViewer(
+  match: Pick<Match, 'clearedAt' | 'lastMessageAt'>
+): boolean {
+  if (!match.clearedAt) return false;
+  if (!match.lastMessageAt) return true;
+  return new Date(match.lastMessageAt).getTime() <= new Date(match.clearedAt).getTime();
 }
 
 export interface SwipeAction {
@@ -79,6 +102,9 @@ export const DEFAULT_DISCOVERY_FILTERS: DiscoveryFilters = {
   maxAge: 50,
   maxDistance: 50,
 };
+
+/** Mirrors CrushConstants.extendedMaxDistanceKm in the Flutter client. */
+export const DISCOVERY_EXTENDED_MAX_DISTANCE_KM = 500;
 
 export interface MessageRequest {
   id: string;

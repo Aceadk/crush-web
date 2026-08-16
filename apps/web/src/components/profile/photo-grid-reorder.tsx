@@ -346,12 +346,12 @@ function SortablePhotoItem({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'group relative touch-none overflow-hidden rounded-xl',
-        isMain ? 'col-span-2 row-span-2' : '',
+        'group relative aspect-[3/4] touch-none overflow-hidden rounded-xl bg-muted',
+        isMain ? 'col-span-2 aspect-[4/5]' : '',
         isDragging ? 'opacity-40' : ''
       )}
     >
-      <div className={cn('relative aspect-[3/4] w-full', isMain && 'aspect-auto h-full')}>
+      <div className="relative h-full w-full">
         <Image
           src={photo.url}
           alt={`Photo ${index + 1}`}
@@ -449,7 +449,7 @@ function PhotoOverlayItem({ photo, isMain }: PhotoOverlayItemProps) {
         isMain ? 'w-48 sm:w-64' : 'w-24 sm:w-32'
       )}
     >
-      <div className={cn('relative aspect-[3/4]', isMain && 'aspect-auto')}>
+      <div className={cn('relative aspect-[3/4]', isMain && 'aspect-[4/5]')}>
         <Image
           src={photo.url}
           alt="Dragging"

@@ -4,23 +4,22 @@ import { LikeLimitIndicator } from '@/components/streak';
 import {
     ActionButtons,
     BoostControl,
-    StoryTray,
-    StoryViewer,
     SwipeCard,
 } from '@/features/discover';
 import { analytics } from '@/lib/analytics';
 import {
     DiscoveryFilters,
+    discoveryFiltersFromProfile,
     useAuthStore,
     useMatchStore,
-    useStoryStore,
     useStreakStore,
     useUIStore,
 } from '@crush/core';
 import { Badge, Button, SkeletonSwipeCard } from '@crush/ui';
 import { Globe, Keyboard, RefreshCw, Sliders } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const MatchModal = dynamic(
   () => import('@/features/discover/components/match-modal').then((mod) => mod.MatchModal),
@@ -32,28 +31,22 @@ const FilterDialog = dynamic(
 );
 
 export default function DiscoverPage() {
+  const router = useRouter();
   const { user, profile } = useAuthStore();
   const {
-    discoveryProfiles,
+    discoveryProfiles: storedDiscoveryProfiles,
     currentProfileIndex,
-    loading,
-    error,
     filters,
+    discoveryOwnerUserId,
+    discoveryLoading,
+    discoveryRefreshing,
+    discoveryError,
+    localDeckExpanded,
     loadDiscoveryProfiles,
     swipe,
-    previousProfile,
     setFilters,
   } = useMatchStore();
   const { limitInfo, refreshLimitInfo } = useStreakStore();
-  const {
-    storiesByUser,
-    viewedStoryIdsByUser,
-    loadStoriesForUsers,
-    createStoryFromFile,
-    markStoryViewed,
-    uploading: storyUploading,
-    uploadProgress: storyUploadProgress,
-  } = useStoryStore();
   const { addToast } = useUIStore();
 
   const [showMatchModal, setShowMatchModal] = useState(false);
@@ -61,18 +54,18 @@ export default function DiscoverPage() {
   const [matchedUser, setMatchedUser] = useState<{ name: string; photo: string } | null>(null);
   const [swiping, setSwiping] = useState(false);
   const [showKeyboardHint, setShowKeyboardHint] = useState(false);
-  const [activeStoryViewer, setActiveStoryViewer] = useState<{
-    ownerId: string;
-    ownerName: string;
-    ownerPhoto?: string;
-    initialIndex: number;
-  } | null>(null);
   const viewedProfilesRef = useRef<Set<string>>(new Set());
-  const storyInputRef = useRef<HTMLInputElement | null>(null);
 
   const isPremium = profile?.isPremium ?? false;
   const hasReachedDailyLikeLimit = !isPremium && (limitInfo?.remaining ?? 1) <= 0;
-  const passportModeEnabled = Boolean(profile?.settings?.passportMode);
+  // Super Likes have their OWN server-enforced budget (finite for Plus too), so
+  // they cannot be gated by the like limit alone — that was the divergence:
+  // mobile enforced a Super Like quota while web let them through until the
+  // like limit was hit. Both now read the same server counter.
+  const hasReachedSuperLikeLimit = (limitInfo?.superLikesRemaining ?? 1) <= 0;
+  // Passport is an entitlement, not just a saved toggle. A stale/free account
+  // must never display or request the premium discovery mode.
+  const passportModeEnabled = Boolean(isPremium && profile?.settings?.passportMode);
   const passportDestination = [
     profile?.settings?.passportLocation?.city,
     profile?.settings?.passportLocation?.country,
@@ -80,35 +73,48 @@ export default function DiscoverPage() {
     .filter(Boolean)
     .join(', ');
 
+  // Store state survives route transitions. Never render even one frame of a
+  // previous account's cached deck while the new account request is starting.
+  const discoveryProfiles = useMemo(
+    () => (discoveryOwnerUserId === user?.uid ? storedDiscoveryProfiles : []),
+    [discoveryOwnerUserId, storedDiscoveryProfiles, user?.uid]
+  );
+
   const currentProfile = discoveryProfiles[currentProfileIndex];
   const nextProfile = discoveryProfiles[currentProfileIndex + 1];
-  const getStoriesForUserId = useCallback(
-    (userId?: string) => (userId ? (storiesByUser[userId] ?? []) : []),
-    [storiesByUser]
-  );
-  const hasUnseenStoriesForUser = useCallback(
-    (userId?: string) => {
-      if (!userId) return false;
-      const stories = storiesByUser[userId] ?? [];
-      if (stories.length === 0) return false;
-      const viewedIds = new Set(viewedStoryIdsByUser[userId] ?? []);
-      return stories.some((story) => !viewedIds.has(story.id));
-    },
-    [storiesByUser, viewedStoryIdsByUser]
-  );
 
-  // Load profiles on mount
-  useEffect(() => {
-    if (user) {
-      loadDiscoveryProfiles(user.uid);
-    }
-  }, [user, loadDiscoveryProfiles]);
+  // Seed the deck filters from the account's SAVED discovery preferences
+  // before the first fetch, then load.
+  //
+  // The store's defaults are a hardcoded 18–50 / 50km, which is not what this
+  // account asked for and not what mobile sends — the app sends only distance
+  // and lets the backend fall back to the same saved preferences. Starting
+  // from the profile is what makes the two decks obey identical rules.
+  // Depend on the preference VALUES, never the profile object.
+  //
+  // `profile` is replaced with a new object on every auth-store write
+  // (`set({ profile })` on load, setProfile, refreshProfile). Depending on its
+  // identity re-ran this effect — re-seeding filters and re-fetching the whole
+  // deck — on writes that changed nothing about discovery, producing request
+  // churn that made the deck feel stuck. Serializing the resolved filters means
+  // it re-fires only when a number the backend actually receives has changed.
+  const seededFilters = useMemo(
+    () => (profile ? discoveryFiltersFromProfile(profile) : null),
+    [profile]
+  );
+  const seededFiltersKey = seededFilters ? JSON.stringify(seededFilters) : null;
 
   useEffect(() => {
-    if (!user) return;
-    const userIds = [user.uid, ...discoveryProfiles.map((profileItem) => profileItem.id)];
-    void loadStoriesForUsers(userIds);
-  }, [user, discoveryProfiles, loadStoriesForUsers]);
+    if (!user || !seededFiltersKey) return;
+    setFilters(JSON.parse(seededFiltersKey) as DiscoveryFilters);
+    void loadDiscoveryProfiles(user.uid, {
+      allowDistanceExpansion: !passportModeEnabled,
+    });
+    // `filters` is deliberately absent: re-seeding on every filter change would
+    // clobber the filter dialog's edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, seededFiltersKey, passportModeEnabled, loadDiscoveryProfiles, setFilters]);
+
 
   useEffect(() => {
     if (!currentProfile) return;
@@ -126,6 +132,17 @@ export default function DiscoverPage() {
 
       const action = direction === 'left' ? 'pass' : direction === 'right' ? 'like' : 'superlike';
       const isPositiveAction = action === 'like' || action === 'superlike';
+
+      if (action === 'superlike' && hasReachedSuperLikeLimit) {
+        addToast({
+          type: 'info',
+          title: 'No Super Likes left today',
+          description: isPremium
+            ? 'Your Super Likes reset tomorrow.'
+            : 'Upgrade to Crush+ for more Super Likes every day.',
+        });
+        return;
+      }
 
       if (isPositiveAction && hasReachedDailyLikeLimit) {
         addToast({
@@ -209,6 +226,7 @@ export default function DiscoverPage() {
       addToast,
       currentProfile,
       hasReachedDailyLikeLimit,
+      hasReachedSuperLikeLimit,
       isPremium,
       limitInfo?.used,
       refreshLimitInfo,
@@ -220,7 +238,9 @@ export default function DiscoverPage() {
 
   const handleRefresh = () => {
     if (user) {
-      loadDiscoveryProfiles(user.uid);
+      void loadDiscoveryProfiles(user.uid, {
+        allowDistanceExpansion: !passportModeEnabled,
+      });
     }
   };
 
@@ -232,90 +252,12 @@ export default function DiscoverPage() {
     });
     // Reload profiles with new filters
     if (user) {
-      loadDiscoveryProfiles(user.uid);
+      void loadDiscoveryProfiles(user.uid, {
+        allowDistanceExpansion: !passportModeEnabled,
+      });
     }
   };
 
-  const openStoriesForUser = useCallback(
-    (ownerId: string, ownerName?: string, ownerPhoto?: string, initialIndex: number = 0) => {
-      const stories = getStoriesForUserId(ownerId);
-      if (stories.length === 0) {
-        addToast({
-          type: 'info',
-          title: 'No active stories',
-          description: 'This profile has no active stories right now.',
-        });
-        return;
-      }
-
-      setActiveStoryViewer({
-        ownerId,
-        ownerName: ownerName ?? 'Stories',
-        ownerPhoto,
-        initialIndex,
-      });
-      analytics.track({
-        name: 'feature_used',
-        properties: { feature: 'profile_stories_opened' },
-      });
-    },
-    [addToast, getStoriesForUserId]
-  );
-
-  const handleStoryViewerOpenChange = useCallback((open: boolean) => {
-    if (!open) {
-      setActiveStoryViewer(null);
-    }
-  }, []);
-
-  const handleStoryViewed = useCallback(
-    (storyId: string) => {
-      if (!user || !activeStoryViewer) return;
-      void markStoryViewed(activeStoryViewer.ownerId, storyId, user.uid);
-      analytics.track({
-        name: 'feature_used',
-        properties: { feature: 'profile_story_viewed' },
-      });
-    },
-    [activeStoryViewer, markStoryViewed, user]
-  );
-
-  const handleAddStoryClick = useCallback(() => {
-    storyInputRef.current?.click();
-  }, []);
-
-  const handleStoryInputChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      event.target.value = '';
-
-      if (!file || !user) return;
-
-      try {
-        await createStoryFromFile(user.uid, file);
-        addToast({
-          type: 'success',
-          title: 'Story added',
-          description: 'Your story is now visible in discovery.',
-        });
-        analytics.track({
-          name: 'feature_used',
-          properties: { feature: 'profile_story_added' },
-        });
-        void loadStoriesForUsers([user.uid, ...discoveryProfiles.map((item) => item.id)]);
-      } catch (error) {
-        addToast({
-          type: 'error',
-          title: 'Story upload failed',
-          description:
-            error instanceof Error
-              ? error.message
-              : 'Unable to upload story right now. Please try again.',
-        });
-      }
-    },
-    [addToast, createStoryFromFile, discoveryProfiles, loadStoriesForUsers, user]
-  );
 
   // Keyboard shortcuts handler
   const handleKeyPress = useCallback(
@@ -325,8 +267,7 @@ export default function DiscoverPage() {
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
         showMatchModal ||
-        showFilterDialog ||
-        Boolean(activeStoryViewer)
+        showFilterDialog
       ) {
         return;
       }
@@ -357,14 +298,6 @@ export default function DiscoverPage() {
         }
       }
 
-      // Undo: 'z' key
-      if (key === 'z') {
-        e.preventDefault();
-        if (currentProfileIndex > 0) {
-          previousProfile();
-        }
-      }
-
       // Toggle keyboard hints: '?' key
       if (key === '?') {
         e.preventDefault();
@@ -375,11 +308,8 @@ export default function DiscoverPage() {
     [
       showMatchModal,
       showFilterDialog,
-      activeStoryViewer,
       swiping,
       currentProfile,
-      currentProfileIndex,
-      previousProfile,
       handleSwipe,
     ]
   );
@@ -390,29 +320,44 @@ export default function DiscoverPage() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [handleKeyPress]);
 
-  const currentUserStories = getStoriesForUserId(user?.uid);
-  const storyTrayUsers = discoveryProfiles
-    .map((profileItem) => {
-      const stories = getStoriesForUserId(profileItem.id);
-      if (stories.length === 0) return null;
 
-      return {
-        userId: profileItem.id,
-        name: profileItem.displayName,
-        photoUrl: profileItem.photos[0],
-        storyCount: stories.length,
-        hasUnseen: hasUnseenStoriesForUser(profileItem.id),
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item))
-    .slice(0, 20);
 
-  const activeViewerStories = activeStoryViewer
-    ? getStoriesForUserId(activeStoryViewer.ownerId)
-    : [];
+  // A failed load is NOT an empty deck. This screen used to render the
+  // "No more profiles" headline for BOTH, so a backend rejection — most
+  // importantly the profile-completion gate ("Complete your profile before
+  // viewing discovery. Missing: …") — read as "there is nobody to show",
+  // hiding both the real problem and its fix from the user. The server sends
+  // a precise message and the store keeps it in discoveryError; render it.
+  if (!discoveryLoading && discoveryProfiles.length === 0 && discoveryError) {
+    const isProfileGate = /complete your profile/i.test(discoveryError);
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
+        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-muted">
+          <RefreshCw className="h-10 w-10 text-muted-foreground" />
+        </div>
+        <h2 className="mb-2 text-2xl font-bold">
+          {isProfileGate ? 'Finish your profile to start browsing' : 'Could not load profiles'}
+        </h2>
+        <p className="mb-6 max-w-sm text-muted-foreground">{discoveryError}</p>
+        <div className="flex gap-3">
+          {isProfileGate && (
+            <Button onClick={() => router.push('/onboarding')}>Finish my profile</Button>
+          )}
+          <Button
+            variant={isProfileGate ? 'outline' : 'default'}
+            onClick={handleRefresh}
+            loading={discoveryRefreshing}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-  // Empty state
-  if (!loading && discoveryProfiles.length === 0) {
+  // Empty state — a real, successfully-loaded empty deck.
+  if (!discoveryLoading && discoveryProfiles.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
         <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-muted">
@@ -420,56 +365,12 @@ export default function DiscoverPage() {
         </div>
         <h2 className="mb-2 text-2xl font-bold">No more profiles</h2>
         <p className="mb-6 max-w-sm text-muted-foreground">
-          {error
-            ? 'Something went wrong loading profiles. Please try again.'
+          {localDeckExpanded
+            ? "You've seen everyone available right now — new people appear here as they join. Check back soon."
             : "You've seen everyone in your area. Check back later or adjust your filters."}
         </p>
-        {user && (
-          <>
-            <input
-              ref={storyInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/webm,video/quicktime,video/x-m4v"
-              onChange={handleStoryInputChange}
-              className="hidden"
-            />
-            <StoryTray
-              currentUser={{
-                userId: user.uid,
-                name: profile?.displayName || 'You',
-                photoUrl: profile?.profilePhotoUrl,
-                storyCount: currentUserStories.length,
-                hasUnseen: false,
-              }}
-              users={storyTrayUsers}
-              onAddStory={handleAddStoryClick}
-              onOpenStories={(ownerId) => {
-                if (ownerId === user.uid) {
-                  openStoriesForUser(
-                    ownerId,
-                    profile?.displayName || 'You',
-                    profile?.profilePhotoUrl
-                  );
-                  return;
-                }
-
-                const ownerProfile = discoveryProfiles.find(
-                  (profileItem) => profileItem.id === ownerId
-                );
-                openStoriesForUser(
-                  ownerId,
-                  ownerProfile?.displayName ?? 'Stories',
-                  ownerProfile?.photos[0]
-                );
-              }}
-              uploading={storyUploading}
-              uploadProgress={storyUploadProgress}
-            />
-          </>
-        )}
-        {error && <p className="mb-4 max-w-sm text-sm text-destructive">{error}</p>}
         <div className="flex gap-3">
-          <Button onClick={handleRefresh} loading={loading}>
+          <Button onClick={handleRefresh} loading={discoveryRefreshing}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
@@ -479,15 +380,6 @@ export default function DiscoverPage() {
           </Button>
         </div>
 
-        <StoryViewer
-          open={Boolean(activeStoryViewer)}
-          stories={activeViewerStories}
-          ownerName={activeStoryViewer?.ownerName ?? 'Stories'}
-          ownerPhoto={activeStoryViewer?.ownerPhoto}
-          initialIndex={activeStoryViewer?.initialIndex ?? 0}
-          onOpenChange={handleStoryViewerOpenChange}
-          onStoryViewed={handleStoryViewed}
-        />
 
         {/* Filter dialog */}
         <FilterDialog
@@ -501,7 +393,7 @@ export default function DiscoverPage() {
   }
 
   // Loading state
-  if (loading && discoveryProfiles.length === 0) {
+  if (discoveryLoading && discoveryProfiles.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-6">
         <div className="relative w-full max-w-md">
@@ -517,22 +409,42 @@ export default function DiscoverPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-6">
-      <div className="absolute left-4 top-4 z-10">
-        <LikeLimitIndicator variant="compact" />
-        {passportModeEnabled && passportDestination && (
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-            <Globe className="h-3.5 w-3.5" />
-            Passport: {passportDestination}
-          </div>
-        )}
+    // Fixed-viewport deck, mirroring the mobile layout
+    // (deck_screen.dart: Stack(fit: StackFit.expand) + Positioned.fill).
+    //
+    // The old layout stacked story tray → fixed 3/4 card (max-w-md) → buttons →
+    // hints in a vertical column, so the page was taller than the viewport and
+    // the whole deck scrolled — cards drifted under the browser chrome and the
+    // photo was a small letterbox. Now the shell owns the height, the card
+    // fills it edge to edge, and the controls float ON the photo the way they
+    // do in the app, which is what reclaims the vertical space.
+    //
+    // h-[100dvh] (not vh) so mobile browser chrome collapsing cannot create a
+    // scrollbar; the app shell already reserves the mobile menu button.
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden">
+      <div className="pointer-events-none absolute left-4 top-4 z-30">
+        <div className="pointer-events-auto">
+          <LikeLimitIndicator variant="compact" />
+          {passportModeEnabled && passportDestination && (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+              <Globe className="h-3.5 w-3.5" />
+              Passport: {passportDestination}
+            </div>
+          )}
+          {localDeckExpanded && !passportModeEnabled && (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+              <Globe className="h-3.5 w-3.5" />
+              Search expanded to 500 km
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Header */}
-      <div className="absolute right-4 top-4 flex items-center gap-2">
+      <div className="absolute right-4 top-4 z-30 flex items-center gap-2">
         {user && <BoostControl userId={user.uid} isPremium={isPremium} />}
         <Button variant="ghost" size="icon" onClick={handleRefresh} aria-label="Refresh profiles">
-          <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-5 w-5 ${discoveryRefreshing ? 'animate-spin' : ''}`} />
         </Button>
         <Button
           variant="ghost"
@@ -544,92 +456,40 @@ export default function DiscoverPage() {
         </Button>
       </div>
 
-      <input
-        ref={storyInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/webm,video/quicktime,video/x-m4v"
-        onChange={handleStoryInputChange}
-        className="hidden"
-      />
+      {/* Card stack — grows to fill the viewport instead of a fixed aspect box.
+          max-w-* keeps it sane on desktop; on a phone it goes edge to edge. */}
+      <div className="relative min-h-0 flex-1 px-2 pb-2 pt-16 sm:px-4 sm:pb-4">
+        <div className="relative mx-auto h-full w-full max-w-md lg:max-w-lg">
+          {/* Background card (next profile) */}
+          {nextProfile && (
+            <SwipeCard key={nextProfile.id} profile={nextProfile} onSwipe={() => {}} isTop={false} />
+          )}
 
-      {user && (
-        <StoryTray
-          currentUser={{
-            userId: user.uid,
-            name: profile?.displayName || 'You',
-            photoUrl: profile?.profilePhotoUrl,
-            storyCount: currentUserStories.length,
-            hasUnseen: false,
-          }}
-          users={storyTrayUsers}
-          onAddStory={handleAddStoryClick}
-          onOpenStories={(ownerId) => {
-            if (ownerId === user.uid) {
-              openStoriesForUser(ownerId, profile?.displayName || 'You', profile?.profilePhotoUrl);
-              return;
-            }
+          {/* Top card (current profile) */}
+          {currentProfile && (
+            <SwipeCard key={currentProfile.id} profile={currentProfile} onSwipe={handleSwipe} isTop />
+          )}
 
-            const ownerProfile = discoveryProfiles.find(
-              (profileItem) => profileItem.id === ownerId
-            );
-            openStoriesForUser(
-              ownerId,
-              ownerProfile?.displayName ?? 'Stories',
-              ownerProfile?.photos[0]
-            );
-          }}
-          uploading={storyUploading}
-          uploadProgress={storyUploadProgress}
-        />
-      )}
-
-      {/* Card stack */}
-      <div className="relative mb-8 aspect-[3/4] w-full max-w-md">
-        {/* Background card (next profile) */}
-        {nextProfile && (
-          <SwipeCard
-            key={nextProfile.id}
-            profile={nextProfile}
-            onSwipe={() => {}}
-            isTop={false}
-            storyCount={getStoriesForUserId(nextProfile.id).length}
-            hasUnseenStories={hasUnseenStoriesForUser(nextProfile.id)}
-            onOpenStories={() =>
-              openStoriesForUser(nextProfile.id, nextProfile.displayName, nextProfile.photos[0])
-            }
-          />
-        )}
-
-        {/* Top card (current profile) */}
-        {currentProfile && (
-          <SwipeCard
-            key={currentProfile.id}
-            profile={currentProfile}
-            onSwipe={handleSwipe}
-            isTop={true}
-            storyCount={getStoriesForUserId(currentProfile.id).length}
-            hasUnseenStories={hasUnseenStoriesForUser(currentProfile.id)}
-            onOpenStories={() =>
-              openStoriesForUser(
-                currentProfile.id,
-                currentProfile.displayName,
-                currentProfile.photos[0]
-              )
-            }
-          />
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <ActionButtons
+          {/* Controls float ON the card, as in the app, so they cost no layout
+              height and the photo keeps the full viewport. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center sm:bottom-6">
+            <div className="pointer-events-auto">
+        {/* Action buttons. No Undo: rewind is unavailable on both platforms —
+        there is no backend undo, and the swipe is already recorded by the
+        time the card leaves the screen. */}
+        <ActionButtons
         onPass={() => handleSwipe('left')}
         onLike={() => handleSwipe('right')}
         onSuperLike={() => handleSwipe('up')}
-        onUndo={previousProfile}
         disabled={swiping || !currentProfile}
         disableLikeActions={hasReachedDailyLikeLimit}
-        canUndo={currentProfileIndex > 0}
-      />
+        disableSuperLike={hasReachedSuperLikeLimit}
+        />
+            </div>
+          </div>
+        </div>
+      </div>
+
 
       {/* Match modal */}
       <MatchModal
@@ -639,20 +499,11 @@ export default function DiscoverPage() {
         currentUserPhoto={profile?.profilePhotoUrl}
       />
 
-      <StoryViewer
-        open={Boolean(activeStoryViewer)}
-        stories={activeViewerStories}
-        ownerName={activeStoryViewer?.ownerName ?? 'Stories'}
-        ownerPhoto={activeStoryViewer?.ownerPhoto}
-        initialIndex={activeStoryViewer?.initialIndex ?? 0}
-        onOpenChange={handleStoryViewerOpenChange}
-        onStoryViewed={handleStoryViewed}
-      />
 
       {/* Error toast */}
-      {error && (
+      {discoveryError && (
         <div className="fixed bottom-4 left-4 right-4 rounded-xl bg-destructive p-4 text-destructive-foreground shadow-lg md:left-auto md:right-4 md:w-80">
-          {error}
+          {discoveryError}
         </div>
       )}
 
@@ -723,12 +574,6 @@ export default function DiscoverPage() {
                   W
                 </Badge>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Undo</span>
-              <Badge variant="secondary" className="px-2 text-xs">
-                Z
-              </Badge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Toggle hints</span>

@@ -45,7 +45,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: 'What is a Super Like?',
         answer:
-          "A Super Like lets the other person know you're especially interested in them before they even swipe. When you Super Like someone, they'll see a blue star on your profile. Free users get 1 Super Like per week, Crush+ users get 5 per day, and Crush Platinum users get unlimited Super Likes.",
+          "A Super Like lets the other person know you're especially interested in them before they even swipe. When you Super Like someone, they'll see a blue star on your profile. Free users get 1 Super Like per day, while Crush+ and Crush Platinum users get 7 per day.",
       },
       {
         question: 'How do I undo a swipe?',
@@ -62,7 +62,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: "Why can't I send messages?",
         answer:
-          "Messages are only available with mutual matches — both you and the other person need to have swiped right on each other. If you sent a message request, wait for them to accept. Make sure you have a stable internet connection and your app is up to date. If the issue persists, try logging out and back in.",
+          'Messages are only available with mutual matches — both you and the other person need to have swiped right on each other. If you sent a message request, wait for them to accept. Make sure you have a stable internet connection and your app is up to date. If the issue persists, try logging out and back in.',
       },
       {
         question: 'How do I know if someone read my message?',
@@ -77,7 +77,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: 'How do I report a conversation?',
         answer:
-          "Open the conversation, tap the \"...\" menu in the top right corner, and select \"Report.\" Choose the reason that best describes the issue and provide any additional details. Our team reviews all reports within 24 hours and takes appropriate action. Reporting is anonymous — the other person won't know you reported them.",
+          'Open the conversation, tap the "..." menu in the top right corner, and select "Report." Choose the reason that best describes the issue and provide any additional details. Our team reviews all reports within 24 hours and takes appropriate action. Reporting is anonymous — the other person won\'t know you reported them.',
       },
     ],
   },
@@ -89,7 +89,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: 'How do I edit my profile?',
         answer:
-          "Go to your profile by tapping your profile icon, then tap \"Edit Profile.\" You can update your photos, bio, profile prompts, and basic information. We recommend keeping your profile fresh with recent photos and updated interests. The more complete your profile, the better your match quality will be.",
+          'Go to your profile by tapping your profile icon, then tap "Edit Profile." You can update your photos, bio, profile prompts, and basic information. We recommend keeping your profile fresh with recent photos and updated interests. The more complete your profile, the better your match quality will be.',
       },
       {
         question: 'How do I change my email or phone?',
@@ -99,7 +99,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: 'How do I reset my password?',
         answer:
-          "On the login screen, tap \"Forgot Password?\" and enter your email address. We'll send you a link to reset your password. If you signed up with a phone number, you can request a verification code instead. For security, the reset link expires after 24 hours.",
+          'On the login screen, tap "Forgot Password?" and enter your email address. We\'ll send you a link to reset your password. If you signed up with a phone number, you can request a verification code instead. For security, the reset link expires after 24 hours.',
       },
       {
         question: 'How do I delete my account?',
@@ -117,7 +117,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: 'How do I block someone?',
         answer:
-          "Go to the person's profile or your conversation with them, tap the \"...\" menu, and select \"Block.\" Blocked users can't see your profile, match with you, or send you messages. You can manage blocked users in Settings > Safety & Blocking. You can unblock users later if you change your mind.",
+          'Go to the person\'s profile or your conversation with them, tap the "..." menu, and select "Block." Blocked users can\'t see your profile, match with you, or send you messages. You can manage blocked users in Settings > Safety & Blocking. You can unblock users later if you change your mind.',
       },
       {
         question: 'How do I report a user?',
@@ -144,7 +144,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: "What's included in Premium?",
         answer:
-          'Crush+ ($9.99/month) includes: see who likes you, unlimited rewinds, 5 Super Likes per day, Passport mode to match anywhere in the world, 1 Profile Boost per month, and no ads. Crush Platinum ($19.99/month) includes everything in Crush+ plus unlimited Super Likes, 5 Boosts per month, Incognito mode, read receipts, advanced filters, and priority support.',
+          'Crush+ ($9.99/month) includes: see who likes you, unlimited rewinds, 7 Super Likes per day, Passport mode to match anywhere in the world, 1 Profile Boost per month, and no ads. Crush Platinum ($19.99/month) includes everything in Crush+ plus 7 Super Likes per day, 5 Boosts per month, Incognito mode, read receipts, advanced filters, and priority support.',
       },
       {
         question: 'How do I cancel my subscription?',
@@ -159,7 +159,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: 'Why was my payment declined?',
         answer:
-          'Common reasons include: insufficient funds, an expired or incorrect card number, your bank blocking the transaction, or a billing address mismatch. Try updating your payment method in your device\'s subscription settings. If the problem persists, contact your bank or card issuer. You can also try a different payment method.',
+          "Common reasons include: insufficient funds, an expired or incorrect card number, your bank blocking the transaction, or a billing address mismatch. Try updating your payment method in your device's subscription settings. If the problem persists, contact your bank or card issuer. You can also try a different payment method.",
       },
     ],
   },
@@ -171,7 +171,7 @@ const helpCategories: HelpCategory[] = [
       {
         question: 'App is running slowly',
         answer:
-          'Try these steps: close and reopen the app, make sure you\'re on the latest version (check your app store for updates), clear the app cache in Settings > Data & Storage, ensure you have a stable internet connection, and restart your device. If the issue persists, try uninstalling and reinstalling the app.',
+          "Try these steps: close and reopen the app, make sure you're on the latest version (check your app store for updates), clear the app cache in Settings > Data & Storage, ensure you have a stable internet connection, and restart your device. If the issue persists, try uninstalling and reinstalling the app.",
       },
       {
         question: "I can't log in",
@@ -206,31 +206,29 @@ export function HelpContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-14">
+    <div className="min-h-screen bg-gray-50 pt-14 dark:bg-gray-900">
       {/* Hero */}
-      <div className="bg-gradient-to-br from-primary to-secondary py-16 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            How can we help?
-          </h1>
-          <p className="text-white/80 text-lg max-w-2xl mx-auto">
+      <div className="bg-gradient-to-br from-primary to-secondary px-4 py-16">
+        <div className="mx-auto max-w-4xl text-center">
+          <h1 className="mb-4 text-3xl font-bold text-white md:text-4xl">How can we help?</h1>
+          <p className="mx-auto max-w-2xl text-lg text-white/80">
             Find answers to common questions or contact our support team.
           </p>
         </div>
       </div>
 
       {/* Categories */}
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        <div className="grid md:grid-cols-2 gap-6">
+      <div className="mx-auto max-w-4xl px-4 py-12">
+        <div className="grid gap-6 md:grid-cols-2">
           {helpCategories.map((category, catIndex) => (
             <div
               key={category.title}
               id={category.id}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700"
+              className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800"
             >
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <category.icon className="w-6 h-6 text-primary" />
+              <div className="mb-4 flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                  <category.icon className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -249,18 +247,18 @@ export function HelpContent() {
                         onClick={() => toggleItem(key)}
                         aria-expanded={isOpen}
                         aria-controls={`help-answer-${key}`}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg flex items-center justify-between group"
+                        className="group flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <span className="pr-2">{item.question}</span>
                         <ChevronRight
-                          className={`w-4 h-4 text-gray-500 group-hover:text-primary flex-shrink-0 transition-transform duration-200 ${
+                          className={`h-4 w-4 flex-shrink-0 text-gray-500 transition-transform duration-200 group-hover:text-primary ${
                             isOpen ? 'rotate-90' : ''
                           }`}
                         />
                       </button>
                       {isOpen && (
                         <div id={`help-answer-${key}`} className="px-3 pb-2">
-                          <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed pl-0.5">
+                          <p className="pl-0.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                             {item.answer}
                           </p>
                         </div>
@@ -274,33 +272,33 @@ export function HelpContent() {
         </div>
 
         {/* Contact Section */}
-        <div className="mt-12 bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <Mail className="w-8 h-8 text-primary" />
+        <div className="mt-12 rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Mail className="h-8 w-8 text-primary" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+          <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
             Still need help?
           </h2>
-          <p className="text-gray-500 mb-6">
+          <p className="mb-6 text-gray-500">
             Our support team is here to help you with any questions.
           </p>
           <a
             href="mailto:support@crush.app"
-            className="inline-flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-full font-medium hover:bg-primary-dark transition-colors"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-medium text-white transition-colors hover:bg-primary-dark"
           >
             Contact Support
           </a>
         </div>
 
         {/* Safety Tips */}
-        <div className="mt-8 bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-6 border border-amber-100 dark:border-amber-800">
+        <div className="mt-8 rounded-2xl border border-amber-100 bg-amber-50 p-6 dark:border-amber-800 dark:bg-amber-900/20">
           <div className="flex items-start gap-4">
-            <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0 mt-1" />
+            <AlertTriangle className="mt-1 h-6 w-6 flex-shrink-0 text-amber-500" />
             <div>
-              <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2">
+              <h3 className="mb-2 font-semibold text-amber-800 dark:text-amber-200">
                 Safety First
               </h3>
-              <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1">
+              <ul className="space-y-1 text-sm text-amber-700 dark:text-amber-300">
                 <li>&bull; Never send money to someone you haven&apos;t met</li>
                 <li>&bull; Meet in public places for first dates</li>
                 <li>&bull; Tell a friend where you&apos;re going</li>

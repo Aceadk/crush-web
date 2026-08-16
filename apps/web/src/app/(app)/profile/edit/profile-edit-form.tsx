@@ -17,6 +17,7 @@ import {
   locationService,
   onboardingService,
   normalizeInterestId,
+  PROFILE_HEIGHT_OPTIONS,
 } from '@crush/core';
 import { Button, Card, cn, Input, Textarea } from '@crush/ui';
 import {
@@ -54,9 +55,10 @@ export default function ProfileEditForm() {
     // Legacy profiles can hold more than MAX_INTERESTS (or duplicates after
     // normalization); the server and rules cap at 5, so trim on load or the
     // save is rejected wholesale.
-    interests: Array.from(
-      new Set(profile?.interests?.map(normalizeInterestId) || [])
-    ).slice(0, MAX_INTERESTS),
+    interests: Array.from(new Set(profile?.interests?.map(normalizeInterestId) || [])).slice(
+      0,
+      MAX_INTERESTS
+    ),
     prompts: profile?.prompts || [],
     location: {
       latitude: profile?.location?.latitude,
@@ -69,7 +71,7 @@ export default function ProfileEditForm() {
       confirmedAt: profile?.location?.confirmedAt,
     },
     lifestyle: {
-      height: profile?.lifestyle?.height || '',
+      height: profile?.lifestyle?.height ?? '',
       education: profile?.school || profile?.lifestyle?.education || '',
       drinking: profile?.lifestyle?.drinking || '',
       smoking: profile?.lifestyle?.smoking || '',
@@ -178,7 +180,7 @@ export default function ProfileEditForm() {
       if (formData.bio !== (profile.bio || '')) return true;
       if (formData.location.city !== (profile.location?.city || '')) return true;
       if (formData.location.country !== (profile.location?.country || '')) return true;
-      if (formData.lifestyle.height !== (profile.lifestyle?.height || '')) return true;
+      if (formData.lifestyle.height !== (profile.lifestyle?.height ?? '')) return true;
       if (formData.lifestyle.education !== (profile.school || profile.lifestyle?.education || ''))
         return true;
       if (formData.lifestyle.drinking !== (profile.lifestyle?.drinking || '')) return true;
@@ -446,7 +448,7 @@ export default function ProfileEditForm() {
       await userService.updateUserProfile(user.uid, {
         prompts: formData.prompts.filter((p) => p.answer.trim()),
         lifestyle: {
-          height: formData.lifestyle.height,
+          height: formData.lifestyle.height === '' ? undefined : formData.lifestyle.height,
           // Canonical school is persisted through saveOnboardingStep above;
           // do not recreate the legacy profile.educationLevel alias.
           education: undefined,
@@ -812,17 +814,27 @@ export default function ProfileEditForm() {
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Height
                   </label>
-                  <Input
+                  <select
                     value={formData.lifestyle.height}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        lifestyle: { ...prev.lifestyle, height: e.target.value },
+                        lifestyle: {
+                          ...prev.lifestyle,
+                          height: e.target.value === '' ? '' : Number(e.target.value),
+                        },
                       }))
                     }
-                    placeholder="e.g. 5'10&quot;"
-                    maxLength={20}
-                  />
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    aria-label="Height"
+                  >
+                    <option value="">Select your height</option>
+                    {PROFILE_HEIGHT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">

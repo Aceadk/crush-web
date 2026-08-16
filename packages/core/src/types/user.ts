@@ -53,6 +53,13 @@ export interface UserProfile {
   lastActive?: string;
   isOnline?: boolean;
   settings?: UserSettings;
+  /**
+   * Server-owned message retention preference (`profile.chatSettings` on the
+   * user doc, written only by the `updateChatSettings` callable). Mirrors the
+   * mobile ChatSettings model so both clients render the same choice. Plus
+   * accounts get 7 days server-side regardless of `extendedRetention`.
+   */
+  chatSettings?: ChatSettings;
   notificationPrefs?: NotificationSettings;
   notificationSettings?: NotificationSettings;
   hasAcceptedTerms: boolean;
@@ -104,17 +111,70 @@ export interface GeoLocation {
 }
 
 export interface LifestyleInfo {
-  height?: string;
+  /** Canonical height in centimetres, matching profile.heightCm on mobile. */
+  height?: number;
   education?: string;
   drinking?: 'yes' | 'no' | 'sometimes' | '';
   smoking?: 'yes' | 'no' | 'sometimes' | '';
   workout?: 'active' | 'sometimes' | 'never' | '';
 }
 
+export const MIN_PROFILE_HEIGHT_CM = 100;
+export const MAX_PROFILE_HEIGHT_CM = 250;
+
+/**
+ * Normalize canonical numeric heights and older web values that were saved as
+ * numeric or feet/inches strings before the profile editor used a picker.
+ */
+export function normalizeProfileHeightCm(value: unknown): number | undefined {
+  let centimeters: number | undefined;
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    centimeters = value;
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+      centimeters = Number(trimmed);
+    } else {
+      const imperial = trimmed.match(/^(\d+)\s*(?:'|ft)\s*(\d{1,2})?\s*(?:"|in)?/i);
+      if (imperial) {
+        const feet = Number(imperial[1]);
+        const inches = Number(imperial[2] ?? 0);
+        if (inches < 12) centimeters = (feet * 12 + inches) * 2.54;
+      }
+    }
+  }
+
+  if (centimeters === undefined) return undefined;
+  const rounded = Math.round(centimeters);
+  return rounded >= MIN_PROFILE_HEIGHT_CM && rounded <= MAX_PROFILE_HEIGHT_CM ? rounded : undefined;
+}
+
+/** Format a centimetre value the same way the mobile height picker presents it. */
+export function formatProfileHeight(heightCm: number): string {
+  const totalInches = Math.round(heightCm / 2.54);
+  const feet = Math.floor(totalInches / 12);
+  const inches = totalInches % 12;
+  return `${feet}'${inches}" (${heightCm} cm)`;
+}
+
+export const PROFILE_HEIGHT_OPTIONS = Array.from(
+  { length: MAX_PROFILE_HEIGHT_CM - MIN_PROFILE_HEIGHT_CM + 1 },
+  (_, index) => {
+    const value = MIN_PROFILE_HEIGHT_CM + index;
+    return { value, label: formatProfileHeight(value) };
+  }
+);
+
 export interface UserPrompt {
   id?: string;
   question: string;
   answer: string;
+}
+
+/** Message retention. Written only by the `updateChatSettings` callable. */
+export interface ChatSettings {
+  extendedRetention: boolean;
 }
 
 export interface UserSettings {

@@ -30,7 +30,7 @@ export default function PremiumSuccessPage() {
   }, [user, refreshProfile]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary/5 to-secondary/5 flex items-center justify-center p-6">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-primary/5 to-secondary/5 p-6">
       {showConfetti && (
         <Confetti
           width={windowSize.width}
@@ -40,38 +40,36 @@ export default function PremiumSuccessPage() {
         />
       )}
 
-      <Card className="max-w-md w-full p-8 text-center">
-        <div className="relative inline-block mb-6">
-          <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-xl">
-            <Crown className="w-12 h-12 text-white" />
+      <Card className="w-full max-w-md p-8 text-center">
+        <div className="relative mb-6 inline-block">
+          <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary shadow-xl">
+            <Crown className="h-12 w-12 text-white" />
           </div>
-          <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-            <CheckCircle className="w-6 h-6 text-white" />
+          <div className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-500 shadow-lg">
+            <CheckCircle className="h-6 w-6 text-white" />
           </div>
         </div>
 
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+        <h1 className="mb-2 text-3xl font-bold text-gray-900 dark:text-white">
           Welcome to Premium!
         </h1>
-        <p className="text-gray-600 dark:text-gray-300 mb-8">
+        <p className="mb-8 text-gray-600 dark:text-gray-300">
           Your subscription is now active. Enjoy all the exclusive features!
         </p>
 
-        <div className="space-y-3 mb-8">
-          <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-xl">
-            <Heart className="w-5 h-5 text-primary" />
+        <div className="mb-8 space-y-3">
+          <div className="flex items-center gap-3 rounded-xl bg-primary/10 p-3">
+            <Heart className="h-5 w-5 text-primary" />
             <span className="text-sm text-gray-700 dark:text-gray-300">
               Unlimited likes unlocked
             </span>
           </div>
-          <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-xl">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <span className="text-sm text-gray-700 dark:text-gray-300">
-              5 Super Likes per day
-            </span>
+          <div className="flex items-center gap-3 rounded-xl bg-primary/10 p-3">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <span className="text-sm text-gray-700 dark:text-gray-300">7 Super Likes per day</span>
           </div>
-          <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-xl">
-            <Crown className="w-5 h-5 text-primary" />
+          <div className="flex items-center gap-3 rounded-xl bg-primary/10 p-3">
+            <Crown className="h-5 w-5 text-primary" />
             <span className="text-sm text-gray-700 dark:text-gray-300">
               All Premium features active
             </span>
@@ -79,19 +77,11 @@ export default function PremiumSuccessPage() {
         </div>
 
         <div className="space-y-3">
-          <Button
-            onClick={() => router.push('/discover')}
-            className="w-full gap-2"
-            size="lg"
-          >
-            <Heart className="w-5 h-5" />
+          <Button onClick={() => router.push('/discover')} className="w-full gap-2" size="lg">
+            <Heart className="h-5 w-5" />
             Start Discovering
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => router.push('/settings')}
-            className="w-full"
-          >
+          <Button variant="outline" onClick={() => router.push('/settings')} className="w-full">
             Manage Subscription
           </Button>
         </div>

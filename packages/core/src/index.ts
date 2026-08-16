@@ -16,7 +16,15 @@ export {
 export type { AppCheckEnvValidation } from './firebase/config';
 
 // Types
-export { DEFAULT_USER_SETTINGS, calculateAge } from './types/user';
+export {
+  DEFAULT_USER_SETTINGS,
+  MAX_PROFILE_HEIGHT_CM,
+  MIN_PROFILE_HEIGHT_CM,
+  PROFILE_HEIGHT_OPTIONS,
+  calculateAge,
+  formatProfileHeight,
+  normalizeProfileHeightCm,
+} from './types/user';
 export type {
   Gender,
   GeoLocation,
@@ -28,7 +36,7 @@ export type {
   UserStats,
 } from './types/user';
 
-export { DEFAULT_DISCOVERY_FILTERS } from './types/match';
+export { DEFAULT_DISCOVERY_FILTERS, isMatchClearedForViewer } from './types/match';
 export type {
   DiscoveryFilters,
   DiscoveryProfile,
@@ -96,7 +104,7 @@ export { getAuthErrorMessage, getAuthErrorKey } from './services/auth_errors';
 export { sanitizeErrorText, errorText } from './utils/errors';
 
 export { matchService } from './services/match';
-export { discoveryDisplayName } from './services/discovery_rest';
+export { discoveryDisplayName, discoveryFiltersFromProfile } from './services/discovery_rest';
 export {
   presenceService,
   isPresenceOnline,

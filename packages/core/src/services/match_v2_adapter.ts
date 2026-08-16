@@ -58,6 +58,10 @@ export const matchServiceV2Adapter = {
     // pinnedForUser.{uid} on the match doc).
     await matchServiceV2.setPinned(matchId, pinned);
   },
+
+  async clearConversation(matchId: string): Promise<string> {
+    return matchServiceV2.clearConversation(matchId);
+  },
 };
 
 export type MatchServiceV2Adapter = typeof matchServiceV2Adapter;

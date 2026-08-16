@@ -141,6 +141,16 @@ export interface SetMatchPinnedRequest {
   pinned: boolean;
 }
 
+export interface ClearConversationRequest {
+  matchId: string;
+}
+
+export interface ClearConversationResponse {
+  ok: boolean;
+  /** ISO timestamp of the watermark the backend just wrote. */
+  clearedAt: string;
+}
+
 export interface SetPresenceStatusRequest {
   isOnline: boolean;
 }
@@ -165,6 +175,19 @@ export interface GetChatMediaSignedUrlRequest {
 
 export interface GetChatMediaSignedUrlResponse {
   url: string;
+}
+
+// Chat Settings (shape verified against functions/src/index.ts updateChatSettings)
+export interface UpdateChatSettingsRequest {
+  extendedRetention: boolean;
+}
+
+export interface UpdateChatSettingsResponse {
+  success: boolean;
+  extendedRetention: boolean;
+  /** Server-resolved retention window; Plus accounts get 7 days regardless. */
+  retentionHours: number;
+  message: string;
 }
 
 // Safety & Moderation (shapes verified against functions/src/index.ts)
@@ -232,6 +255,10 @@ export interface StreakStatusResponse {
   totalAllowed: number; // -1 = unlimited (premium)
   used: number;
   remaining: number; // -1 = unlimited
+  /** Super Like budget, enforced server-side in enforceDailyLikeLimit. */
+  superLikesAllowed: number;
+  superLikesUsed: number;
+  superLikesRemaining: number;
   nextMilestoneDays: number | null;
   nextMilestoneBonus: number | null;
   maintainedToday: boolean;
@@ -257,6 +284,8 @@ export interface BackendMatchDoc {
   status: 'active' | 'unmatched';
   preMatchRequests?: Record<string, number>;
   pinnedForUser?: Record<string, boolean>;
+  /** Per-user "delete chat" watermarks written by clearConversation. */
+  clearedAt?: Record<string, unknown>;
   createdAt?: unknown;
   lastMessageAt?: unknown;
   lastMessageContent?: string | null;
@@ -320,6 +349,16 @@ export const callables = {
   unmatch: (data: UnmatchRequest) => invokeCallable<UnmatchRequest, OkResponse>('unmatch', data),
   setMatchPinned: (data: SetMatchPinnedRequest) =>
     invokeCallable<SetMatchPinnedRequest, OkResponse>('setMatchPinned', data),
+  /**
+   * "Delete chat" — one-sided and non-destructive. Stamps clearedAt.{uid} on
+   * the match doc; the other participant's copy and the match itself are
+   * untouched.
+   */
+  clearConversation: (data: ClearConversationRequest) =>
+    invokeCallable<ClearConversationRequest, ClearConversationResponse>(
+      'clearConversation',
+      data
+    ),
 
   // Chat & Messages
   sendMessage: (data: SendMessageRequest) =>
@@ -341,6 +380,19 @@ export const callables = {
   getChatMediaSignedUrl: (data: GetChatMediaSignedUrlRequest) =>
     invokeCallable<GetChatMediaSignedUrlRequest, GetChatMediaSignedUrlResponse>(
       'getChatMediaSignedUrl',
+      data
+    ),
+
+  /**
+   * Message retention preference. Mirrors the mobile Chat Settings screen:
+   * free accounts choose default (1h after read) vs extended (24h after read);
+   * Plus accounts always get 7 days server-side regardless of this flag.
+   * Writes profile.chatSettings.extendedRetention + the RTDB mirror, so the
+   * choice takes effect for BOTH clients.
+   */
+  updateChatSettings: (data: UpdateChatSettingsRequest) =>
+    invokeCallable<UpdateChatSettingsRequest, UpdateChatSettingsResponse>(
+      'updateChatSettings',
       data
     ),
 

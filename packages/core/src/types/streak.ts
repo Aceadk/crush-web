@@ -34,6 +34,12 @@ export interface LikeLimitInfo {
   used: number;
   // Is user premium (unlimited likes)
   isPremium: boolean;
+  // Super Like budget for today, from the same server counter as likes.
+  // Unlike `remaining`, this is finite for Plus too (a Plus allowance, not
+  // unlimited) — mirrors the mobile app's Super Like entitlement.
+  superLikesAllowed: number;
+  superLikesUsed: number;
+  superLikesRemaining: number;
   // Time until likes reset (ms)
   timeUntilReset: number;
   // Reset time as Date

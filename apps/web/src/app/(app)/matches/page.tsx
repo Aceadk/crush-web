@@ -16,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Heart, MessageCircle, Pin, Search, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ConversationActionsMenu } from '@/components/messages/conversation-actions-menu';
 
 export default function MatchesPage() {
   const { user } = useAuthStore();
@@ -50,10 +51,16 @@ export default function MatchesPage() {
       return true;
     })
     .sort((a, b) => {
-      // Pinned first, then by date
+      // Pinned first, then NEWEST MATCH first.
+      //
+      // This sorted by `updatedAt`, which the V2 mapper derives from
+      // lastMessageAt — so a fresh match sat below an older one that happened
+      // to have a recent message, on the page whose whole subject is who you
+      // matched with. Conversation recency belongs on the messages page.
+      // Mirrors MatchesBloc.sortByMatchRecency on mobile.
       if (a.pinnedForUser && !b.pinnedForUser) return -1;
       if (!a.pinnedForUser && b.pinnedForUser) return 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
   const pinnedCount = matches.filter((m) => m.pinnedForUser).length;
@@ -174,8 +181,10 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
   };
 
   return (
-    <Card className="p-4 transition-shadow hover:shadow-md">
-      <div className="flex items-center gap-4">
+    <Card className="p-3 transition-shadow hover:shadow-md sm:p-4">
+      {/* gap-3 on phones: at 390px the row must fit avatar + text + actions;
+          the desktop gap-4 is restored at sm. */}
+      <div className="flex items-center gap-3 sm:gap-4">
         {/* Avatar */}
         <Link href={`/profile/${match.otherUserId}`}>
           <Avatar size="lg" className="cursor-pointer">
@@ -216,8 +225,11 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
+        {/* Actions. shrink-0 so the buttons can never be crushed by a long
+            name/preview — the text column truncates instead. On phones the
+            standalone pin button is folded into the kebab menu (which already
+            offers Pin/Unpin), leaving Message + menu as the two tap targets. */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <Link href={`/messages/${match.id}`}>
             <Button
               variant="ghost"
@@ -232,7 +244,7 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
             variant="ghost"
             size="icon"
             onClick={onTogglePin}
-            className={cn(match.pinnedForUser && 'text-primary')}
+            className={cn('hidden sm:inline-flex', match.pinnedForUser && 'text-primary')}
             aria-label={
               match.pinnedForUser
                 ? `Unpin ${match.otherUserName || 'user'}`
@@ -241,6 +253,8 @@ function MatchCard({ match, onTogglePin }: MatchCardProps) {
           >
             <Pin className={cn('h-5 w-5', match.pinnedForUser && 'fill-primary')} />
           </Button>
+
+          <ConversationActionsMenu match={match} stopPropagation={false} />
         </div>
       </div>
     </Card>

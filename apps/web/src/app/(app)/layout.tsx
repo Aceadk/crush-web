@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   authVerificationFactsFromUser,
@@ -41,6 +41,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const authFacts = authVerificationFactsFromUser(user);
   const needsEmailVerification = Boolean(user && !isAccountVerified(authFacts));
   const [onboardingChecked, setOnboardingChecked] = useState(false);
+  /**
+   * UID whose onboarding resolve already succeeded and reached discovery.
+   *
+   * Mirrors the mobile warm-start fast path (route_redirect.dart
+   * `cachedComplete`): once an account is known-complete it goes straight into
+   * the app instead of waiting on the resolver again. Without this the gate
+   * below re-ran on EVERY navigation — see the comment on that effect.
+   */
+  const resolvedUidRef = useRef<string | null>(null);
 
   // Note: Auth is initialized globally in AuthInitializer provider
 
@@ -127,8 +136,32 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   // The server resolver is the sole routing gate. Root booleans are legacy
   // discovery mirrors and are intentionally ignored here.
   useEffect(() => {
+    const uid = user?.uid ?? null;
+
+    // Do NOT re-gate a navigation for an account already resolved.
+    //
+    // This effect has `pathname` in its dependencies and used to begin with an
+    // unconditional `setOnboardingChecked(false)`, which makes the layout below
+    // render <AuthLoadingShell /> — blanking the entire app — and then await a
+    // `resolveOnboardingState` Cloud Function round-trip. So every single
+    // in-app navigation (Discover → Matches → Chats → Profile) blanked the UI
+    // and blocked on the network before rendering anything. `user` is also a
+    // dependency and Firebase mutates/reuses that object, so it re-fired on
+    // token refreshes too. That is the app-wide "everything takes a long time
+    // to respond".
+    //
+    // Once resolved for a uid we keep rendering; a real change of account still
+    // falls through to the full gate below.
+    if (uid && resolvedUidRef.current === uid) {
+      setOnboardingChecked(true);
+      return;
+    }
+
     setOnboardingChecked(false);
-    if (!initialized || loading || !user || needsEmailVerification) return;
+    if (!initialized || loading || !user || needsEmailVerification) {
+      if (!uid) resolvedUidRef.current = null;
+      return;
+    }
     const expectedUid = user.uid;
     let cancelled = false;
     void onboardingService
@@ -141,6 +174,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           destination === '/discover' ||
           destination.startsWith('/discover?')
         ) {
+          resolvedUidRef.current = expectedUid;
           setOnboardingChecked(true);
           return;
         }
@@ -207,9 +241,20 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           pt-14 below md reserves space for the fixed mobile menu button
           (app-sidebar: `fixed top-3 left-3`), which otherwise overlaps the
           top-left of every page's content (e.g. the discover "STORIES"
-          heading). Cleared at md+ where the sidebar takes over the layout. */}
-      <main className={`flex-1 ${!isMobile ? 'md:ml-64' : ''}`}>
-        <div className="min-h-screen pt-14 md:pt-0">{children}</div>
+          heading). Cleared at md+ where the sidebar takes over the layout.
+
+          min-w-0 is load-bearing: main is a flex item, and a flex item's
+          default min-width:auto lets ANY descendant with an unshrinkable
+          min-content width (nowrap text, a wide media element) stretch main
+          past the viewport. Every block inside then renders at the stretched
+          width, the whole app pans horizontally on phones, and every
+          `truncate` downstream silently stops clipping — which is exactly the
+          bug this fixes. overflow-x-clip is the belt to that suspender: even a
+          transient overflow (the resize case noted above) can no longer pan
+          the page. `clip` rather than `hidden` so the wrapper is not promoted
+          to a scroll container. */}
+      <main className={`min-w-0 flex-1 ${!isMobile ? 'md:ml-64' : ''}`}>
+        <div className="min-h-screen overflow-x-clip pt-14 md:pt-0">{children}</div>
       </main>
     </div>
   );
